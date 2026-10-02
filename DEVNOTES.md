@@ -3,7 +3,7 @@
 Scrolling combat text for **World of Warcraft: Forever** (interface 16001, client 1.60.x): your hits, heals and misses, the damage you take, and notifications.
 
 - Author: `severd8`. License: MIT.
-- CurseForge project ID: goes in the `.toc` as `X-Curse-Project-ID` once the project exists.
+- CurseForge project ID: `1722502` (in the `.toc` as `X-Curse-Project-ID`).
 - Sister addons: TauntMaster Forever, ToppedOff Forever, Outfitter Forever. This project's setup mirrors ToppedOff's.
 - Written from scratch. It's in the spirit of MikScrollingBattleText, but uses none of its code (MSBT is All Rights Reserved, and its combat log parser can't work on Forever).
 
