@@ -1,0 +1,6 @@
+<!-- Keybindings for BattleText Forever. WoW loads this file automatically.
+     "Start BattleText" presses the Start button (see Core.lua, BuildStartButton). -->
+<Bindings>
+  <Binding name="CLICK BattleTextForeverStart:LeftButton" category="BattleText Forever"/>
+  <Binding name="BATTLETEXTFOREVER_OPTIONS" category="BattleText Forever">BattleTextForever:OpenConfig()</Binding>
+</Bindings>

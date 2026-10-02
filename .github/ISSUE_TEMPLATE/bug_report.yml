@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in BattleText Forever isn't working
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! The more detail you give, the faster it gets fixed.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect to see instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How can it be reproduced?
+      description: The steps that lead to the problem.
+      placeholder: |
+        1. Clicked Start BattleText
+        2. Hit a mob with Claw
+        3. ...
+  - type: dropdown
+    id: class
+    attributes:
+      label: Your class
+      options: [Druid, Hunter, Mage, Paladin, Priest, Rogue, Shaman, Warlock, Warrior]
+    validations:
+      required: true
+  - type: dropdown
+    id: filter
+    attributes:
+      label: Which Combat Log filter is selected?
+      description: The buttons at the top of the Combat Log tab.
+      options: ["My actions", "What happened to me?", "A filter I made", "Not sure"]
+  - type: textarea
+    id: lines
+    attributes:
+      label: Combat lines that weren't shown
+      description: Type /btf debug, fight, and paste the "BattleText (not shown)" lines from chat.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Addon version
+      description: Shown in your AddOns list.
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error message
+      description: If a Lua error appeared, paste the full text here.
+      render: text
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, your game language, other addons you use, etc.

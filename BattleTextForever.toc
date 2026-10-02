@@ -1,0 +1,13 @@
+## Interface: 16001
+## Title: BattleText Forever
+## Notes: Scrolling combat text: your hits, heals and misses, the damage you take, and notifications like loot and experience.
+## Author: severd8
+## Version: @project-version@
+## IconTexture: Interface\AddOns\BattleTextForever\Media\Icon
+## SavedVariables: BattleTextForeverDB
+## X-License: MIT
+## X-Category: Combat
+
+Parse.lua
+Core.lua
+Options.lua

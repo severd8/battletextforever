@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="82 62 348 348"><defs>
+<radialGradient id="bg" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#1f3350"/><stop offset="1" stop-color="#05080f"/></radialGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe89a"/><stop offset=".5" stop-color="#d9a531"/><stop offset="1" stop-color="#8a5a12"/></linearGradient>
+<linearGradient id="hit" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3b0"/><stop offset=".55" stop-color="#ffb21e"/><stop offset="1" stop-color="#ff6a0a"/></linearGradient>
+<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#000" flood-opacity=".7"/></filter>
+</defs>
+<circle cx="256" cy="236" r="170" fill="url(#gold)" stroke="#5a3a06" stroke-width="8"/>
+<circle cx="256" cy="236" r="140" fill="#0d1a2c" stroke="#fff0b0" stroke-width="4"/>
+<g fill="none" stroke-linecap="round" opacity=".55" stroke-width="7">
+<path d="M150 300 Q128 236 160 172" stroke="#ff5a4a"/>
+<path d="M362 300 Q384 236 352 172" stroke="#6fe08a"/>
+</g>
+<g filter="url(#shadow)" font-family="DejaVu Sans" font-weight="bold" text-anchor="middle">
+<text x="196" y="186" font-size="46" fill="#ff5a4a" stroke="#3a0805" stroke-width="2.5">-34</text>
+<text x="326" y="318" font-size="46" fill="#6fe08a" stroke="#06300f" stroke-width="2.5">+61</text>
+<text x="256" y="270" font-size="96" fill="url(#hit)" stroke="#5a1a02" stroke-width="5">128</text>
+</g>
+</svg>
