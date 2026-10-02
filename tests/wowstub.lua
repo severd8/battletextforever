@@ -1,5 +1,17 @@
 -- Minimal WoW API stub for exercising BattleText Forever outside the game.
 -- Methods (CamelCase keys) default to no-ops; lowercase fields read as nil like real frames.
+--
+-- Where it matters, the stub behaves like the game instead of just accepting calls:
+--   * the Combat Log window loads its filter when it's shown, which only works
+--     from the game's own code (a hardware click), never from addon code
+--   * combat log lines only arrive once that has happened and the lines are on
+--   * a secure button's macro runs on mouse down or up (a game setting decides)
+--   * anything an addon must never do is recorded in VIOLATIONS: replacing one of
+--     the game's globals or a script on one of its frames, asking for the combat
+--     log events, calling a Blizzard-only function
+
+local STANDARD = {}   -- what Lua itself provides (everything else below is "the game")
+for k in pairs(_G) do STANDARD[k] = true end
 
 LOG = {}
 local function log(...) local t = {} for i = 1, select("#", ...) do t[#t + 1] = tostring((select(i, ...))) end LOG[#LOG + 1] = table.concat(t, " ") end
@@ -7,8 +19,12 @@ print = function(...) log(...) end
 
 ALL_FRAMES = {}
 BLOCKED = {}          -- protected actions attempted in combat
+VIOLATIONS = {}       -- things an addon must never do
 COMBAT = false
 SECRET_MODE = false
+SECURE = false        -- true while the game's own code runs from a hardware click
+local LOADED = false  -- the stub has finished loading: from here on, callers are the addon or the tests
+local function violation(what) VIOLATIONS[#VIOLATIONS + 1] = what end
 
 -- Secret values: a marker table that errors on arithmetic, ordering, concatenation
 local SecretMT = {}
@@ -68,8 +84,18 @@ function Methods:CreateAnimation() return newObj("Animation", nil, self) end
 function Methods:Play() self.__playing = true end
 function Methods:Stop() self.__playing = false end
 function Methods:IsPlaying() return self.__playing end
-function Methods:Show() protectedCheck(self, "Show") self.__shown = true if self.__scripts.OnShow then self.__scripts.OnShow(self) end end
-function Methods:Hide() protectedCheck(self, "Hide") self.__shown = false end
+function Methods:Show()
+    protectedCheck(self, "Show")
+    local was = self.__shown
+    self.__shown = true
+    if not was and self.__scripts.OnShow then self.__scripts.OnShow(self) end
+end
+function Methods:Hide()
+    protectedCheck(self, "Hide")
+    local was = self.__shown
+    self.__shown = false
+    if was and self.__scripts.OnHide then self.__scripts.OnHide(self) end
+end
 function Methods:SetShown(v) if v then self:Show() else self:Hide() end end
 function Methods:IsShown() return self.__shown end
 function Methods:IsVisible()
@@ -77,12 +103,23 @@ function Methods:IsVisible()
     while f do if f.__shown == false then return false end f = f.__parent end
     return true
 end
-function Methods:SetScript(k, fn) self.__scripts[k] = fn end
+function Methods:SetScript(k, fn)
+    if LOADED and self.__blizzard then violation("SetScript(" .. k .. ") on the game's " .. tostring(self.__name)) end
+    self.__scripts[k] = fn
+end
 function Methods:GetScript(k) return self.__scripts[k] end
+-- The hook runs after the original, as addon code (never as the game's own)
 function Methods:HookScript(k, fn)
     local old = self.__scripts[k]
-    self.__scripts[k] = function(...) if old then old(...) end fn(...) end
+    self.__scripts[k] = function(...)
+        if old then old(...) end
+        local was = SECURE
+        SECURE = false
+        fn(...)
+        SECURE = was
+    end
 end
+function Methods:RegisterForClicks(...) self.__clicks = { ... } end
 function Methods:SetAttribute(k, v) protectedCheck(self, "SetAttribute") self.__attrs[k] = v end
 function Methods:GetAttribute(k) return self.__attrs[k] end
 function Methods:SetText(t)
@@ -117,8 +154,16 @@ function Methods:GetFrameLevel() return 1 end
 function Methods:SetFrameLevel(l) self.__frameLevel = l end
 function Methods:SetSize(w, h) protectedCheck(self, "SetSize") self.__size = { w, h } end
 function Methods:SetValue(v) self.__value = v if self.__scripts.OnValueChanged then self.__scripts.OnValueChanged(self, issecretvalue(v) and 0 or v) end end
-function Methods:SetMinMaxValues(a, b) end
-function Methods:RegisterEvent(e) self.__events = self.__events or {} self.__events[e] = true end
+function Methods:SetMinMaxValues(a, b) self.__min, self.__max = a, b end
+function Methods:RegisterEvent(e)
+    -- WoW: Forever refuses these to addons
+    if e == "COMBAT_LOG_EVENT" or e == "COMBAT_LOG_EVENT_UNFILTERED" then
+        violation("RegisterEvent(" .. e .. ")")
+        error("Attempt to register for a restricted event: " .. e)
+    end
+    self.__events = self.__events or {}
+    self.__events[e] = true
+end
 function Methods:RegisterUnitEvent(e) self.__events = self.__events or {} self.__events[e] = true end
 function Methods:SetAlpha(a) self.__alpha = a end
 function Methods:GetFontString() return nil end
@@ -138,10 +183,13 @@ STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
 -- Game state the tests set up
 STATE = {
     xp = 100, xpMax = 1000,
-    pet = false,
+    pet = false,                  -- you have a pet out
+    filterApplied = false,        -- the Combat Log window has loaded its filter (lines can flow)
+    logBroken = false,            -- an addon tried to load the filter: the game's combat log is broken until /reload
+    useKeyDown = false,           -- the "act on key down" game setting
     cvars = { enableFloatingCombatText = "1", floatingCombatTextCombatDamage = "1", floatingCombatTextCombatHealing = "1" },
     filteredEvents = false,       -- C_CombatLog.SetFilteredEventsEnabled
-    spellIcons = { Claw = 132140, Moonfire = 136096 },
+    spellIcons = { [16827] = 132140, [8921] = 136096 },   -- by spell ID
 }
 
 FAKE_TIME = 1000
@@ -150,6 +198,12 @@ function InCombatLockdown() return COMBAT end
 function UnitXP() return STATE.xp end
 function UnitXPMax() return STATE.xpMax end
 function UnitExists(unit) return unit == "pet" and STATE.pet or unit == "player" end
+function UnitGUID(unit)
+    if unit == "player" then return "Player-5555-0ABCDEF1" end
+    if unit == "pet" and STATE.pet then return "Pet-0-1-2-3-4-000002" end
+    return nil
+end
+function UnitPowerType() return 1, "RAGE" end
 function GetCVar(name) return STATE.cvars[name] end
 function SetCVar(name, value) STATE.cvars[name] = tostring(value) end
 function GetCursorPosition() return 10, 10 end
@@ -163,7 +217,7 @@ end
 TIMERS, TICKERS = {}, {}
 C_Timer = {
     After = function(delay, fn) TIMERS[#TIMERS + 1] = { at = FAKE_TIME + delay, fn = fn } end,
-    NewTicker = function(_, fn) TICKERS[#TICKERS + 1] = fn end,
+    NewTicker = function(every, fn) TICKERS[#TICKERS + 1] = { every = every, at = FAKE_TIME + every, fn = fn } end,
 }
 -- Moves time forward in small steps, firing timers and every frame's OnUpdate
 function Advance(seconds)
@@ -176,23 +230,38 @@ function Advance(seconds)
             if TIMERS[i].at <= FAKE_TIME + 1e-9 then table.insert(due, 1, table.remove(TIMERS, i)) end
         end
         for _, t in ipairs(due) do t.fn() end
+        for _, t in ipairs(TICKERS) do
+            if t.at <= FAKE_TIME + 1e-9 then
+                t.at = t.at + t.every
+                t.fn()
+            end
+        end
         for _, f in ipairs(ALL_FRAMES) do
             if f.__scripts and f.__scripts.OnUpdate then f.__scripts.OnUpdate(f, step) end
         end
     end
 end
 
+-- Loading the Combat Log's filter. Only the game's own code may: from addon
+-- code the call is blocked, and the game's combat log errors until /reload.
+local function ApplyFilterSettings()
+    if SECURE then
+        STATE.filterApplied = true
+    else
+        violation("C_CombatLog.ApplyFilterSettings from addon code")
+        STATE.logBroken = true
+    end
+end
 C_CombatLog = {
     SetFilteredEventsEnabled = function(on) STATE.filteredEvents = on end,
     AreFilteredEventsEnabled = function() return STATE.filteredEvents end,
-    -- Blizzard only: an addon calling this breaks the game's combat log
-    ApplyFilterSettings = function() error("ApplyFilterSettings is only available to the Blizzard UI") end,
+    ApplyFilterSettings = ApplyFilterSettings,
 }
 Enum = { CombatLogMessageOrder = { Newest = 0, Oldest = 1 } }
-C_Spell = { GetSpellTexture = function(name) return STATE.spellIcons[name] end }
+C_Spell = { GetSpellTexture = function(spell) return STATE.spellIcons[spell] end }
 C_Item = { GetItemIconByID = function(id) return 134000 + id end }
 
--- The Combat Log window, and the chat tabs
+-- The chat tabs, and the Combat Log window behind the second one
 ChatFrame1 = newObj("ScrollingMessageFrame", "ChatFrame1")
 ChatFrame2 = newObj("ScrollingMessageFrame", "ChatFrame2")
 ChatFrame2.__shown = false
@@ -200,15 +269,91 @@ COMBATLOG = ChatFrame2
 ChatFrame1Tab = newObj("Button", "ChatFrame1Tab")
 ChatFrame2Tab = newObj("Button", "ChatFrame2Tab")
 SELECTED_DOCK_FRAME = ChatFrame1
+-- What Blizzard's Combat Log does when its window shows and hides
+ChatFrame2.__scripts.OnShow = function()
+    C_CombatLog.SetFilteredEventsEnabled(true)
+    ApplyFilterSettings()
+end
+ChatFrame2.__scripts.OnHide = function() C_CombatLog.SetFilteredEventsEnabled(false) end
+-- Clicking a tab shows its window and hides the other
+local GAME   -- the game's globals (filled in at the end of this file)
+local function TabClick(tab, button)
+    if button ~= "LeftButton" then return end
+    local show = tab == ChatFrame2Tab and ChatFrame2 or ChatFrame1
+    local hide = show == ChatFrame1 and ChatFrame2 or ChatFrame1
+    GAME.SELECTED_DOCK_FRAME = show
+    hide:Hide()
+    show:Show()
+end
+ChatFrame1Tab.__scripts.OnClick = TabClick
+ChatFrame2Tab.__scripts.OnClick = TabClick
 
--- The game's text for loot (the combat words use Parse.lua's built-in English)
-LOOT_ITEM_SELF = "You receive loot: %s."
-LOOT_ITEM_SELF_MULTIPLE = "You receive loot: %sx%d."
-LOOT_ITEM_PUSHED_SELF = "You receive item: %s."
-LOOT_ITEM_CREATED_SELF = "You create: %s."
+-- A real click on a button: mouse down, then up. A secure button's macro runs
+-- on one of the two (the "act on key down" setting decides which), as the
+-- game's own code, and only if the button is listening for that half of the click.
+function ClickButton(b)
+    for _, down in ipairs({ true, false }) do
+        local wanted = down and "AnyDown" or "AnyUp"
+        local listening = false
+        for _, c in ipairs(b.__clicks or { "LeftButtonUp" }) do
+            if c == wanted or c == (down and "LeftButtonDown" or "LeftButtonUp") then listening = true end
+        end
+        if listening then
+            if b.__scripts.PreClick then b.__scripts.PreClick(b, "LeftButton", down) end
+            if b.__protected and down == STATE.useKeyDown and b.__attrs.type == "macro" then
+                SECURE = true
+                for name in (b.__attrs.macrotext or ""):gmatch("/click ([^\n]+)") do
+                    local target = _G[name]
+                    if target and target.__scripts.OnClick then target.__scripts.OnClick(target, "LeftButton", false) end
+                end
+                SECURE = false
+            end
+            if b.__scripts.OnClick then b.__scripts.OnClick(b, "LeftButton", down) end
+            if b.__scripts.PostClick then b.__scripts.PostClick(b, "LeftButton", down) end
+        end
+    end
+end
 
 Secret = secret   -- tests make hidden values with Secret(123)
 function Methods:SetFont(path, size, flags) self.__font = { path, size, flags } return true end
 function Methods:SetTextColor(r, g, b) self.__color = { r, g, b } end
 function Methods:SetScale(s) self.__scale = s end
 function Methods:SetJustifyH(j) self.__justify = j end
+
+-- The game's English text (the same words the real client uses)
+dofile((ADDON_DIR or ".") .. "/tests/strings_enus.lua")
+
+-- Everything defined above that isn't a test control is the game's. An addon
+-- may read it and add to its tables, but never replace it.
+local TEST = { LOG = 1, ALL_FRAMES = 1, BLOCKED = 1, VIOLATIONS = 1, COMBAT = 1, SECRET_MODE = 1, SECURE = 1,
+    STUB_METHODS = 1, STATE = 1, FAKE_TIME = 1, TIMERS = 1, TICKERS = 1, Advance = 1, Secret = 1, newObj = 1,
+    ClickButton = 1, WithoutGameText = 1 }
+GAME = {}
+for k, v in pairs(_G) do
+    if not STANDARD[k] and not TEST[k] then GAME[k] = v end
+end
+for k in pairs(GAME) do rawset(_G, k, nil) end
+setmetatable(_G, {
+    __index = GAME,
+    __newindex = function(t, k, v)
+        if GAME[k] ~= nil then
+            violation("assigned the game's global " .. tostring(k))
+            GAME[k] = v
+        else
+            rawset(t, k, v)
+        end
+    end,
+})
+for _, f in ipairs(ALL_FRAMES) do f.__blizzard = true end
+
+-- Runs fn with none of the game's text available (a missing or odd-language client)
+function WithoutGameText(fn)
+    local hidden = {}
+    for k, v in pairs(GAME) do
+        if type(v) == "string" and k ~= "STANDARD_TEXT_FONT" then hidden[k] = v; GAME[k] = nil end
+    end
+    local ok, err = pcall(fn)
+    for k, v in pairs(hidden) do GAME[k] = v end
+    if not ok then error(err, 0) end
+end
+LOADED = true

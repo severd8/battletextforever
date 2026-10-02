@@ -48,7 +48,7 @@ local SCHOOL_KEYS = {
 local DEFAULTS = {
     enabled = true,
     locked = true,
-    font = "Friz Quadrata",
+    font = "Default",
     fontSize = 20,
     critScale = 150,          -- crits, as a percent of the text size
     scrollTime = 3,           -- seconds a line takes to cross its area
@@ -75,7 +75,9 @@ local DEFAULTS = {
 }
 BT.DEFAULTS = DEFAULTS
 
+-- "Default" is the game's own font for your language
 BT.FONTS = {
+    { name = "Default" },
     { name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
     { name = "Arial Narrow", path = "Fonts\\ARIALN.TTF" },
     { name = "Morpheus", path = "Fonts\\MORPHEUS.TTF" },
@@ -143,9 +145,9 @@ end
 ---------------------------------------------------------------------------
 function BT:FontPath()
     for _, f in ipairs(self.FONTS) do
-        if f.name == self.db.font then return f.path end
+        if f.name == self.db.font and f.path then return f.path end
     end
-    return self.FONTS[1].path
+    return Str(STANDARD_TEXT_FONT) or "Fonts\\FRIZQT__.TTF"
 end
 
 function BT:BuildAreas()
@@ -155,7 +157,6 @@ function BT:BuildAreas()
         a:SetFrameStrata("HIGH")
         a.key, a.def = key, def
         a.active, a.pool, a.recent = {}, {}, {}
-        a.nextStart = 0
 
         -- Shown while unlocked: a box to drag
         local mover = CreateFrame("Frame", nil, a)
@@ -187,6 +188,12 @@ end
 
 function BT:AreaHeight(a)
     return a.def.short and math.floor(self.db.height * 0.45) or self.db.height
+end
+
+-- Seconds a line takes to cross an area
+function BT:ScrollTime(a)
+    if a.def.short then return math.max(1.5, self.db.scrollTime * 0.7) end
+    return self.db.scrollTime
 end
 
 -- Size, place and (un)lock the areas from the settings
@@ -240,7 +247,8 @@ end
 --   opts.crit    bigger, and sticky if that's turned on
 --   opts.key     lines with the same key that arrive together add up (needs opts.amount)
 --   opts.format  how to write a merged line: function(total, count) -> text
---   opts.secret  a value the addon can't read; shown as "prefix<value>" by the game itself
+--   opts.secret  a value the addon can't read; the game itself writes it after the
+--                text (and opts.after follows it)
 function BT:Emit(areaKey, text, color, opts)
     local a = self.areas and self.areas[areaKey]
     if not a or not (self.db.enabled or self.testing) then return end
@@ -264,14 +272,14 @@ function BT:Emit(areaKey, text, color, opts)
         o.text:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
     end
     if opts.secret ~= nil then
-        o.text:SetFormattedText("%s%s", text, opts.secret)
+        o.text:SetFormattedText("%s%s%s", text, opts.secret, opts.after or "")
     else
         o.text:SetText(text)
     end
     o.text:SetTextColor(color[1], color[2], color[3])
     o.size = size
     o.sticky = opts.crit and self.db.sticky or false
-    o.key = opts.key
+    o.key = nil
     -- Scrolling lines grow away from the middle of the screen. A crit that holds
     -- grows the other way, so it never sits on top of them.
     local anchor = a.def.justify
@@ -285,26 +293,39 @@ function BT:Emit(areaKey, text, color, opts)
 
     if o.sticky then
         o.start, o.duration = now, 1.7
-        -- Stack above any crit already holding
-        local slot = 0
+        -- The lowest free place among the crits still holding
+        local taken = {}
         for _, other in ipairs(a.active) do
-            if other.sticky and now - other.start < other.duration then slot = math.max(slot, other.slot + 1) end
+            if other.sticky and now - other.start < other.duration then taken[other.slot] = true end
         end
+        local slot = 0
+        while taken[slot] do slot = slot + 1 end
         o.slot = slot
     else
+        local duration = self:ScrollTime(a)
+        local speed = self:AreaHeight(a) / duration
         -- Keep a line's height between this one and the one before
-        local speed = self:AreaHeight(a) / self.db.scrollTime
-        local gap = (size + 2) / speed
-        local start = math.max(now, a.nextStart)
-        if start - now > MAX_DELAY then start = now + MAX_DELAY end
-        a.nextStart = start + gap
-        o.start, o.duration = start, self.db.scrollTime
-        if a.def.short then o.duration = math.max(1.5, self.db.scrollTime * 0.7) end
+        local start = now
+        if a.lastStart then
+            start = math.max(now, a.lastStart + (math.max(size, a.lastSize) + 2) / speed)
+        end
+        -- Crowded: rather than keep this line waiting, the lines ahead of it move along
+        local over = (start - now) - MAX_DELAY
+        if over > 0 then
+            for _, other in ipairs(a.active) do
+                if not other.sticky then other.start = other.start - over end
+            end
+            start = start - over
+        end
+        a.lastStart, a.lastSize = start, size
+        o.start, o.duration = start, duration
     end
     o:SetAlpha(0)
     o:Show()
     a.active[#a.active + 1] = o
-    if opts.key and opts.amount then
+    -- Only a plain scrolling line can be added to later (a crit keeps its own number)
+    if opts.key and opts.amount and not opts.crit then
+        o.key = opts.key
         a.recent[opts.key] = { line = o, time = now, total = opts.amount, count = 1 }
     end
     return o
@@ -364,7 +385,7 @@ function BT:SchoolColor(unit)
     return unit and self.schools[unit:lower()]
 end
 
--- A spell's icon as text, if you know the spell
+-- A spell's icon as text, by its ID or name
 function BT:IconText(spell)
     if not self.db.icons or not spell then return "" end
     self.iconCache = self.iconCache or {}
@@ -373,14 +394,14 @@ function BT:IconText(spell)
         cached = false
         if C_Spell and C_Spell.GetSpellTexture then
             local ok, tex = pcall(C_Spell.GetSpellTexture, spell)
-            if ok and tex and not IsSecret(tex) then cached = "|T" .. tex .. ":0|t " end
+            if ok and not IsSecret(tex) and tex then cached = "|T" .. tex .. ":0|t " end
         end
         self.iconCache[spell] = cached
     end
     return cached or ""
 end
 
--- "(3 Blocked)" style notes after a number
+-- "(3 blocked)" style notes after a number
 local function Partials(info)
     local parts = {}
     if info.blocked then parts[#parts + 1] = Commas(info.blocked) .. " blocked" end
@@ -392,115 +413,172 @@ local function Partials(info)
     return " |cffb0b0b0(" .. table.concat(parts, ", ") .. ")|r"
 end
 
+-- The game's own short word for a way of missing: "Dodge", "Parry"
+local MISS_TEXT = { MISS = "Miss", DODGE = "Dodge", PARRY = "Parry", BLOCK = "Block", RESIST = "Resist",
+    ABSORB = "Absorb", IMMUNE = "Immune", EVADE = "Evade", DEFLECT = "Deflect", REFLECT = "Reflect",
+    MISFIRE = "Misfire" }
+local function MissText(missType)
+    missType = missType or "MISS"
+    return Str(_G[missType]) or MISS_TEXT[missType] or MISS_TEXT.MISS
+end
+BT.MissText = MissText
+
 function BT:SpellLabel(info)
     if info.spell and self.db.spellNames then return info.spell end
     return nil
 end
 
--- One parsed combat log line (see Parser:Parse)
+-- Your pet's line: the one who did it is your pet (the line's link says who)
+function BT:IsPetLine(info)
+    if info.fromMe or not info.srcGUID or not UnitGUID then return false end
+    local ok, guid = pcall(UnitGUID, "pet")
+    guid = ok and Str(guid) or nil
+    return guid ~= nil and guid == info.srcGUID
+end
+
+-- What happens to you comes from UNIT_COMBAT, unless the combat log is
+-- delivering it (the player picked a filter that includes it). fromLog[what]
+-- counts the UNIT_COMBAT events since the log last delivered one: after three
+-- with nothing from the log, the filter has changed and UNIT_COMBAT takes over.
+function BT:NoteLogIncoming(what)
+    self.fromLog = self.fromLog or {}
+    self.fromLog[what] = 0
+end
+
+function BT:LogCovers(what)
+    local n = self.fromLog and self.fromLog[what]
+    if not n then return false end
+    if n >= 3 then
+        self.fromLog[what] = nil
+        return false
+    end
+    self.fromLog[what] = n + 1
+    return true
+end
+
+function BT:LogDelivers(what)
+    return self.fromLog ~= nil and self.fromLog[what] ~= nil
+end
+
+-- One parsed combat log line (see Parser:Parse). Returns true if it's a kind
+-- of line BattleText shows (even if a setting hides it), false if not.
 function BT:ShowCombat(info)
     local db, C = self.db, self.TEXT_COLORS
     local name = self:SpellLabel(info)
-    local icon = self:IconText(info.spell)
+    local icon = self:IconText(info.spellId or info.spell)
+    local mine = info.fromMe == true
+    local pet = not mine and self:IsPetLine(info)
+    local outLabel = icon .. (name and (name .. " ") or "") .. (pet and "(Pet) " or "")
 
-    if info.kind == "damage" and info.amount then
-        if info.toMe and not info.fromMe then
-            self:NoteLogIncoming()
-            if not db.inDamage then return end
-            local text = "-" .. Commas(info.amount) .. (name and (" " .. name) or "") .. Partials(info)
-            self:Emit("incoming", text, C.inDamage, { crit = info.crit or info.crushing })
-        elseif info.fromMe or self:IsPetLine(info) then
-            if not db.outDamage or info.amount < db.minDamage then return end
-            local pet = not info.fromMe
-            local label = icon .. (name and (name .. " ") or "") .. (pet and "(Pet) " or "")
-            local tail = Partials(info)
+    if info.kind == "damage" then
+        if not info.amount then return false end
+        if info.toMe then
+            -- Damage you do to yourself is in the log either way; UNIT_COMBAT shows it
+            if mine and not self:LogDelivers("damage") then return true end
+            if not mine then self:NoteLogIncoming("damage") end
+            if db.inDamage then
+                local text = "-" .. Commas(info.amount) .. (name and (" " .. name) or "") .. Partials(info)
+                self:Emit("incoming", text, C.inDamage, { crit = info.crit or info.crushing })
+            end
+            return true
+        elseif (mine or pet) and not info.split then
+            if pet and not db.outPet then return true end
+            if not db.outDamage or info.amount < db.minDamage then return true end
             local color = (info.spell and (self:SchoolColor(info.unit) or C.spell)) or C.melee
-            self:Emit("outgoing", label .. Commas(info.amount) .. tail, color, {
+            self:Emit("outgoing", outLabel .. Commas(info.amount) .. Partials(info), color, {
                 crit = info.crit,
-                key = (pet and "pet:" or "") .. (info.spell or "melee"),
+                key = (pet and "pet:" or "") .. (info.spellId or info.spell or "melee"),
                 amount = info.amount,
                 format = function(total, count)
-                    return label .. Commas(total) .. " |cffb0b0b0(x" .. count .. ")|r"
+                    return outLabel .. Commas(total) .. " |cffb0b0b0(x" .. count .. ")|r"
                 end,
             })
+            return true
         end
-    elseif info.kind == "heal" and info.amount then
+    elseif info.kind == "heal" then
+        if not info.amount then return false end
         local over = info.overheal and (" |cffb0b0b0(" .. Commas(info.overheal) .. " over)|r") or ""
+        local nothing = info.amount == 0 and info.overheal   -- all of it was overhealing
         if info.toMe then
-            if not info.fromMe then self:NoteLogIncoming() end
-            self.lastSelfHeal = GetTime()
-            if not db.inHeals then return end
-            if info.amount == 0 and info.overheal then return end
-            self:Emit("incoming", "+" .. Commas(info.amount) .. (name and (" " .. name) or "") .. over, C.heal,
-                { crit = info.crit })
-        elseif info.fromMe then
-            if not db.outHeals then return end
-            if info.amount == 0 and info.overheal then return end
-            self:Emit("outgoing", icon .. (name and (name .. " ") or "") .. "+" .. Commas(info.amount) .. over,
-                C.heal, { crit = info.crit })
+            if mine then self.lastSelfHeal = GetTime() else self:NoteLogIncoming("heal") end
+            if nothing then return true end
+            if db.inHeals then
+                self:Emit("incoming", "+" .. Commas(info.amount) .. (name and (" " .. name) or "") .. over, C.heal,
+                    { crit = info.crit })
+            elseif mine and db.outHeals then
+                self:Emit("outgoing", outLabel .. "+" .. Commas(info.amount) .. over, C.heal, { crit = info.crit })
+            end
+            return true
+        elseif mine or pet then
+            if pet and not db.outPet then return true end
+            if db.outHeals and not nothing then
+                self:Emit("outgoing", outLabel .. "+" .. Commas(info.amount) .. over, C.heal, { crit = info.crit })
+            end
+            return true
         end
     elseif info.kind == "miss" then
-        local word = info.missText or Str(_G.MISS) or "Miss"
-        if info.toMe and not info.fromMe then
-            self:NoteLogIncoming()
-            if db.inMisses then self:Emit("incoming", word .. (name and (" " .. name) or ""), C.inAvoid) end
-        elseif info.fromMe or self:IsPetLine(info) then
-            if db.outMisses then self:Emit("outgoing", icon .. (name and (name .. " ") or "") .. word, C.miss) end
+        local word = MissText(info.missType)
+        if info.toMe then
+            if not mine then self:NoteLogIncoming("miss") end
+            if db.inMisses and not mine then
+                self:Emit("incoming", word .. (name and (" " .. name) or ""), C.inAvoid)
+            end
+            return true
+        elseif mine or pet then
+            if pet and not db.outPet then return true end
+            if db.outMisses then self:Emit("outgoing", outLabel .. word, C.miss) end
+            return true
         end
-    elseif info.kind == "energize" and info.amount and info.toMe then
-        if db.inPower then
-            self:Emit("incoming", "+" .. Commas(info.amount) .. " " .. (info.unit or ""), C.power)
+    elseif info.kind == "energize" then
+        if not info.amount then return false end
+        if info.toMe then
+            self:NoteLogIncoming("power")
+            if db.inPower then
+                self:Emit("incoming", "+" .. Commas(info.amount) .. (info.unit and (" " .. info.unit) or ""), C.power)
+            end
+            return true
         end
-    elseif info.kind == "kill" and info.fromMe then
-        if db.nKill then self:Emit("notify", "Killing blow!", C.combat, { crit = true }) end
+    elseif info.kind == "kill" then
+        if mine then
+            if db.nKill then self:Emit("notify", "Killing blow!", C.combat, { crit = true }) end
+            return true
+        end
     end
+    return false
 end
 
--- A line that's neither by you nor at you is your pet's (the game's default
--- filters only show you and your pet)
-function BT:IsPetLine(info)
-    if info.fromMe or info.toMe or not self.db.outPet then return false end
-    return UnitExists ~= nil and UnitExists("pet") == true
+-- UNIT_COMBAT for yourself: damage, heals and power you take, with no spell
+-- names. Used for whatever the combat log isn't delivering.
+local function PowerName()
+    if not UnitPowerType then return nil end
+    local ok, _, token = pcall(UnitPowerType, "player")
+    token = ok and Str(token) or nil
+    return token and Str(_G[token]) or nil
 end
-
--- The combat log is delivering what happens to you (the player picked a filter
--- that includes it), so UNIT_COMBAT isn't needed for that
-function BT:NoteLogIncoming()
-    self.logIncoming = true
-    self.unitMisses = 0
-end
-
--- UNIT_COMBAT for yourself: damage and heals you take, when the combat log
--- isn't showing them
-local UNIT_AVOID = { MISS = "Miss", DODGE = "Dodge", PARRY = "Parry", BLOCK = "Block", RESIST = "Resist",
-    ABSORB = "Absorb", IMMUNE = "Immune", EVADE = "Evade", DEFLECT = "Deflect", REFLECT = "Reflect" }
 
 function BT:OnUnitCombat(unit, action, flag, amount)
     if Str(unit) ~= "player" then return end
     action, flag = Str(action), Str(flag)
     if not action then return end
-    if self.logIncoming then
-        -- Still true? Three hits in a row with no line from the log means the
-        -- filter no longer includes what happens to you.
-        self.unitMisses = (self.unitMisses or 0) + 1
-        if self.unitMisses <= 3 then return end
-        self.logIncoming = false
-    end
     local db, C = self.db, self.TEXT_COLORS
     local crit = flag == "CRITICAL" or flag == "CRUSHING"
     local secret = IsSecret(amount)
     local n = Num(amount)
     if action == "WOUND" then
-        if not db.inDamage then return end
-        if secret then
-            self:Emit("incoming", "-", C.inDamage, { crit = crit, secret = amount })
-        elseif n and n > 0 then
-            self:Emit("incoming", "-" .. Commas(n), C.inDamage, { crit = crit })
-        elseif flag and UNIT_AVOID[flag] and db.inMisses then
-            self:Emit("incoming", Str(_G[flag]) or UNIT_AVOID[flag], C.inAvoid)
+        if secret or (n and n > 0) then
+            if self:LogCovers("damage") or not db.inDamage then return end
+            if secret then
+                self:Emit("incoming", "-", C.inDamage, { crit = crit, secret = amount })
+            else
+                self:Emit("incoming", "-" .. Commas(n), C.inDamage, { crit = crit })
+            end
+        else
+            -- No damage: fully absorbed, blocked or resisted, or a plain miss
+            if self:LogCovers("miss") or not db.inMisses then return end
+            self:Emit("incoming", MissText(flag and MISS_TEXT[flag] and flag or "MISS"), C.inAvoid)
         end
     elseif action == "HEAL" then
-        if not db.inHeals then return end
+        if self:LogCovers("heal") or not db.inHeals then return end
         -- Your own heals on yourself also come from the combat log, with the
         -- spell's name. Wait a moment to see whether this is one of those.
         local function show()
@@ -512,28 +590,42 @@ function BT:OnUnitCombat(unit, action, flag, amount)
             end
         end
         if C_Timer and C_Timer.After then C_Timer.After(0.25, show) else show() end
-    elseif UNIT_AVOID[action] then
-        if db.inMisses then self:Emit("incoming", Str(_G[action]) or UNIT_AVOID[action], C.inAvoid) end
+    elseif action == "ENERGIZE" then
+        if self:LogCovers("power") or not db.inPower then return end
+        local power = PowerName()
+        power = power and (" " .. power) or ""
+        if secret then
+            -- The amount goes last, so the game can fill it in
+            self:Emit("incoming", "+", C.power, { secret = amount, after = power })
+        elseif n and n > 0 then
+            self:Emit("incoming", "+" .. Commas(n) .. power, C.power)
+        end
+    elseif MISS_TEXT[action] then
+        if self:LogCovers("miss") or not db.inMisses then return end
+        self:Emit("incoming", MissText(action), C.inAvoid)
     end
 end
 
 -- A finished combat log line from the game
 function BT:OnCombatLogMessage(message, _, _, _, order)
-    self.started = true
-    self:UpdateStartButton()
     -- Old lines replayed when the Combat Log window refills aren't news
     local oldest = Enum and Enum.CombatLogMessageOrder and Enum.CombatLogMessageOrder.Oldest
-    if oldest ~= nil and order == oldest then return end
+    if oldest ~= nil and not IsSecret(order) and order == oldest then return end
+    if not self.started then
+        self.started = true   -- the lines are flowing
+        self:UpdateStartButton()
+    end
+    if not self.db.enabled then return end
     if IsSecret(message) then
         -- The game is hiding the text. It can still be shown, just not read.
         if self.db.outDamage then self:Emit("outgoing", "", self.TEXT_COLORS.melee, { secret = message }) end
         return
     end
     local info = Parser:Parse(message)
-    if info then
-        self:ShowCombat(info)
-    elseif self.db.debug and Str(message) then
-        print("|cff888888BattleText (not shown):|r " .. message)
+    local shown = info ~= nil and self:ShowCombat(info)
+    if self.db.debug and Str(message) then
+        -- The line exactly as the game sent it, links and all, for bug reports
+        print("|cff888888BattleText " .. (shown and "read" or "skipped") .. ":|r " .. message:gsub("|", "||"))
     end
 end
 
@@ -555,26 +647,43 @@ function BT:OnXP()
     if gained > 0 then self:Notify("+" .. Commas(gained) .. " XP", self.TEXT_COLORS.xp) end
 end
 
+-- A game sentence like "You receive loot: %sx%d." as a pattern that matches it
+local function SentencePattern(fmt)
+    local p = fmt:gsub("%%%d*%$?s", "\1"):gsub("%%%d*%$?d", "\2")
+    p = p:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")
+    p = p:gsub("\1", "(.+)"):gsub("\2", "(%%d+)")
+    return "^" .. p
+end
+
 -- "You receive loot: [Linen Cloth]x2." -> "+2 [Linen Cloth]"
+local LOOT_KEYS = { "LOOT_ITEM_SELF_MULTIPLE", "LOOT_ITEM_SELF", "LOOT_ITEM_PUSHED_SELF_MULTIPLE", "LOOT_ITEM_PUSHED_SELF",
+    "LOOT_ITEM_CREATED_SELF_MULTIPLE", "LOOT_ITEM_CREATED_SELF" }
+local LOOT_FALLBACK = { LOOT_ITEM_SELF = "You receive loot: %s", LOOT_ITEM_PUSHED_SELF = "You receive item: %s",
+    LOOT_ITEM_CREATED_SELF = "You create: %s" }
 function BT:OnLoot(message)
     message = Str(message)
     if not message or not self.db.nLoot then return end
-    -- Only your own loot: the game's sentence for it starts the line
+    -- Only your own loot: the line is one of the game's sentences for it
+    if not self.lootPatterns then
+        self.lootPatterns = {}
+        for _, key in ipairs(LOOT_KEYS) do
+            local fmt = Str(_G[key]) or LOOT_FALLBACK[key]
+            if fmt then self.lootPatterns[#self.lootPatterns + 1] = SentencePattern(fmt) end
+        end
+    end
     local mine = false
-    for _, key in ipairs({ "LOOT_ITEM_SELF", "LOOT_ITEM_PUSHED_SELF", "LOOT_ITEM_CREATED_SELF" }) do
-        local fmt = Str(_G[key])
-        local lead = fmt and fmt:match("^(.-)%%")
-        if lead and lead ~= "" and message:sub(1, #lead) == lead then mine = true break end
+    for _, pattern in ipairs(self.lootPatterns) do
+        if message:find(pattern) then mine = true break end
     end
     if not mine then return end
-    local link = message:match("(|c%x+|Hitem:.-|h.-|h|r)") or message:match("(|Hitem:.-|h.-|h)")
+    local link = message:match("(|c[^|]*|Hitem:.-|h.-|h|r)") or message:match("(|Hitem:.-|h.-|h)")
     if not link then return end
     local count = tonumber(message:match("|h|r?x(%d+)")) or 1
     local icon = ""
     local id = tonumber(link:match("|Hitem:(%d+)"))
     if id and self.db.icons and C_Item and C_Item.GetItemIconByID then
         local ok, tex = pcall(C_Item.GetItemIconByID, id)
-        if ok and tex and not IsSecret(tex) then icon = "|T" .. tex .. ":0|t " end
+        if ok and not IsSecret(tex) and tex then icon = "|T" .. tex .. ":0|t " end
     end
     self:Notify(icon .. "+" .. count .. " " .. link, self.TEXT_COLORS.loot)
 end
@@ -595,6 +704,10 @@ end
 -- one click on the Start button opens and closes the Combat Log tab, and from
 -- then on BattleText keeps the lines coming.
 ---------------------------------------------------------------------------
+function BT:CombatLogFrame()
+    return _G.COMBATLOG or _G.ChatFrame2
+end
+
 function BT:KeepLogFlowing()
     if not self.db.enabled then return end
     if C_CombatLog and C_CombatLog.SetFilteredEventsEnabled then
@@ -602,11 +715,23 @@ function BT:KeepLogFlowing()
     end
 end
 
-function BT:CombatLogFrame()
-    return _G.COMBATLOG or _G.ChatFrame2
+-- Turned off: leave the lines the way the game has them (on only while its
+-- Combat Log window is showing)
+function BT:StopLogFlowing()
+    local log = self:CombatLogFrame()
+    if log and log.IsShown and log:IsShown() then return end
+    if C_CombatLog and C_CombatLog.SetFilteredEventsEnabled then
+        pcall(C_CombatLog.SetFilteredEventsEnabled, false)
+    end
 end
 
 function BT:BuildStartButton()
+    -- A secure button can't be set up in combat (after a /reload mid-fight)
+    if self.startButton then return end
+    if InCombatLockdown() then
+        self.startPending = true
+        return
+    end
     local b = CreateFrame("Button", "BattleTextForeverStart", UIParent, "SecureActionButtonTemplate")
     b:SetSize(170, 26)
     b:SetPoint("TOP", UIParent, "TOP", 0, -140)
@@ -631,15 +756,11 @@ function BT:BuildStartButton()
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    -- Runs after the secure click has opened and closed the tab
-    -- A click sends "down" then "up"; the tab is opened on one of them (a game
-    -- setting decides which), so wait for "up" before hiding the button
-    b:HookScript("PostClick", function(_, _, down)
-        if down then return end
-        BT.started = true
-        BT:KeepLogFlowing()
-        BT:UpdateStartButton()
-    end)
+    -- Go back to whichever chat tab is selected right now
+    b:SetScript("PreClick", function() BT:SetStartMacro() end)
+    -- The click has opened and closed the tab; the game turned the lines off
+    -- again when it closed, so turn them back on
+    b:SetScript("PostClick", function() BT:KeepLogFlowing() end)
     b:Hide()
     self.startButton = b
     self:SetStartMacro()
@@ -656,20 +777,28 @@ function BT:SetStartMacro()
         local name = Str(selected:GetName())
         if name and _G[name .. "Tab"] then back = name .. "Tab" end
     end
+    local macro = "/click ChatFrame2Tab\n/click " .. back
+    if b.macro == macro then return end
+    b.macro = macro
     b:SetAttribute("type", "macro")
-    b:SetAttribute("macrotext", "/click ChatFrame2Tab\n/click " .. back)
+    b:SetAttribute("macrotext", macro)
 end
 
+-- Shown until the lines are flowing: until the Combat Log window has been
+-- shown, or a line has arrived
 function BT:UpdateStartButton()
+    if not self.startButton then
+        if self.built then self:BuildStartButton() end
+        if not self.startButton then return end
+    end
     local b = self.startButton
-    if not b then return end
     local show = self.db.enabled and not self.started
     if show == b.wanted then return end
-    b.wanted = show
     if InCombatLockdown() then
         self.startPending = true   -- showing or hiding a secure button waits for combat to end
         return
     end
+    b.wanted = show
     b:SetShown(show)
 end
 
@@ -696,7 +825,7 @@ function BT:ApplySettings()
     self:UpdateStartButton()
     self:UpdateMinimapButton()
     self:ApplyBlizzardText()
-    if self.db.enabled then self:KeepLogFlowing() end
+    if self.db.enabled then self:KeepLogFlowing() else self:StopLogFlowing() end
 end
 
 function BT:SetLocked(locked)
@@ -704,16 +833,19 @@ function BT:SetLocked(locked)
     self:ApplyAreas()
 end
 
--- The game's own floating numbers, so they aren't shown twice
+-- The game's own floating numbers, so they aren't shown twice. What they were
+-- set to is remembered, and put back when the option or BattleText is turned
+-- off, and whenever you log out (so nothing is left changed if BattleText is
+-- removed).
 local BLIZZARD_CVARS = { "enableFloatingCombatText", "floatingCombatTextCombatDamage", "floatingCombatTextCombatHealing" }
-function BT:ApplyBlizzardText()
+function BT:ApplyBlizzardText(restore)
     if not (GetCVar and SetCVar) or InCombatLockdown() then return end
     local db = self.db
-    if db.hideBlizzard then
+    if db.enabled and db.hideBlizzard and not restore then
         db.savedCVars = db.savedCVars or {}
         for _, cvar in ipairs(BLIZZARD_CVARS) do
             local ok, value = pcall(GetCVar, cvar)
-            value = ok and Str(value)
+            value = ok and Str(value) or nil
             if value then
                 if db.savedCVars[cvar] == nil then db.savedCVars[cvar] = value end
                 if value ~= "0" then pcall(SetCVar, cvar, "0") end
@@ -734,26 +866,28 @@ function BT:Test()
         function() self:Emit("incoming", "-34", C.inDamage) end,
         function() self:ShowCombat({ kind = "damage", fromMe = true, spell = "Moonfire", amount = 112, unit = "Arcane", crit = true }) end,
         function() self:Emit("incoming", "+120 Rejuvenation", C.heal) end,
-        function() self:ShowCombat({ kind = "miss", fromMe = true, melee = true, missText = "Dodge" }) end,
+        function() self:ShowCombat({ kind = "miss", fromMe = true, melee = true, missType = "DODGE" }) end,
         function() self:Emit("incoming", "-58", C.inDamage, { crit = true }) end,
         function() self:Notify("+103 XP", C.xp) end,
         function() self:ShowCombat({ kind = "damage", fromMe = true, melee = true, amount = 26, unit = "Physical", blocked = 3 }) end,
-        function() self:Emit("incoming", "Parry", C.inAvoid) end,
+        function() self:Emit("incoming", MissText("PARRY"), C.inAvoid) end,
         function() self:Notify("Killing blow!", C.combat, { crit = true }) end,
     }
     -- Shown even while BattleText is turned off, and whatever is ticked in the options
+    local LOOKS = { sticky = true, curved = true, icons = true, spellNames = true, merge = true }
     local function show(fn)
         local saved = self.db
         self.db = setmetatable({}, { __index = function(_, k)
+            if k == "minDamage" then return 0 end
             local v = saved[k]
-            if type(v) == "boolean" and k ~= "sticky" and k ~= "curved" and k ~= "icons" and k ~= "spellNames"
-                and k ~= "merge" then return true end
+            if type(v) == "boolean" and not LOOKS[k] then return true end
             return v
         end })
         self.testing = true
-        fn()
+        local ok, err = pcall(fn)
         self.testing = false
         self.db = saved
+        if not ok then error(err, 0) end
     end
     for i, fn in ipairs(samples) do
         if C_Timer and C_Timer.After then
@@ -830,7 +964,7 @@ local function Help()
     print("  |cffffd966/btf lock|r, |cffffd966/btf unlock|r  lock or unlock the text areas (unlock to drag them)")
     print("  |cffffd966/btf reset|r  put the text areas back where they started")
     print("  |cffffd966/btf on|r, |cffffd966/btf off|r  turn the text on or off")
-    print("  |cffffd966/btf debug|r  print combat lines BattleText doesn't show (for bug reports)")
+    print("  |cffffd966/btf debug|r  print each combat line as the game sends it (for bug reports)")
 end
 
 -- Keybinding names (Options > Keybindings > BattleText Forever)
@@ -858,7 +992,7 @@ SlashCmdList.BATTLETEXTFOREVER = function(msg)
         Print(cmd == "on" and "on." or "off.")
     elseif cmd == "debug" then
         BT.db.debug = not BT.db.debug
-        Print("debug " .. (BT.db.debug and "on: combat lines that aren't shown are printed in chat." or "off."))
+        Print("debug " .. (BT.db.debug and "on: each combat line is printed in chat as the game sends it." or "off."))
     else
         Help()
     end
@@ -873,6 +1007,7 @@ events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")
 -- Registered one by one, in case this client doesn't have one of them
 for _, e in ipairs({ "COMBAT_LOG_MESSAGE", "PLAYER_ENTERING_WORLD", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
+    "PLAYER_LOGOUT",
     "PLAYER_XP_UPDATE", "CHAT_MSG_LOOT", "CHAT_MSG_MONEY", "CHAT_MSG_SKILL", "CHAT_MSG_COMBAT_FACTION_CHANGE",
     "CHAT_MSG_COMBAT_HONOR_GAIN" }) do
     pcall(events.RegisterEvent, events, e)
@@ -897,9 +1032,7 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         BT:OnXP()
         -- The game turns the lines off whenever the Combat Log window hides
         if C_Timer and C_Timer.NewTicker then
-            C_Timer.NewTicker(3, function()
-                if BT.started then BT:KeepLogFlowing() end
-            end)
+            C_Timer.NewTicker(3, function() BT:KeepLogFlowing() end)
         end
         print(BT.LOGO_TEXT .. " |cffffd966BattleText Forever|r loaded. Type /btf for options.")
         return
@@ -916,11 +1049,12 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         if BT.db.nCombat then BT:Notify("-Combat", BT.TEXT_COLORS.notify) end
         if BT.startPending then
             BT.startPending = nil
-            BT.startButton.wanted = nil
             BT:UpdateStartButton()
         end
         BT:SetStartMacro()
         BT:ApplyBlizzardText()
+    elseif event == "PLAYER_LOGOUT" then
+        BT:ApplyBlizzardText(true)
     elseif event == "PLAYER_ENTERING_WORLD" then
         BT:HookCombatLog()
         BT:SetStartMacro()

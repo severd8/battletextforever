@@ -4,7 +4,7 @@
 
 **Scrolling combat text for World of Warcraft: Forever.**
 
-BattleText Forever puts the fight on your screen: your hits, heals and misses scroll on one side, the damage you take on the other, and loot, experience and kills in the middle. It's built for Forever's addon rules, in the spirit of the classic scrolling combat text addons.
+BattleText Forever puts the fight on your screen: your hits and heals scroll on one side, the damage you take on the other, and loot, experience and kills in the middle. It's built for Forever's addon rules, in the spirit of the classic scrolling combat text addons.
 
 ---
 
@@ -13,14 +13,14 @@ BattleText Forever puts the fight on your screen: your hits, heals and misses sc
 - **Your hits and heals**, with the spell's name and icon. Spell damage is tinted by its school.
 - **Crits stand out.** They're bigger, pop out, and hold in place for a moment.
 - **Rapid hits add up.** Hits from one spell that land together show as one total, like "Swipe 135 (x3)".
-- **Misses, dodges, parries, blocks and resists**, both yours and your enemy's. Blocked, absorbed and resisted amounts are shown beside the number.
-- **Damage and heals you take**, in their own area.
+- **Blocked, absorbed and resisted amounts** are shown beside the number.
+- **Damage and heals you take**, and the attacks you dodge, parry, block or resist, in their own area.
 - **Notifications**: entering and leaving combat, killing blows, experience, reputation, honor, loot, money and skill ups.
 - **Three text areas** you can drag anywhere on screen.
-- **Your look**: four fonts, text size, crit size, scroll speed and distance, and straight or curved scrolling.
+- **Your look**: a choice of fonts, text size, crit size, scroll speed and distance, and straight or curved scrolling.
 - **Choose what's shown**, and hide small hits.
 - **Hide the game's own numbers**, so nothing is shown twice.
-- **Your pet's hits**, when the Combat Log's filter includes your pet.
+- **Your misses and your pet's hits**, once you tick them in the Combat Log's filter (see Good to know).
 
 ## Installation
 
@@ -62,7 +62,7 @@ Go to **Options → Keybindings → BattleText Forever**:
 | `/btf lock` · `/btf unlock` | Lock or unlock the text areas |
 | `/btf reset` | Put the text areas back where they started |
 | `/btf on` · `/btf off` | Turn the text on or off |
-| `/btf debug` | Print combat lines BattleText doesn't show (for bug reports) |
+| `/btf debug` | Print each combat line as the game sends it (for bug reports) |
 
 `/battletext` works too.
 
@@ -70,17 +70,19 @@ Go to **Options → Keybindings → BattleText Forever**:
 
 WoW: Forever doesn't let addons read the combat log. BattleText works from what the game does allow:
 
-- **Your hits come from the Combat Log window's lines.** The game only writes those after the Combat Log tab has been opened once, which is what the **Start BattleText** button does for you (it opens the tab and switches back). It's needed once each time you log in or reload. If you keep the Combat Log as its own window, BattleText starts by itself.
-- **They follow the Combat Log's filter.** With **My actions** (the default) you get everything you do. If you pick **What happened to me?** on that tab, your own hits stop showing until you switch back.
-- **Damage you take** comes from a different game event and needs no setup. With the default filter it has no spell names. Make a Combat Log filter that includes both what you do and what happens to you, and incoming damage gets spell names too.
+- **Your hits and heals come from the Combat Log window's lines.** The game only writes those after the Combat Log tab has been opened once, which is what the **Start BattleText** button does for you (it opens the tab and switches back). It's needed once each time you log in or reload. If you keep the Combat Log as its own window, BattleText starts by itself.
+- **They follow the Combat Log's filter.** With **My actions** (the default) you get your hits, heals and killing blows. If you pick **What happened to me?** on that tab, your own hits stop showing until you switch back.
+- **Misses and your pet are left out of that filter by default.** To see them, right-click the Combat Log tab, choose **Settings**, select **My actions**, then tick **Misses** under **Message Types** and **Pet** under **Message Sources**.
+- **Damage you take** comes from a different game event and needs no setup. It has no spell names. Make a Combat Log filter that includes both what you do and what happens to you, and what you take gets spell names too.
 - **Enemy names aren't shown.** The game scrambles them in the lines addons can see.
-- **The Combat Log needs its normal wording.** If you've turned on its "verbose" setting, turn it off.
+- **The Combat Log needs its normal wording.** If you've ticked **Use Verbose Mode** in its Formatting settings, untick it.
 
 ## Troubleshooting
 
 - **No numbers for your hits.** Click **Start BattleText**, or open the Combat Log tab once. Check that the Combat Log's filter is **My actions**.
+- **No misses, or nothing from your pet.** Tick them in the Combat Log's filter (see Good to know).
 - **Numbers show twice.** Tick **Hide the game's own numbers** in the options.
-- **Something isn't shown.** Type `/btf debug`, fight, and report the "not shown" lines from chat.
+- **Something isn't shown.** Type `/btf debug`, fight, and report the lines it prints in chat. Type `/btf debug` again to stop.
 - **The text is in the wrong place.** Type `/btf unlock` and drag the boxes, or `/btf reset`.
 
 ## Feedback and bug reports

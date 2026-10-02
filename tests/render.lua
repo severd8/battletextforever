@@ -95,7 +95,6 @@ local function fire(event, ...)
         if f.__events and f.__events[event] and f.__scripts.OnEvent then f.__scripts.OnEvent(f, event, ...) end
     end
 end
-local function tick() for _, fn in ipairs(TICKERS) do fn() end end
 
 ---------------------------------------------------------------------------
 -- Resolve rectangles (WoW coordinates: y grows upward) and dump them
@@ -207,37 +206,36 @@ fire("ADDON_LOADED", ADDON)
 fire("PLAYER_LOGIN")
 fire("PLAYER_ENTERING_WORLD")
 BT.db.icons = false   -- the drawing has no icon art
-local function log(line) fire("COMBAT_LOG_MESSAGE", line, 1, 1, 1, 0) end
+local REAL = {}
+for _, entry in ipairs(dofile("tests/real_lines.lua")) do REAL[entry.id] = entry.raw end
+local function log(id) fire("COMBAT_LOG_MESSAGE", assert(REAL[id], id), 1, 1, 1, 0) end
 
 -- A fight in progress: lines at different points of their scroll
-BT.started = true
-BT:UpdateStartButton()
-log("Your Melee hit Boar 27 Physical.")
+log("swing")
 fire("UNIT_COMBAT", "player", "WOUND", "", 23, 1)
 Advance(0.5)
-log("Your Claw hit Boar 50 Physical. (1 Blocked)")
+log("spell")
 fire("UNIT_COMBAT", "player", "DODGE", "", 0, 1)
 Advance(0.5)
-log("Your Moonfire hit Boar 64 Arcane.")
+log("spell, partly resisted")
 Advance(0.4)
 fire("UNIT_COMBAT", "player", "WOUND", "", 31, 1)
-log("Your Rejuvenation healed You 61 Nature.")
+log("heal tick on myself")
 Advance(0.5)
-log("Your Melee missed Boar. Dodge")
-log("Your Claw hit Boar 112 Physical. (Critical)")
+log("swing fails: DODGE")
+log("spell, crit")
 fire("UNIT_COMBAT", "player", "WOUND", "CRITICAL", 58, 1)
 STATE.xp = 203
 fire("PLAYER_XP_UPDATE")
 Advance(0.3)
-log("Your Melee hit Boar 26 Physical.")
-log("You killed Boar.")
+log("swing, partly blocked")
+log("my kill")
 Advance(0.25)
 Dump("combat", UIParent)
 
 -- Areas unlocked for moving, and the Start button after login
 Advance(8)
 BT.started = nil
-BT.startButton.wanted = nil
 BT:UpdateStartButton()
 BT:SetLocked(false)
 Dump("unlocked", UIParent)
@@ -245,6 +243,7 @@ BT:SetLocked(true)
 BT.started = true
 BT:UpdateStartButton()
 
+BT.db.icons = true
 BT:OpenConfig()
 Dump("options", BT.config)
 

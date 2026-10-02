@@ -79,6 +79,7 @@ local function Slider(parent, text, x, y, key, min, max, suffix, step)
     s:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
     s:SetMinMaxValues(min, max)
     s:SetValueStep(step or 1)
+    s.label = text
     local function show(v) title:SetText(text .. ": |cff" .. BT.GOLD_HEX .. v .. suffix .. "|r") end
     s:SetScript("OnValueChanged", function(_, v)
         step = step or 1
@@ -112,7 +113,7 @@ end
 
 function BT:BuildConfig()
     local f = CreateFrame("Frame", "BattleTextForeverOptions", UIParent)
-    f:SetSize(560, 560)
+    f:SetSize(560, 590)
     f:SetPoint("CENTER")
     self:SkinFrame(f, self.COLORS.dark, self.COLORS.goldDark, 0.97, 2)
     f:SetFrameStrata("DIALOG")
@@ -194,8 +195,8 @@ function BT:BuildConfig()
     y = y - 44
     Slider(f, "Scroll distance", x + 4, y, "height", 100, 500, "", 10)
 
-    Button(f, "Show sample text", 130, x, -522, function() BT:Test() end)
-    Button(f, "Reset positions", 110, x + 136, -522, function() BT:ResetPositions() end)
+    Button(f, "Show sample text", 130, x, -552, function() BT:Test() end)
+    Button(f, "Reset positions", 110, x + 136, -552, function() BT:ResetPositions() end)
 
     -- Right column: what gets shown
     x, y = 300, -48
@@ -204,8 +205,11 @@ function BT:BuildConfig()
     Check(f, "Damage", x, y, "outDamage")
     Check(f, "Heals", x + 120, y, "outHeals")
     y = y - 24
-    Check(f, "Misses", x, y, "outMisses", "Misses, dodges, parries, blocks and resists against you.")
-    Check(f, "Pet", x + 120, y, "outPet", "Your pet's hits, when the Combat Log's filter includes your pet.")
+    Check(f, "Misses", x, y, "outMisses",
+        "Your attacks that miss or are dodged, parried, blocked or resisted. "
+        .. "The Combat Log leaves these out until you tick them in its settings (see Good to know).")
+    Check(f, "Pet", x + 120, y, "outPet",
+        "Your pet's hits. The Combat Log leaves your pet out until you tick it in its settings (see Good to know).")
     y = y - 32
     Slider(f, "Hide hits below", x + 4, y, "minDamage", 0, 500, "", 5)
     y = y - 50
@@ -216,7 +220,7 @@ function BT:BuildConfig()
     Check(f, "Heals", x + 120, y, "inHeals")
     y = y - 24
     Check(f, "Avoids", x, y, "inMisses", "Attacks you dodge, parry, block or resist.")
-    Check(f, "Power gains", x + 120, y, "inPower", "Mana, rage and energy you gain from spells.")
+    Check(f, "Power gains", x + 120, y, "inPower", "Mana, rage and energy you gain.")
     y = y - 36
 
     Heading(f, "Notifications", x, y, W)
@@ -241,10 +245,11 @@ function BT:BuildConfig()
     note:SetWidth(W)
     note:SetJustifyH("LEFT")
     note:SetWordWrap(true)
-    note:SetText("After you log in, click \"Start BattleText\" once (or open the Combat Log tab). "
+    note:SetText("Click \"Start BattleText\" once after you log in (or open the Combat Log tab). "
         .. "The game only writes its combat lines after that.\n\n"
-        .. "Your hits come from the Combat Log's lines, so they follow the filter chosen on that tab. "
-        .. "\"My actions\" is the one to use.")
+        .. "Your hits and heals follow the filter chosen on the Combat Log tab. \"My actions\" is the one to use.\n\n"
+        .. "For your misses and your pet too: right-click that tab, choose Settings, and in \"My actions\" tick "
+        .. "Misses (Message Types) and Pet (Message Sources).")
 
     self.config = f
 end

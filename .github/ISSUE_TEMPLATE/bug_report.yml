@@ -39,7 +39,7 @@ body:
     id: lines
     attributes:
       label: Combat lines that weren't shown
-      description: Type /btf debug, fight, and paste the "BattleText (not shown)" lines from chat.
+      description: Type /btf debug, fight, and paste the "BattleText read" and "BattleText skipped" lines from chat.
       render: text
   - type: input
     id: version
