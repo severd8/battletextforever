@@ -10,17 +10,13 @@ BattleText Forever puts the fight on your screen: your hits and heals scroll on 
 
 ## Features
 
-- **Your hits and heals**, with the spell's name and icon. Spell damage is tinted by its school.
-- **Crits stand out.** They're bigger, pop out, and hold in place for a moment.
-- **Rapid hits add up.** Hits from one spell that land together show as one total, like "Swipe 135 (x3)".
-- **Blocked, absorbed and resisted amounts** are shown beside the number.
-- **Damage and heals you take**, and the attacks you dodge, parry, block or resist, in their own area.
-- **Notifications**: entering and leaving combat, killing blows, experience, reputation, honor, loot, money and skill ups.
+- **Your hits and heals**, with the spell's name and icon, tinted by school. Crits are bigger and hold in place for a moment, rapid hits add up ("Swipe 135 (x3)"), and blocked, absorbed and resisted amounts show beside the number.
+- **What happens to you**, in its own area: damage and heals you take, and the attacks you dodge, parry, block or resist.
+- **Notifications**: combat, killing blows, experience, reputation, honor, loot, money and skill ups.
 - **Three text areas** you can drag anywhere on screen.
-- **Your look**: a choice of fonts, text size, crit size, scroll speed and distance, and straight or curved scrolling.
-- **Choose what's shown**, and hide small hits.
-- **Hide the game's own numbers**, so nothing is shown twice.
-- **Your misses and your pet's hits**, once you tick them in the Combat Log's filter (see Good to know).
+- **Your look**: fonts, text and crit size, scroll speed and distance, straight or curved scrolling.
+- **Your choice of what's shown.** Turn any kind of text off, hide small hits, and hide the game's own numbers so nothing shows twice.
+- **Misses and your pet's hits**, once you tick them in the Combat Log's filter (see Good to know).
 
 ## Installation
 
@@ -69,14 +65,13 @@ Go to **Options → Keybindings → BattleText Forever**:
 
 ## Good to know
 
-WoW: Forever doesn't let addons read the combat log. BattleText works from what the game does allow:
+WoW: Forever doesn't let addons read the combat log, so BattleText works from what the game does allow:
 
-- **Your hits and heals come from the Combat Log window's lines.** The game only writes those after the Combat Log tab has been opened once, which is what the **Start BattleText** button does for you (it opens the tab and switches back). It's needed once each time you log in or reload.
-- **They follow the Combat Log's filter.** With **My actions** (the default) you get your hits, heals and killing blows. If you pick **What happened to me?** on that tab, your own hits stop showing until you switch back.
-- **Misses and your pet are left out of that filter by default.** To see them: with **My actions** selected on the Combat Log tab, right-click the tab and choose **Settings**. Under **Message Types** tick the **Misses** boxes, under **Message Sources** tick **Pet** in the **Done By** column, then press **Okay**.
-- **Damage you take** comes from a different game event and needs no setup. It has no spell names. Make a Combat Log filter that includes both what you do and what happens to you, and what you take gets spell names too.
-- **Enemy names aren't shown.** The game scrambles them in the lines addons can see.
-- **The Combat Log needs its normal wording.** If you've ticked **Use Verbose Mode** in its Formatting settings, untick it.
+- **Click Start BattleText once per login.** Your hits and heals come from the Combat Log window's lines, and the game only writes those after that tab has been opened. The button opens it and switches back for you.
+- **Keep the Combat Log's filter on "My actions"** (the default). On **What happened to me?** your own hits stop showing.
+- **Misses and your pet are left out of that filter by default.** To add them: with **My actions** selected, right-click the Combat Log tab and choose **Settings**. Tick the **Misses** boxes under **Message Types** and **Pet** in the **Done By** column under **Message Sources**, then press **Okay**.
+- **Damage you take has no spell names**, and **enemy names aren't shown** (the game scrambles them).
+- **Leave "Use Verbose Mode" off** in the Combat Log's Formatting settings.
 
 ## Troubleshooting
 
