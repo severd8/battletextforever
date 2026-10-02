@@ -258,7 +258,7 @@ function BT:Emit(areaKey, text, color, opts)
     -- Add to a line that just started, instead of a new one
     if opts.key and opts.amount and self.db.merge and not opts.crit then
         local r = a.recent[opts.key]
-        if r and r.line.key == opts.key and now - r.time <= MERGE_WINDOW and now - r.line.start < 1 then
+        if r and r.line.key == opts.key and now - r.time <= MERGE_WINDOW and now - r.born < 1 then
             r.total, r.count, r.time = r.total + opts.amount, r.count + 1, now
             r.line.text:SetText(opts.format(r.total, r.count))
             return r.line
@@ -271,7 +271,7 @@ function BT:Emit(areaKey, text, color, opts)
     if not o.text:SetFont(self:FontPath(), size, "OUTLINE") and STANDARD_TEXT_FONT then
         o.text:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
     end
-    if opts.secret ~= nil then
+    if IsSecret(opts.secret) then   -- (never compare a secret, even with nil: that throws)
         o.text:SetFormattedText("%s%s%s", text, opts.secret, opts.after or "")
     else
         o.text:SetText(text)
@@ -326,7 +326,7 @@ function BT:Emit(areaKey, text, color, opts)
     -- Only a plain scrolling line can be added to later (a crit keeps its own number)
     if opts.key and opts.amount and not opts.crit then
         o.key = opts.key
-        a.recent[opts.key] = { line = o, time = now, total = opts.amount, count = 1 }
+        a.recent[opts.key] = { line = o, time = now, born = now, total = opts.amount, count = 1 }
     end
     return o
 end
@@ -559,6 +559,10 @@ end
 function BT:OnUnitCombat(unit, action, flag, amount)
     if Str(unit) ~= "player" then return end
     action, flag = Str(action), Str(flag)
+    if self.db.debug then
+        self:Record("UNIT_COMBAT " .. tostring(action) .. " " .. tostring(flag) .. " "
+            .. (IsSecret(amount) and "(hidden amount)" or tostring(amount)))
+    end
     if not action then return end
     local db, C = self.db, self.TEXT_COLORS
     local crit = flag == "CRITICAL" or flag == "CRUSHING"
@@ -583,6 +587,7 @@ function BT:OnUnitCombat(unit, action, flag, amount)
         -- spell's name. Wait a moment to see whether this is one of those.
         local function show()
             if BT.lastSelfHeal and GetTime() - BT.lastSelfHeal < 0.6 then return end
+            if BT:LogDelivers("heal") then return end   -- the log's line for it arrived meanwhile
             if secret then
                 BT:Emit("incoming", "+", C.heal, { crit = crit, secret = amount })
             elseif n and n > 0 then
@@ -618,15 +623,22 @@ function BT:OnCombatLogMessage(message, _, _, _, order)
     if not self.db.enabled then return end
     if IsSecret(message) then
         -- The game is hiding the text. It can still be shown, just not read.
+        if self.db.debug then self:Record("(hidden line)") end
         if self.db.outDamage then self:Emit("outgoing", "", self.TEXT_COLORS.melee, { secret = message }) end
         return
     end
     local info = Parser:Parse(message)
     local shown = info ~= nil and self:ShowCombat(info)
-    if self.db.debug and Str(message) then
-        -- The line exactly as the game sent it, links and all, for bug reports
-        print("|cff888888BattleText " .. (shown and "read" or "skipped") .. ":|r " .. message:gsub("|", "||"))
-    end
+    if self.db.debug then self:Record((shown and "read    " or "skipped ") .. message) end
+end
+
+-- Debug (/btf debug, then /btf copy): what the game sent, exactly, with the time
+-- it arrived. Kept only while debug is on, and only the last 150.
+function BT:Record(text)
+    self.recorded = self.recorded or {}
+    local list = self.recorded
+    list[#list + 1] = ("%7.2f  %s"):format(GetTime() % 1000, text)
+    if #list > 150 then table.remove(list, 1) end
 end
 
 ---------------------------------------------------------------------------
@@ -704,8 +716,10 @@ end
 -- one click on the Start button opens and closes the Combat Log tab, and from
 -- then on BattleText keeps the lines coming.
 ---------------------------------------------------------------------------
+-- The Combat Log window. COMBATLOG is set by Blizzard's Combat Log code once
+-- it has loaded and put its own show/hide handlers on the window.
 function BT:CombatLogFrame()
-    return _G.COMBATLOG or _G.ChatFrame2
+    return _G.COMBATLOG
 end
 
 function BT:KeepLogFlowing()
@@ -766,18 +780,28 @@ function BT:BuildStartButton()
     self:SetStartMacro()
 end
 
--- The click: open the Combat Log tab, then go back to the tab you were on
+-- The click: open the Combat Log tab, then go back to the tab you were on.
+-- If you're already on the Combat Log tab, leave it and come back.
 function BT:SetStartMacro()
     local b = self.startButton
     if not b or InCombatLockdown() then return end
-    local back = "ChatFrame1Tab"
-    local selected = _G.SELECTED_DOCK_FRAME
-    local log = self:CombatLogFrame()
-    if selected and selected ~= log and selected.GetName then
-        local name = Str(selected:GetName())
-        if name and _G[name .. "Tab"] then back = name .. "Tab" end
+    local selected
+    if FCFDock_GetSelectedWindow and GENERAL_CHAT_DOCK then
+        local ok, frame = pcall(FCFDock_GetSelectedWindow, GENERAL_CHAT_DOCK)
+        if ok then selected = frame end
     end
-    local macro = "/click ChatFrame2Tab\n/click " .. back
+    selected = selected or _G.SELECTED_DOCK_FRAME
+    local macro
+    if selected and selected == _G.ChatFrame2 then
+        macro = "/click ChatFrame1Tab\n/click ChatFrame2Tab"
+    else
+        local back = "ChatFrame1Tab"
+        if selected and selected.GetName then
+            local name = Str(selected:GetName())
+            if name and _G[name .. "Tab"] then back = name .. "Tab" end
+        end
+        macro = "/click ChatFrame2Tab\n/click " .. back
+    end
     if b.macro == macro then return end
     b.macro = macro
     b:SetAttribute("type", "macro")
@@ -813,7 +837,6 @@ function BT:HookCombatLog()
         BT:UpdateStartButton()
     end)
     log:HookScript("OnHide", function() BT:KeepLogFlowing() end)
-    if log:IsShown() then self.started = true end
 end
 
 ---------------------------------------------------------------------------
@@ -839,7 +862,8 @@ end
 -- removed).
 local BLIZZARD_CVARS = { "enableFloatingCombatText", "floatingCombatTextCombatDamage", "floatingCombatTextCombatHealing" }
 function BT:ApplyBlizzardText(restore)
-    if not (GetCVar and SetCVar) or InCombatLockdown() then return end
+    if not (GetCVar and SetCVar) then return end
+    if InCombatLockdown() and not restore then return end
     local db = self.db
     if db.enabled and db.hideBlizzard and not restore then
         db.savedCVars = db.savedCVars or {}
@@ -964,7 +988,7 @@ local function Help()
     print("  |cffffd966/btf lock|r, |cffffd966/btf unlock|r  lock or unlock the text areas (unlock to drag them)")
     print("  |cffffd966/btf reset|r  put the text areas back where they started")
     print("  |cffffd966/btf on|r, |cffffd966/btf off|r  turn the text on or off")
-    print("  |cffffd966/btf debug|r  print each combat line as the game sends it (for bug reports)")
+    print("  |cffffd966/btf debug|r  record the combat lines the game sends; |cffffd966/btf copy|r shows them (for bug reports)")
 end
 
 -- Keybinding names (Options > Keybindings > BattleText Forever)
@@ -992,7 +1016,10 @@ SlashCmdList.BATTLETEXTFOREVER = function(msg)
         Print(cmd == "on" and "on." or "off.")
     elseif cmd == "debug" then
         BT.db.debug = not BT.db.debug
-        Print("debug " .. (BT.db.debug and "on: each combat line is printed in chat as the game sends it." or "off."))
+        if BT.db.debug then BT.recorded = {} end
+        Print("debug " .. (BT.db.debug and "on. Fight for a moment, then type /btf copy to see what the game sent." or "off."))
+    elseif cmd == "copy" then
+        BT:OpenCopyWindow()
     else
         Help()
     end
@@ -1044,6 +1071,7 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
     elseif event == "UNIT_COMBAT" then
         BT:OnUnitCombat(a1, a2, a3, a4)
     elseif event == "PLAYER_REGEN_DISABLED" then
+        BT:SetStartMacro()   -- last chance before the fight to note which chat tab you're on
         if BT.db.nCombat then BT:Notify("+Combat", BT.TEXT_COLORS.combat) end
     elseif event == "PLAYER_REGEN_ENABLED" then
         if BT.db.nCombat then BT:Notify("-Combat", BT.TEXT_COLORS.notify) end

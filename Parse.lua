@@ -93,7 +93,7 @@ end
 local function Trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 local function Escape(s) return (s:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")) end
 local function NoParens(s) return Trim((s:gsub("^%s*%(", ""):gsub("%)%s*$", ""))) end
-local function NoBrackets(s) return Trim((s:gsub("^%s*%[", ""):gsub("%]%s*$", ""))) end
+local function NoBrackets(s) return Trim(s:match("^%s*%[(.*)%]%s*$") or s) end
 local function ToNumber(s) return tonumber((s:gsub("[^%d]", ""))) end
 
 -- Colour codes and icons aren't part of the words
@@ -110,6 +110,7 @@ function Parser:Init()
     self.youDest = Text("UNIT_YOU_DEST")
     self.yourDest = Text("UNIT_YOU_DEST_POSSESSIVE")
     self.melee = Text("ACTION_SWING")
+    self:AddSeparator(_G.LARGE_NUMBER_SEPERATOR)
     if UnitGUID then
         local ok, guid = pcall(UnitGUID, "player")
         if ok and not IsSecret(guid) and type(guid) == "string" then self.playerGUID = guid end
@@ -166,6 +167,14 @@ end
 -- A whole number at the start of `s`, however the game groups its digits
 -- ("1,234", "1.234", "1 234"). Returns the number and what follows it.
 local SEPARATORS = { ",", ".", " ", "\194\160", "\226\128\175", "'" }
+-- The game's own separator for this language, if it's one not listed
+function Parser:AddSeparator(sep)
+    if IsSecret(sep) or type(sep) ~= "string" or sep == "" then return end
+    for _, known in ipairs(SEPARATORS) do
+        if known == sep then return end
+    end
+    table.insert(SEPARATORS, 1, sep)
+end
 local function ReadAmount(s)
     local digits = s:match("^%d+")
     if not digits then return nil, s end

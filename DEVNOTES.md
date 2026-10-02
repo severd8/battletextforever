@@ -40,15 +40,17 @@ Forever refuses `COMBAT_LOG_EVENT` and `COMBAT_LOG_EVENT_UNFILTERED` to addons. 
 - The game only produces them **after the Combat Log window has been shown** once since login or `/reload` (confirmed in game, 2026-10-02). That's when Blizzard's UI loads its filter with `C_CombatLog.ApplyFilterSettings` (in `COMBATLOG`'s `OnShow`).
 - **Never call `C_CombatLog.ApplyFilterSettings`.** It's Blizzard-only: from an addon it's blocked ("action only available to the Blizzard UI"), and the half-applied filter then makes Blizzard's processor throw `bad argument #1 to 'sub'` on every combat event until `/reload` (confirmed in game).
 - When the window hides, Blizzard calls `C_CombatLog.SetFilteredEventsEnabled(false)` and the lines stop. **An addon may call `SetFilteredEventsEnabled(true)`**, and the lines come back (confirmed in game). `KeepLogFlowing` does that on the window's `OnHide`, after the Start click, and on a 3-second ticker.
-- So the **Start button** is a secure button whose macro is `/click ChatFrame2Tab` then `/click <the tab you were on>`: Blizzard's own code opens and closes the window, untainted. `ChatFrame2:Show()` from addon code would run that `OnShow` tainted and hit the blocked call. It's registered for `AnyUp` and `AnyDown` because the game runs a macro button on one or the other (the `ActionButtonUseKeyDown` setting).
-- The button hides once the Combat Log window has been shown, or a live line has arrived (`started`).
+- Blizzard also loads the filter when its Combat Log code loads at login, but that doesn't take (the call needs a real click), so a Combat Log window that's already showing at login isn't enough either.
+- So the **Start button** is a secure button whose macro is `/click ChatFrame2Tab` then `/click <the tab you were on>` (or, if you're on the Combat Log tab, `/click ChatFrame1Tab` then `/click ChatFrame2Tab`): Blizzard's own code opens and closes the window, untainted. `ChatFrame2:Show()` from addon code would run that `OnShow` tainted and hit the blocked call. It's registered for `AnyUp` and `AnyDown` because the game runs a macro button on one or the other (the `ActionButtonUseKeyDown` setting).
+- The button hides once the Combat Log window has been shown (its `OnShow`), or a live line has arrived (`started`). The macro can only be changed out of combat, so it's refreshed on each click, when a fight starts and when one ends.
+- Not handled: a Combat Log dragged out into its own window (its tab's click doesn't show or hide it). Clicking a filter's quick button on that window would be the way (`Blizzard_CombatLog_QuickButton_OnClick` loads the filter), untested.
 - `/btf off` puts the lines back the way the game has them (off unless its window is showing).
 
 ### What the lines contain
 
 They follow the **filter selected on the Combat Log tab** (`Blizzard_CombatLog_Filter_Defaults` in `Blizzard_CombatLog.lua`):
 
-- **"My actions"** (the default): you as the source, and only these events: swing, ranged, spell and periodic damage, heals and periodic heals, `DAMAGE_SPLIT`, `PARTY_KILL`, `UNIT_DESTROYED`. **No misses, no power gains, and not your pet.** The player can add them: right-click the Combat Log tab → Settings → "My actions" → Message Types (Misses) and Message Sources (Pet).
+- **"My actions"** (the default): you as the source, and only these events: swing, ranged, spell and periodic damage, heals and periodic heals, `DAMAGE_SPLIT`, `PARTY_KILL`, `UNIT_DESTROYED`, `UNIT_DISSIPATES`. **No misses, no power gains, and not your pet.** The player can add misses and the pet: with "My actions" selected on the tab, right-click the Combat Log tab → Settings → Message Types (four Misses boxes: melee, ranged, spells, periodic) and Message Sources (Pet under "Done By"; the one under "Done To" only adds hits on the pet) → Okay. Power gains have no box there; they come from `UNIT_COMBAT`.
 - **"What happened to me?"**: you as the target (damage and heals, no misses).
 - A filter the player makes themselves can have both.
 
@@ -64,12 +66,12 @@ They follow the **filter selected on the Combat Log tab** (`Blizzard_CombatLog_F
 - **Words as a fallback** (`ParseWords`), for a line with no links: finds "Your" and the action word (`ACTION_<EVENT>` strings). Someone else's line can't give a spell name this way (their scrambled name runs into it).
 - A spell that fails says how in place of the action word ("Your Moonfire resisted X."); a swing says it in a note ("Your Melee missed X. (Dodged)").
 - With the Combat Log's "Use Verbose Mode" the sentences are different and have no action link. Not supported.
-- `/btf debug` prints every live line exactly as the game sent it (with `|` doubled so the links can be read), marked "read" or "skipped".
+- `/btf debug` records every live line exactly as the game sent it, marked "read" or "skipped", along with each `UNIT_COMBAT`, and the time each arrived. `/btf copy` shows them in an edit box (with `|` doubled so the links can be read), because chat can't be copied.
 
 ## WoW Forever rules the code must follow
 
 - **Lua 5.1.**
-- **Secret values.** Some API results are hidden from addons; comparing or doing math on one throws. Check `IsSecret(v)` first, or use `Num()` / `Str()`. A secret can still go to `SetText` / `SetFormattedText` (`Emit`'s `opts.secret`).
+- **Secret values.** Some API results are hidden from addons; comparing or doing math on one throws, **even `v == nil`**. Check `IsSecret(v)` first, or use `Num()` / `Str()`. A secret can still go to `SetText` / `SetFormattedText` (`Emit`'s `opts.secret`).
 - **Taint.** Never assign one of Blizzard's globals or `SetScript` on Blizzard's frames (`HookScript` is fine).
 - **Combat lockdown.** The Start button is secure: creating it, its attributes, and showing or hiding it wait for combat to end (`startPending`). The text areas and lines are ordinary frames and can change in combat.
 - **Hardware events.** Nothing here sends chat or does protected actions. The Start button's macro runs from the player's click.
@@ -83,15 +85,17 @@ Run from the repo root before every commit:
 - `tests/real_lines.lua` holds **real Combat Log lines**: about 160 of them, written by the game's own `CombatLogProcessor:GenerateMessage` for made-up events, each with what BattleText should read from it. `tests/strings_enus.lua` is the game's English text the addon reads. Both are made by `tests/tools/make_real_lines.lua`, which needs the game's exported interface code and its global strings (see the top of that file). Run it again when the game's Combat Log code changes. Don't write combat lines by hand in tests: the first version's tests passed on wording the game never produces.
 - `tests/wowstub.lua` fakes the game. Where it matters it behaves like the game instead of just accepting calls: the Combat Log window loads its filter when shown, which only works from a real click (`ClickButton`) and never from addon code; lines only arrive once that has happened and they're turned on; a secure macro button fires on mouse down or up by the game setting. Things an addon must never do are recorded in `VIOLATIONS` (replacing a Blizzard global or a script on a Blizzard frame, registering the combat log events, calling `ApplyFilterSettings`), and the tests check it's empty.
 - `tests/run_tests.lua` holds the scenarios: the `.toc` and keybindings, reading every real line three ways (with the game's text, without it, and as plain words), the Start button, your hits, adding up, crits, misses and heals, what happens to you both ways, scrolling and spacing, notifications, pet lines, settings, combat lockdown, the options window.
-- The stub can't make `==` on a secret value throw (Lua won't call a metamethod there), so check `IsSecret` before comparing by habit.
+- The stub can't make `==` on a secret value throw (Lua won't call a metamethod there). Instead a test reads the source and fails on any comparison of `opts.secret`, a raw `amount`, `message` or `order`.
+- `lua5.1 tests/run.lua` also runs `tests/reload_in_combat.lua` in a process of its own: logging in mid-fight with the Combat Log tab showing.
 
 Visual check: `lua5.1 tests/render.lua out.json && python3 tests/render.py out.json outdir` draws a fight in progress, the unlocked areas with the Start button, and the options window as PNG images (an approximation of the game's look). Needs Python with Pillow.
 
 Only testable in game:
 
-- that `/click ChatFrame2Tab` from the Start button opens the tab without a "blocked" message, in and out of combat
-- that the lines arrive with their links (run `/btf debug`)
-- whether `UNIT_COMBAT` amounts are readable or secret, and whether the log line or `UNIT_COMBAT` comes first
+- that `/click ChatFrame2Tab` from the Start button opens the tab without a "blocked" message, in and out of combat, and from the keybinding
+- that the lines arrive with their links, and that the links' GUIDs are real (pet lines depend on it): `/btf debug`, then `/btf copy`
+- whether `UNIT_COMBAT` amounts are readable or secret, and whether the log line or `UNIT_COMBAT` comes first (the same recording shows both)
+- whether `order` is readable (if it's secret, replayed history can't be told from new lines)
 - whether `floatingCombatTextCombatDamage` and `floatingCombatTextCombatHealing` exist on this client (they aren't in the game's Lua; a missing one is skipped)
 - fonts, and how the text looks in motion
 

@@ -62,7 +62,8 @@ Go to **Options → Keybindings → BattleText Forever**:
 | `/btf lock` · `/btf unlock` | Lock or unlock the text areas |
 | `/btf reset` | Put the text areas back where they started |
 | `/btf on` · `/btf off` | Turn the text on or off |
-| `/btf debug` | Print each combat line as the game sends it (for bug reports) |
+| `/btf debug` | Start or stop recording the combat lines the game sends (for bug reports) |
+| `/btf copy` | Show the recorded lines in a box you can copy from |
 
 `/battletext` works too.
 
@@ -70,9 +71,9 @@ Go to **Options → Keybindings → BattleText Forever**:
 
 WoW: Forever doesn't let addons read the combat log. BattleText works from what the game does allow:
 
-- **Your hits and heals come from the Combat Log window's lines.** The game only writes those after the Combat Log tab has been opened once, which is what the **Start BattleText** button does for you (it opens the tab and switches back). It's needed once each time you log in or reload. If you keep the Combat Log as its own window, BattleText starts by itself.
+- **Your hits and heals come from the Combat Log window's lines.** The game only writes those after the Combat Log tab has been opened once, which is what the **Start BattleText** button does for you (it opens the tab and switches back). It's needed once each time you log in or reload.
 - **They follow the Combat Log's filter.** With **My actions** (the default) you get your hits, heals and killing blows. If you pick **What happened to me?** on that tab, your own hits stop showing until you switch back.
-- **Misses and your pet are left out of that filter by default.** To see them, right-click the Combat Log tab, choose **Settings**, select **My actions**, then tick **Misses** under **Message Types** and **Pet** under **Message Sources**.
+- **Misses and your pet are left out of that filter by default.** To see them: with **My actions** selected on the Combat Log tab, right-click the tab and choose **Settings**. Under **Message Types** tick the **Misses** boxes, under **Message Sources** tick **Pet** in the **Done By** column, then press **Okay**.
 - **Damage you take** comes from a different game event and needs no setup. It has no spell names. Make a Combat Log filter that includes both what you do and what happens to you, and what you take gets spell names too.
 - **Enemy names aren't shown.** The game scrambles them in the lines addons can see.
 - **The Combat Log needs its normal wording.** If you've ticked **Use Verbose Mode** in its Formatting settings, untick it.
@@ -82,7 +83,7 @@ WoW: Forever doesn't let addons read the combat log. BattleText works from what 
 - **No numbers for your hits.** Click **Start BattleText**, or open the Combat Log tab once. Check that the Combat Log's filter is **My actions**.
 - **No misses, or nothing from your pet.** Tick them in the Combat Log's filter (see Good to know).
 - **Numbers show twice.** Tick **Hide the game's own numbers** in the options.
-- **Something isn't shown.** Type `/btf debug`, fight, and report the lines it prints in chat. Type `/btf debug` again to stop.
+- **Something isn't shown.** Type `/btf debug`, fight for a moment, then type `/btf copy` and copy the lines into a bug report. Type `/btf debug` again to stop.
 - **The text is in the wrong place.** Type `/btf unlock` and drag the boxes, or `/btf reset`.
 
 ## Feedback and bug reports

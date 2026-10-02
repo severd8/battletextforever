@@ -261,32 +261,46 @@ Enum = { CombatLogMessageOrder = { Newest = 0, Oldest = 1 } }
 C_Spell = { GetSpellTexture = function(spell) return STATE.spellIcons[spell] end }
 C_Item = { GetItemIconByID = function(id) return 134000 + id end }
 
--- The chat tabs, and the Combat Log window behind the second one
+-- The chat tabs (General, Combat Log, Loot), and the Combat Log window behind the second one
 ChatFrame1 = newObj("ScrollingMessageFrame", "ChatFrame1")
 ChatFrame2 = newObj("ScrollingMessageFrame", "ChatFrame2")
-ChatFrame2.__shown = false
+ChatFrame3 = newObj("ScrollingMessageFrame", "ChatFrame3")
+ChatFrame2.__shown, ChatFrame3.__shown = false, false
 COMBATLOG = ChatFrame2
 ChatFrame1Tab = newObj("Button", "ChatFrame1Tab")
 ChatFrame2Tab = newObj("Button", "ChatFrame2Tab")
+ChatFrame3Tab = newObj("Button", "ChatFrame3Tab")
 SELECTED_DOCK_FRAME = ChatFrame1
+GENERAL_CHAT_DOCK = {}
 -- What Blizzard's Combat Log does when its window shows and hides
 ChatFrame2.__scripts.OnShow = function()
     C_CombatLog.SetFilteredEventsEnabled(true)
     ApplyFilterSettings()
 end
 ChatFrame2.__scripts.OnHide = function() C_CombatLog.SetFilteredEventsEnabled(false) end
--- Clicking a tab shows its window and hides the other
+-- Clicking a tab shows its window and hides the others
 local GAME   -- the game's globals (filled in at the end of this file)
+function FCFDock_GetSelectedWindow() return GAME.SELECTED_DOCK_FRAME end
 local function TabClick(tab, button)
     if button ~= "LeftButton" then return end
-    local show = tab == ChatFrame2Tab and ChatFrame2 or ChatFrame1
-    local hide = show == ChatFrame1 and ChatFrame2 or ChatFrame1
+    local windows = { [ChatFrame1Tab] = ChatFrame1, [ChatFrame2Tab] = ChatFrame2, [ChatFrame3Tab] = ChatFrame3 }
+    local show = windows[tab]
+    if show == GAME.SELECTED_DOCK_FRAME then return end
     GAME.SELECTED_DOCK_FRAME = show
-    hide:Hide()
+    for _, window in pairs(windows) do
+        if window ~= show then window:Hide() end
+    end
     show:Show()
 end
 ChatFrame1Tab.__scripts.OnClick = TabClick
 ChatFrame2Tab.__scripts.OnClick = TabClick
+ChatFrame3Tab.__scripts.OnClick = TabClick
+-- Your own click on a chat tab
+function ClickTab(tab)
+    SECURE = true
+    tab.__scripts.OnClick(tab, "LeftButton", false)
+    SECURE = false
+end
 
 -- A real click on a button: mouse down, then up. A secure button's macro runs
 -- on one of the two (the "act on key down" setting decides which), as the
@@ -327,7 +341,7 @@ dofile((ADDON_DIR or ".") .. "/tests/strings_enus.lua")
 -- may read it and add to its tables, but never replace it.
 local TEST = { LOG = 1, ALL_FRAMES = 1, BLOCKED = 1, VIOLATIONS = 1, COMBAT = 1, SECRET_MODE = 1, SECURE = 1,
     STUB_METHODS = 1, STATE = 1, FAKE_TIME = 1, TIMERS = 1, TICKERS = 1, Advance = 1, Secret = 1, newObj = 1,
-    ClickButton = 1, WithoutGameText = 1 }
+    ClickButton = 1, ClickTab = 1, WithoutGameText = 1 }
 GAME = {}
 for k, v in pairs(_G) do
     if not STANDARD[k] and not TEST[k] then GAME[k] = v end

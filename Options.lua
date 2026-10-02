@@ -70,12 +70,16 @@ local function Slider(parent, text, x, y, key, min, max, suffix, step)
     s:SetSize(190, 17)
     s:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
     s:SetHitRectInsets(0, 0, -8, -8)
-    local track = s:CreateTexture(nil, "BACKGROUND")
-    local n = BT.COLORS.navy
-    track:SetColorTexture(n[1], n[2], n[3], 1)
-    track:SetHeight(6)
-    track:SetPoint("LEFT")
-    track:SetPoint("RIGHT")
+    if s.SetBackdrop and BACKDROP_SLIDER_8_8 then
+        s:SetBackdrop(BACKDROP_SLIDER_8_8)   -- the game's own slider track
+    else
+        local track = s:CreateTexture(nil, "BACKGROUND")
+        local n = BT.COLORS.navy
+        track:SetColorTexture(n[1], n[2], n[3], 1)
+        track:SetHeight(6)
+        track:SetPoint("LEFT")
+        track:SetPoint("RIGHT")
+    end
     s:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
     s:SetMinMaxValues(min, max)
     s:SetValueStep(step or 1)
@@ -248,8 +252,8 @@ function BT:BuildConfig()
     note:SetText("Click \"Start BattleText\" once after you log in (or open the Combat Log tab). "
         .. "The game only writes its combat lines after that.\n\n"
         .. "Your hits and heals follow the filter chosen on the Combat Log tab. \"My actions\" is the one to use.\n\n"
-        .. "For your misses and your pet too: right-click that tab, choose Settings, and in \"My actions\" tick "
-        .. "Misses (Message Types) and Pet (Message Sources).")
+        .. "For your misses and your pet too: right-click that tab, choose Settings, tick the Misses boxes "
+        .. "(Message Types) and Pet under Done By (Message Sources), and press Okay.")
 
     self.config = f
 end
@@ -262,4 +266,57 @@ function BT:OpenConfig()
         self:RefreshConfig()
         self.config:Show()
     end
+end
+
+---------------------------------------------------------------------------
+-- /btf copy: the lines recorded by /btf debug, in a box they can be copied
+-- from (chat can't be copied)
+---------------------------------------------------------------------------
+function BT:OpenCopyWindow()
+    local f = self.copyWindow
+    if not f then
+        f = CreateFrame("Frame", "BattleTextForeverCopy", UIParent)
+        f:SetSize(640, 380)
+        f:SetPoint("CENTER")
+        self:SkinFrame(f, self.COLORS.dark, self.COLORS.goldDark, 0.97, 2)
+        f:SetFrameStrata("DIALOG")
+        f:EnableMouse(true)
+        f:Hide()
+        table.insert(UISpecialFrames, "BattleTextForeverCopy")   -- Escape closes it
+
+        local banner = CreateFrame("Frame", nil, f)
+        banner:SetPoint("TOPLEFT", 2, -2)
+        banner:SetPoint("TOPRIGHT", -2, -2)
+        banner:SetHeight(28)
+        self:SkinFrame(banner, self.COLORS.crimson, self.COLORS.goldDark, 1, 1)
+        local title = banner:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        title:SetPoint("CENTER")
+        title:SetText("Combat lines: press Ctrl+C to copy, then paste into your report")
+        title:SetTextColor(unpack(self.COLORS.gold))
+        local close = CreateFrame("Button", nil, banner, "UIPanelCloseButton")
+        close:SetPoint("RIGHT", 2, 0)
+        close:SetScript("OnClick", function() f:Hide() end)
+
+        local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 12, -40)
+        scroll:SetPoint("BOTTOMRIGHT", -32, 12)
+        local edit = CreateFrame("EditBox", nil, scroll)
+        edit:SetMultiLine(true)
+        edit:SetAutoFocus(false)
+        edit:SetFontObject("ChatFontNormal")
+        edit:SetWidth(590)
+        edit:SetScript("OnEscapePressed", function() f:Hide() end)
+        scroll:SetScrollChild(edit)
+        f.edit = edit
+        self.copyWindow = f
+    end
+    local text = "Nothing recorded yet. Type /btf debug, fight for a moment, then /btf copy."
+    if self.recorded and #self.recorded > 0 then
+        -- "|" doubled, so the links show as text instead of turning into links
+        text = (table.concat(self.recorded, "\n"):gsub("|", "||"))
+    end
+    f.edit:SetText(text)
+    f:Show()
+    f.edit:SetFocus()
+    f.edit:HighlightText()
 end

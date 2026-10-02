@@ -128,6 +128,21 @@ step("reading the game's combat log lines")
 Parser:Init()
 for _, entry in ipairs(REAL) do sameParse(Parser:Parse(entry.raw), entry.expect, FIELDS, entry.id) end
 assert(#REAL > 150, "the real lines were all there")
+-- Other ways of writing big numbers (other languages)
+for _, written in ipairs({ "1.234", "1 234", "1\194\160234", "1'234", "1234" }) do
+    local line = real("spell"):gsub("|cffffffff50|r", "|cffffffff" .. written .. "|r")
+    assertEq(Parser:Parse(line).amount, 1234, "amount written as " .. written)
+    assertEq(Parser:Parse(line).unit, "Physical", "and what follows it")
+end
+Parser:AddSeparator("\239\188\140")   -- a separator the game might name that isn't built in
+assertEq(Parser:Parse((real("spell"):gsub("|cffffffff50|r", "|cffffffff1\239\188\140234|r"))).amount, 1234, "the game's own separator")
+-- Told apart by the link's GUID even if the word isn't "You"
+local p0 = Parser:Parse((real("spell at me"):gsub("|hYou|h", "|hAbla|h")))
+assertEq(p0.toMe, true, "at me, by GUID")
+p0 = Parser:Parse((real("spell"):gsub("|hYour|h", "|hAbla's|h")))
+assertEq(p0.fromMe, true, "mine, by GUID")
+p0 = Parser:Parse((real("spell"):gsub("Claw", "Mob [Elite]")))
+assertEq(p0.spell, "Mob [Elite]", "a bracket in a name is kept")
 assertEq(Parser:Parse(""), nil, "empty line")
 assertEq(Parser:Parse(Secret(real("spell"))), nil, "hidden text isn't read")
 assertEq(Parser:Parse(nil), nil, "no text at all")
@@ -191,6 +206,23 @@ p = Parser:Parse(onScreen(real("look: braces around names and spells")))
 assertEq(p.fromMe, true, "braces: mine"); assertEq(p.spell, "Claw", "braces: spell"); assertEq(p.crit, true, "braces: crit")
 assertEq(Parser:Parse("Stormsnout dies, you gain 103 experience."), nil, "not a combat line")
 
+step("hidden values are never compared")
+-- Comparing a hidden ("secret") value throws in game, even against nil. The
+-- fake game here can't make that throw, so the code is checked by eye: these
+-- may hold a hidden value and must only ever be tested with IsSecret.
+for _, file in ipairs(tocFiles) do
+    local n = 0
+    for line in (read_file(ADDON_DIR .. "/" .. file) .. "\n"):gmatch("(.-)\n") do
+        n = n + 1
+        local code = line:gsub("%-%-.*$", "")
+        local bad = code:find("opts%.secret%s*[~=]=")
+            or code:find("[^%w_%.]amount%s*[~=]=") or code:find("[^%w_%.]amount%s*[<>]")
+            or (code:find("[^%w_%.]order%s*[~=]=") and not code:find("IsSecret(order)", 1, true))
+            or code:find("[^%w_%.]message%s*[~=]=")
+        assert(not bad, file .. ":" .. n .. " compares a value that may be hidden: " .. line)
+    end
+end
+
 ---------------------------------------------------------------------------
 step("load and log in")
 fire("ADDON_LOADED", ADDON)
@@ -224,9 +256,10 @@ fire("COMBAT_LOG_MESSAGE", swing(27), 1, 1, 1, Enum.CombatLogMessageOrder.Oldest
 assertEq(start:IsShown(), true, "old lines don't hide the button")
 assertEq(#lines("outgoing"), 0, "and aren't shown")
 
+ClickTab(ChatFrame3Tab)   -- you're on your Loot tab
 ClickButton(start)
 assertEq(STATE.filterApplied, true, "the click opened the Combat Log tab (the game loaded its filter)")
-assertEq(SELECTED_DOCK_FRAME, ChatFrame1, "and went back to the tab you were on")
+assertEq(SELECTED_DOCK_FRAME, ChatFrame3, "and went back to the tab you were on")
 assertEq(ChatFrame2:IsShown(), false, "the Combat Log is hidden again")
 assertEq(STATE.filteredEvents, true, "BattleText turned the lines back on after the game turned them off")
 assertEq(BT.started, true, "started")
@@ -238,11 +271,23 @@ clear()
 STATE.filteredEvents = false
 Advance(3.1)
 assertEq(STATE.filteredEvents, true, "BattleText keeps the lines on")
-SECURE = true   -- (your own clicks on the tabs)
-ChatFrame2Tab.__scripts.OnClick(ChatFrame2Tab, "LeftButton")   -- you look at the Combat Log yourself...
-ChatFrame1Tab.__scripts.OnClick(ChatFrame1Tab, "LeftButton")   -- ...and go back
-SECURE = false
+ClickTab(ChatFrame2Tab)   -- you look at the Combat Log yourself...
+ClickTab(ChatFrame1Tab)   -- ...and go back
 assertEq(STATE.filteredEvents, true, "still on after you close the Combat Log")
+-- Logged in with the Combat Log tab already showing: the game hasn't loaded its
+-- filter (that needs a click), so the button is still there, and its click
+-- leaves the tab and comes back
+ClickTab(ChatFrame2Tab)
+BT.started = nil
+STATE.filterApplied = false
+BT:UpdateStartButton()
+assertEq(start:IsShown(), true, "Start button shows with the Combat Log tab open")
+ClickButton(start)
+assertEq(STATE.filterApplied, true, "the click reopened the tab")
+assertEq(SELECTED_DOCK_FRAME, ChatFrame2, "and you're still on it")
+assertEq(start:IsShown(), false, "started")
+ClickTab(ChatFrame1Tab)
+assertClean("after starting from the Combat Log tab")
 
 ---------------------------------------------------------------------------
 step("your hits")
@@ -277,6 +322,13 @@ assertEq(last("outgoing"), "Swipe 135 |cffb0b0b0(x3)|r", "total and count")
 Advance(1.5)
 log(hit("Swipe", 779, 40))
 assertEq(#lines("outgoing"), 2, "a later hit is its own line")
+clear()
+-- A steady stream doesn't pile onto one line forever: after a second, a new line
+for _ = 1, 4 do
+    log(hit("Swipe", 779, 10))
+    Advance(0.4)
+end
+assertEq(#lines("outgoing"), 2, "a new line after a second of adding up")
 BT.db.merge = false
 clear()
 log(hit("Swipe", 779, 40))
@@ -319,6 +371,8 @@ log(real("heal on a friend"))
 assertEq(last("outgoing"), "Rejuvenation +61", "a heal on someone else")
 log(real("heal on a friend, overheal, crit"))
 assertEq(last("outgoing"), "Flash Heal +1,034 |cffb0b0b0(200 over)|r", "overhealing is noted")
+log(real("damage shared out"))
+assertEq(#lines("outgoing"), 2, "damage shared to your pet isn't a hit of yours")
 BT.db.minDamage = 30
 log(swing(12))
 assertEq(last("outgoing"), "Flash Heal +1,034 |cffb0b0b0(200 over)|r", "hits below the limit are hidden")
@@ -368,6 +422,18 @@ clear()
 fire("UNIT_COMBAT", "player", "HEAL", "", 120, 8)
 Advance(0.3)
 assertEq(last("incoming"), "+120", "a heal on you")
+fire("UNIT_COMBAT", "player", "HEAL", "", Secret(120), 8)
+Advance(0.3)
+assertEq(last("incoming"), "<secret fmt>", "a heal with a hidden amount")
+BT.db.inPower = true
+local shownBefore = #lines("incoming")
+fire("UNIT_COMBAT", "player", "ENERGIZE", "", Secret(10), 1)
+assertEq(#lines("incoming"), shownBefore + 1, "a power gain with a hidden amount is shown")
+assertEq(last("incoming"), "<secret fmt>", "by the game itself")
+BT.db.inPower = false
+clear()
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 8)
+Advance(0.3)
 fire("UNIT_COMBAT", "player", "ENERGIZE", "", 10, 1)
 assertEq(last("incoming"), "+120", "power gains are off by default")
 BT.db.inPower = true
@@ -400,6 +466,17 @@ log(real("heal on myself, all overheal"))
 assertEq(#lines("incoming"), 0, "a heal that was all overhealing isn't shown")
 Advance(1)
 
+step("a friend's heal isn't shown twice when the log starts covering heals")
+fire("UNIT_COMBAT", "player", "HEAL", "", 300, 2)
+log(real("a friend's heal on me"))
+Advance(0.3)
+assertEq(#lines("incoming"), 1, "one line")
+assertEq(last("incoming"), "+300 Flash Heal", "the one with the spell's name")
+for _ = 1, 4 do fire("UNIT_COMBAT", "player", "HEAL", "", 50, 2) end   -- (the filter is switched back)
+Advance(0.3)
+assertEq(BT:LogDelivers("heal"), false, "and UNIT_COMBAT takes over again when the log stops")
+clear()
+
 step("damage you do to yourself is shown once")
 fire("UNIT_COMBAT", "player", "WOUND", "", 30, 4)
 log(real("spell at myself"))
@@ -417,6 +494,8 @@ log(hitMe("Fireball", 133, 84, "Fire"))
 local inc = lines("incoming")
 assertEq(inc[#inc], "-84 Fireball", "with the spell's name")
 assertEq(#inc, 3, "the second hit is shown once")
+log(real("swing at me, crushing"))
+assertEq(BT.areas.incoming.active[4].sticky, true, "a crushing blow stands out like a crit")
 -- That filter has no misses, so your dodges still come from UNIT_COMBAT
 fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
 log(hitMe("Fireball", 133, 20, "Fire"))
@@ -549,18 +628,28 @@ BT.db.outPet = true
 STATE.pet = false
 clear()
 
-step("debug: every line, exactly as the game sent it")
+step("debug: what the game sent, in a box it can be copied from")
+SlashCmdList.BATTLETEXTFOREVER("copy")
+assert(BT.copyWindow.edit:GetText():find("Nothing recorded yet", 1, true), "nothing to copy before debug is on")
 SlashCmdList.BATTLETEXTFOREVER("debug")
 log(real("spell"))
 log(real("cast"))
-local sawRead, sawSkipped
-for _, l in ipairs(LOG) do
-    if l:find("BattleText read:", 1, true) and l:find("||Hspell:16827:0:SPELL_DAMAGE||h", 1, true) then sawRead = true end
-    if l:find("BattleText skipped:", 1, true) and l:find("SPELL_CAST_SUCCESS", 1, true) then sawSkipped = true end
-end
-assert(sawRead, "a line that was shown is printed with its links readable")
-assert(sawSkipped, "and so is one that wasn't")
+fire("UNIT_COMBAT", "player", "WOUND", "CRITICAL", 58, 1)
+fire("UNIT_COMBAT", "player", "WOUND", "", Secret(40), 1)
+SlashCmdList.BATTLETEXTFOREVER("copy")
+local copied = BT.copyWindow.edit:GetText()
+assertEq(BT.copyWindow:IsShown(), true, "the window opens")
+assert(copied:find("read    ||Hunit:Player-5555-0ABCDEF1:Abla||hYour||h ||Hspell:16827:0:SPELL_DAMAGE||h", 1, true),
+    "a line that was shown, with its links readable")
+assert(copied:find("skipped ", 1, true) and copied:find("SPELL_CAST_SUCCESS", 1, true), "and one that wasn't")
+assert(copied:find("UNIT_COMBAT WOUND CRITICAL 58", 1, true), "what happened to you")
+assert(copied:find("UNIT_COMBAT WOUND  (hidden amount)", 1, true), "a hidden amount is named, not read")
+local _, newlines = copied:gsub("\n", "")
+assertEq(newlines, 3, "one line each")
 SlashCmdList.BATTLETEXTFOREVER("debug")
+log(real("spell"))
+assertEq(#BT.recorded, 4, "nothing is recorded once debug is off")
+BT.copyWindow:Hide()
 clear()
 
 step("moving and turning off")
@@ -598,7 +687,9 @@ SlashCmdList.BATTLETEXTFOREVER("off")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "1", "BattleText off: the game's numbers come back")
 SlashCmdList.BATTLETEXTFOREVER("on")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "0", "and go again")
+COMBAT = true   -- even when you leave mid-fight
 fire("PLAYER_LOGOUT")
+COMBAT = false
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "1", "logging out leaves the game's setting as it was")
 BT:ApplySettings()   -- (logging back in)
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "0", "hidden again next time")
@@ -643,6 +734,7 @@ STATE.filterApplied, STATE.filteredEvents = false, false
 BT:UpdateStartButton()
 assertEq(start:IsShown(), true, "shown again")
 COMBAT, BLOCKED = true, {}
+ClickTab(ChatFrame3Tab)   -- you change chat tab mid-fight: the button can't be told until the fight ends
 ClickButton(start)
 assertEq(STATE.filterApplied, true, "the click works in combat")
 assertEq(log(swing(27)), true, "lines arrive in combat")
