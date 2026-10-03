@@ -4,7 +4,7 @@
 
 **Scrolling combat text for World of Warcraft: Forever.**
 
-BattleText Forever puts the fight on your screen: your hits and heals scroll on one side, the damage you take on the other, and loot, experience and kills in the middle. It's built for Forever's addon rules, in the spirit of the classic scrolling combat text addons.
+BattleText Forever puts the fight on your screen: your hits and heals scroll on one side, the damage you take on the other, and loot and experience in the middle. It's built for Forever's addon rules, in the spirit of the classic scrolling combat text addons.
 
 ---
 
