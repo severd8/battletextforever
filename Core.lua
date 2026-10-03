@@ -1,6 +1,7 @@
 -- BattleText Forever: scrolling combat text for World of Warcraft: Forever.
--- Your damage and heals come from the game's combat log lines (see Parse.lua);
--- damage you take also comes from the UNIT_COMBAT event, which needs no setup.
+-- Numbers come from the UNIT_COMBAT event (what happens to a unit: you, your
+-- target, the mobs around you), and from the game's combat log lines whenever
+-- the game lets an addon read them (see Parse.lua).
 
 local ADDON, ns = ...
 local BT = {}
@@ -45,6 +46,10 @@ local SCHOOL_KEYS = {
     { "STRING_SCHOOL_ARCANE", "Arcane", { 1.00, 0.55, 1.00 } },
 }
 
+-- The same schools as UNIT_COMBAT numbers them: 2 Holy, 4 Fire, 8 Nature...
+local MASK_COLORS = {}
+for i, school in ipairs(SCHOOL_KEYS) do MASK_COLORS[2 ^ i] = school[3] end
+
 local DEFAULTS = {
     enabled = true,
     locked = true,
@@ -75,13 +80,31 @@ local DEFAULTS = {
 }
 BT.DEFAULTS = DEFAULTS
 
--- "Default" is the game's own font for your language
+-- "Default" is the game's own font for your language. The next four come with
+-- the game; the rest are in this addon's Fonts folder (each under its own
+-- open licence, in Fonts/Licenses).
+local FONT_DIR = "Interface\\AddOns\\BattleTextForever\\Fonts\\"
 BT.FONTS = {
     { name = "Default" },
     { name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
     { name = "Arial Narrow", path = "Fonts\\ARIALN.TTF" },
     { name = "Morpheus", path = "Fonts\\MORPHEUS.TTF" },
     { name = "Skurri", path = "Fonts\\SKURRI.TTF" },
+    { name = "Anton", path = FONT_DIR .. "Anton-Regular.ttf" },
+    { name = "Archivo Black", path = FONT_DIR .. "ArchivoBlack-Regular.ttf" },
+    { name = "Bangers", path = FONT_DIR .. "Bangers-Regular.ttf" },
+    { name = "Barlow Condensed", path = FONT_DIR .. "BarlowCondensed-Bold.ttf" },
+    { name = "Bebas Neue", path = FONT_DIR .. "BebasNeue-Regular.ttf" },
+    { name = "Fira Sans", path = FONT_DIR .. "FiraSans-Bold.ttf" },
+    { name = "Lato", path = FONT_DIR .. "Lato-Bold.ttf" },
+    { name = "Luckiest Guy", path = FONT_DIR .. "LuckiestGuy-Regular.ttf" },
+    { name = "Permanent Marker", path = FONT_DIR .. "PermanentMarker-Regular.ttf" },
+    { name = "Poppins", path = FONT_DIR .. "Poppins-Bold.ttf" },
+    { name = "Press Start 2P", path = FONT_DIR .. "PressStart2P-Regular.ttf" },
+    { name = "PT Sans Narrow", path = FONT_DIR .. "PTSansNarrow-Bold.ttf" },
+    { name = "Rajdhani", path = FONT_DIR .. "Rajdhani-Bold.ttf" },
+    { name = "Russo One", path = FONT_DIR .. "RussoOne-Regular.ttf" },
+    { name = "Ubuntu", path = FONT_DIR .. "Ubuntu-Bold.ttf" },
 }
 
 -- Scroll areas. dir: which way a curved line bows (-1 left, 1 right, 0 none).
@@ -101,6 +124,14 @@ local function IsSecret(v) return issecretvalue ~= nil and issecretvalue(v) == t
 local function Num(v) if IsSecret(v) or type(v) ~= "number" then return nil end return v end
 local function Str(v) if IsSecret(v) or type(v) ~= "string" then return nil end return v end
 BT.IsSecret, BT.Num, BT.Str = IsSecret, Num, Str
+
+-- A yes-or-no question for the game, answered with a plain true or false
+-- (false when the game hides the answer, or doesn't have the function)
+local function Flag(fn, ...)
+    if not fn then return false end
+    local ok, v = pcall(fn, ...)
+    return ok and not IsSecret(v) and (v == true or v == 1)
+end
 
 local function FillDefaults(t, defaults)
     for k, v in pairs(defaults) do
@@ -556,11 +587,13 @@ local function PowerName()
     return token and Str(_G[token]) or nil
 end
 
-function BT:OnUnitCombat(unit, action, flag, amount)
-    if Str(unit) ~= "player" then return end
+function BT:OnUnitCombat(unit, action, flag, amount, school)
+    unit = Str(unit)
+    if not unit then return end
+    if unit ~= "player" then return self:OnUnitHit(unit, action, flag, amount, school) end
     action, flag = Str(action), Str(flag)
     if self.db.debug then
-        self:Record("UNIT_COMBAT " .. tostring(action) .. " " .. tostring(flag) .. " "
+        self:Record("UNIT_COMBAT player " .. tostring(action) .. " " .. tostring(flag) .. " "
             .. (IsSecret(amount) and "(hidden amount)" or tostring(amount)))
     end
     if not action then return end
@@ -611,6 +644,201 @@ function BT:OnUnitCombat(unit, action, flag, amount)
     end
 end
 
+---------------------------------------------------------------------------
+-- What you do to other units
+--
+-- The game hides the text of its combat log lines from addons when it likes:
+-- the line arrives as a "|K...|k" token, which can be shown but not read. So
+-- your hits are read from UNIT_COMBAT on the unit they land on (your target,
+-- a mob with a nameplate, a party member): the amount, crit and school are
+-- there, but not who did it, nor with which spell.
+---------------------------------------------------------------------------
+local CREDIT_TIME = 1.2   -- a hit can follow its combat log line by this long (a swing lands with its animation)
+local FLAG_NOTES = { GLANCING = "glancing", BLOCK = "blocked", BLOCK_REDUCED = "blocked", ABSORB = "absorbed",
+    RESIST = "resisted" }
+
+function BT:InGroup()
+    return Flag(IsInGroup) or Flag(IsInRaid) or Flag(UnitExists, "party1")
+end
+
+-- A unit you're fighting: your target, or one that's after you or your pet
+local function Fighting(unit)
+    return Flag(UnitIsUnit, unit, "target") or Flag(UnitIsUnit, unit .. "target", "player")
+        or Flag(UnitIsUnit, unit, "pettarget") or Flag(UnitIsUnit, unit .. "target", "pet")
+end
+
+-- One hit arrives once for every name its unit goes by (target, nameplate3,
+-- focus...). Only the first name seen in a frame counts for that unit.
+function BT:FirstSight(unit, now)
+    local seen = self.seenUnits
+    if not seen then
+        seen = {}
+        self.seenUnits = seen
+    end
+    if self.seenAt ~= now then
+        self.seenAt = now
+        for k in pairs(seen) do seen[k] = nil end
+    end
+    local ok, guid = pcall(UnitGUID, unit)
+    local key = ok and Str(guid) or nil
+    if not key then
+        -- No GUID to go by: your target counts under "target" only
+        if unit ~= "target" and Flag(UnitIsUnit, unit, "target") then return false end
+        key = unit
+    end
+    if seen[key] == nil then seen[key] = unit end
+    return seen[key] == unit
+end
+
+-- In a group, a hit on a mob could be anyone's. The combat log lines can't be
+-- read, but with the "My actions" filter each one is something you did. So a
+-- hit is taken for yours only if a line came with it or shortly before it,
+-- and each line vouches for one hit. (credits: when those lines arrived.)
+function BT:NoteHiddenLine(now)
+    self.hiddenSeen = true
+    -- A hit that arrived just ahead of its line, in this same frame
+    local waiting = self.waitingHits
+    if waiting and waiting[1] and waiting[1].time == now then
+        table.remove(waiting, 1).show()
+        if self.db.debug then self:Record("  the hit before this line: shown") end
+        return
+    end
+    local credits = self.credits or {}
+    self.credits = credits
+    while credits[1] and (now - credits[1] > CREDIT_TIME or #credits >= 20) do table.remove(credits, 1) end
+    credits[#credits + 1] = now
+end
+
+function BT:ClaimHit(now, show)
+    local credits = self.credits
+    while credits and credits[1] and now - credits[1] > CREDIT_TIME do table.remove(credits, 1) end
+    if credits and credits[1] then
+        table.remove(credits, 1)
+        show()
+        return true
+    end
+    local waiting = self.waitingHits or {}
+    self.waitingHits = waiting
+    while waiting[1] and waiting[1].time ~= now do table.remove(waiting, 1) end
+    waiting[#waiting + 1] = { time = now, show = show }
+    return false
+end
+
+-- Your own casts. A hit that lands in the very frame one of them finishes is
+-- that spell (an instant attack, a spell with no travel time).
+local function SpellName(id)
+    if not (C_Spell and C_Spell.GetSpellName) then return nil end
+    local ok, name = pcall(C_Spell.GetSpellName, id)
+    return ok and Str(name) or nil
+end
+
+function BT:OnSpellcast(spellId)
+    local now = GetTime()
+    if self.castAt == now then
+        self.castCount = self.castCount + 1
+    else
+        self.castAt, self.castCount = now, 1
+    end
+    self.castId = Num(spellId)
+    if self.db.debug then self:Record("CAST " .. tostring(self.castId) .. " " .. tostring(self.castId and SpellName(self.castId))) end
+end
+
+function BT:CastNow(now)
+    if self.castAt ~= now or self.castCount ~= 1 or not self.castId then return nil end
+    return self.castId, SpellName(self.castId)
+end
+
+-- UNIT_COMBAT for a unit that isn't you
+function BT:OnUnitHit(unit, action, flag, amount, school)
+    -- You go by other names too (a mob's target, a raid member): "player" has
+    -- its own event. Of what happens to your pet, only its heals are shown.
+    if Flag(UnitIsUnit, unit, "player") then return end
+    action, flag = Str(action), Str(flag)
+    local myPet = Flag(UnitIsUnit, unit, "pet")
+    if myPet and (unit ~= "pet" or action ~= "HEAL") then return end
+    local secret, n, now = IsSecret(amount), Num(amount), GetTime()
+    local some = secret or (n ~= nil and n > 0)
+    local kind
+    if action == "WOUND" then
+        kind = some and "damage" or "miss"
+    elseif action == "HEAL" then
+        kind = some and "heal" or nil
+    elseif action and MISS_TEXT[action] then
+        kind = "miss"
+    end
+    local healing = kind == "heal"
+    local enemy = Flag(UnitCanAttack, "player", unit)
+    -- In a group, once the combat log lines are arriving, they say which hits are yours
+    local vouched = self.hiddenSeen and self:InGroup()
+
+    local why
+    if not kind then
+        why = "not a hit"
+    elseif self.readAt and now - self.readAt < CREDIT_TIME then
+        why = "the combat log line has it"
+    elseif healing and enemy then
+        why = "a heal on an enemy"
+    elseif not healing and not enemy then
+        why = "not an enemy"
+    elseif healing and not vouched and not myPet and not Flag(UnitIsUnit, unit, "target") then
+        why = "not your target"
+    elseif not healing and not Fighting(unit) then
+        why = "not your fight"
+    elseif not self:FirstSight(unit, now) then
+        why = "same hit, under another name"
+    end
+
+    if not why then
+        local db, C = self.db, self.TEXT_COLORS
+        local crit = flag == "CRITICAL"
+        local function show()
+            local spellId, name = self:CastNow(now)
+            local label = (spellId and self:IconText(spellId) or "") .. ((name and db.spellNames) and (name .. " ") or "")
+            if kind == "damage" then
+                if not db.outDamage or (n and n < db.minDamage) then return end
+                local mask = Num(school)
+                local color = MASK_COLORS[mask or 1] or ((name or (mask and mask ~= 1)) and C.spell) or C.melee
+                local note = FLAG_NOTES[flag or ""]
+                note = note and (" |cffb0b0b0(" .. note .. ")|r") or ""
+                if secret then
+                    self:Emit("outgoing", label, color, { crit = crit, secret = amount, after = note })
+                else
+                    self:Emit("outgoing", label .. Commas(n) .. note, color, {
+                        crit = crit,
+                        key = spellId and ("cast:" .. spellId) or nil,
+                        amount = n,
+                        format = function(total, count)
+                            return label .. Commas(total) .. " |cffb0b0b0(x" .. count .. ")|r"
+                        end,
+                    })
+                end
+            elseif healing then
+                if not db.outHeals then return end
+                if secret then
+                    self:Emit("outgoing", label .. "+", C.heal, { crit = crit, secret = amount })
+                else
+                    self:Emit("outgoing", label .. "+" .. Commas(n), C.heal, { crit = crit })
+                end
+            elseif db.outMisses then
+                -- A wound for nothing says how in its flag; a plain miss has none
+                local how = action
+                if action == "WOUND" then how = (flag and MISS_TEXT[flag]) and flag or "MISS" end
+                self:Emit("outgoing", label .. MissText(how), C.miss)
+            end
+        end
+        if not vouched then
+            show()
+        elseif not self:ClaimHit(now, show) then
+            why = "no line of yours with it (yet)"
+        end
+    end
+    if self.db.debug then
+        self:Record(("UNIT_COMBAT %s %s %s %s school %s: %s"):format(unit, tostring(action), tostring(flag),
+            secret and "(hidden amount)" or tostring(amount), IsSecret(school) and "(hidden)" or tostring(school),
+            why or "shown"))
+    end
+end
+
 -- A finished combat log line from the game
 function BT:OnCombatLogMessage(message, _, _, _, order)
     -- Old lines replayed when the Combat Log window refills aren't news
@@ -621,24 +849,30 @@ function BT:OnCombatLogMessage(message, _, _, _, order)
         self:UpdateStartButton()
     end
     if not self.db.enabled then return end
-    if IsSecret(message) then
-        -- The game is hiding the text. It can still be shown, just not read.
-        if self.db.debug then self:Record("(hidden line)") end
-        if self.db.outDamage then self:Emit("outgoing", "", self.TEXT_COLORS.melee, { secret = message }) end
+    -- The game is hiding the text: the line can't be read, but it says you did
+    -- something just now (see NoteHiddenLine)
+    local hidden = IsSecret(message)
+    if not hidden and (type(message) ~= "string" or message:find("|K", 1, true)) then hidden = true end
+    if hidden then
+        if self.db.debug then self:Record("hidden  " .. (Str(message) or "(a hidden value)")) end
+        self:NoteHiddenLine(GetTime())
         return
     end
     local info = Parser:Parse(message)
+    -- A line of yours that can be read is shown from the line; the same hit from
+    -- UNIT_COMBAT is then left out
+    if info and (info.fromMe or self:IsPetLine(info)) then self.readAt = GetTime() end
     local shown = info ~= nil and self:ShowCombat(info)
     if self.db.debug then self:Record((shown and "read    " or "skipped ") .. message) end
 end
 
 -- Debug (/btf debug, then /btf copy): what the game sent, exactly, with the time
--- it arrived. Kept only while debug is on, and only the last 150.
+-- it arrived. Kept only while debug is on, and only the last 300.
 function BT:Record(text)
     self.recorded = self.recorded or {}
     local list = self.recorded
     list[#list + 1] = ("%7.2f  %s"):format(GetTime() % 1000, text)
-    if #list > 150 then table.remove(list, 1) end
+    if #list > 300 then table.remove(list, 1) end
 end
 
 ---------------------------------------------------------------------------
@@ -766,7 +1000,9 @@ function BT:BuildStartButton()
         GameTooltip:AddLine("Start BattleText", unpack(BT.COLORS.gold))
         GameTooltip:AddLine("The game only writes its combat lines after the Combat Log tab has been opened once. "
             .. "This click opens it and switches back for you.", 1, 1, 1, true)
-        GameTooltip:AddLine("Needed once each time you log in.", 0.7, 0.7, 0.7, true)
+        GameTooltip:AddLine("Playing alone, your hits show without it. In a group, BattleText needs those lines to tell "
+            .. "your hits from everyone else's.", 1, 1, 1, true)
+        GameTooltip:AddLine("Once each time you log in.", 0.7, 0.7, 0.7, true)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -849,6 +1085,14 @@ function BT:ApplySettings()
     self:UpdateMinimapButton()
     self:ApplyBlizzardText()
     if self.db.enabled then self:KeepLogFlowing() else self:StopLogFlowing() end
+end
+
+-- Picking a font shows a line in it straight away
+function BT:SetFont(name)
+    self.db.font = name
+    self.testing = true
+    self:Emit("notify", name, self.TEXT_COLORS.notify)
+    self.testing = false
 end
 
 function BT:SetLocked(locked)
@@ -1039,7 +1283,8 @@ for _, e in ipairs({ "COMBAT_LOG_MESSAGE", "PLAYER_ENTERING_WORLD", "PLAYER_REGE
     "CHAT_MSG_COMBAT_HONOR_GAIN" }) do
     pcall(events.RegisterEvent, events, e)
 end
-pcall(events.RegisterUnitEvent, events, "UNIT_COMBAT", "player")
+pcall(events.RegisterEvent, events, "UNIT_COMBAT")   -- every unit: you, your target, the mobs around you
+pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")
 
 events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
     if event == "ADDON_LOADED" then
@@ -1069,7 +1314,9 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
     if event == "COMBAT_LOG_MESSAGE" then
         BT:OnCombatLogMessage(a1, a2, a3, a4, a5)
     elseif event == "UNIT_COMBAT" then
-        BT:OnUnitCombat(a1, a2, a3, a4)
+        BT:OnUnitCombat(a1, a2, a3, a4, a5)
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        BT:OnSpellcast(a3)
     elseif event == "PLAYER_REGEN_DISABLED" then
         BT:SetStartMacro()   -- last chance before the fight to note which chat tab you're on
         if BT.db.nCombat then BT:Notify("+Combat", BT.TEXT_COLORS.combat) end

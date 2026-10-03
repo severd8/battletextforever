@@ -10,13 +10,12 @@ BattleText Forever puts the fight on your screen: your hits and heals scroll on 
 
 ## Features
 
-- **Your hits and heals**, with the spell's name and icon, tinted by school. Crits are bigger and hold in place for a moment, rapid hits add up ("Swipe 135 (x3)"), and blocked, absorbed and resisted amounts show beside the number.
+- **Your hits and heals**, tinted by school, with the spell's name and icon when the game lets BattleText tell which spell it was. Crits are bigger and hold in place for a moment, and rapid hits of one spell add up ("Swipe 135 (x3)").
 - **What happens to you**, in its own area: damage and heals you take, and the attacks you dodge, parry, block or resist.
-- **Notifications**: combat, killing blows, experience, reputation, honor, loot, money and skill ups.
+- **Notifications**: combat, experience, reputation, honor, loot, money and skill ups.
 - **Three text areas** you can drag anywhere on screen.
-- **Your look**: fonts, text and crit size, scroll speed and distance, straight or curved scrolling.
+- **Your look**: 20 fonts to pick from, text and crit size, scroll speed and distance, straight or curved scrolling.
 - **Your choice of what's shown.** Turn any kind of text off, hide small hits, and hide the game's own numbers so nothing shows twice.
-- **Misses and your pet's hits**, once you tick them in the Combat Log's filter (see Good to know).
 
 ## Installation
 
@@ -26,8 +25,9 @@ BattleText Forever puts the fight on your screen: your hits and heals scroll on 
 
 ## Using it
 
-- **Start it.** After you log in, click the **Start BattleText** button at the top of the screen. That's needed once per login (see Good to know). You can also bind a key to it.
-- **Move the text.** Type `/btf unlock` (or tick **Move the text areas** in the options), drag the three boxes where you want them, then lock again.
+- **Alone, it just works.** Your hits on your target, and on the mobs attacking you or your pet, show as soon as you log in.
+- **In a group, click Start BattleText** (the button at the top of the screen) once after you log in. That lets BattleText tell your hits from everyone else's (see Good to know). You can also bind a key to it.
+- **Move the text.** Tick **Move the text areas** in the options (or type `/btf unlock`) and drag the three boxes where you want them. Closing the options locks them again.
 - **See it without fighting.** Type `/btf test`, or right-click the minimap button.
 - **Open the options.** Type `/btf`, or left-click the minimap button.
 
@@ -35,7 +35,7 @@ BattleText Forever puts the fight on your screen: your hits and heals scroll on 
 
 | Side | What's there |
 |---|---|
-| **Text** (left) | Show BattleText, move the text areas, spell names, spell icons, crits pop and hold, curved scrolling, add up rapid hits, hide the game's own numbers, minimap button, font, text size, crit size, scroll time, scroll distance |
+| **Text** (left) | Show BattleText, move the text areas, spell names, spell icons, crits pop and hold, curved scrolling, add up rapid hits, hide the game's own numbers, minimap button, font (a dropdown of 20), text size, crit size, scroll time, scroll distance |
 | **What you do** | Damage, heals, misses, pet, hide hits below a number |
 | **What happens to you** | Damage, heals, avoids, power gains |
 | **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups |
@@ -65,18 +65,20 @@ Go to **Options → Keybindings → BattleText Forever**:
 
 ## Good to know
 
-WoW: Forever doesn't let addons read the combat log, so BattleText works from what the game does allow:
+WoW: Forever doesn't let addons read the combat log. The game tells an addon **what happened to a unit** (it took 27 damage, it dodged), but not **who did it** or **with which spell**. BattleText works from that:
 
-- **Click Start BattleText once per login.** Your hits and heals come from the Combat Log window's lines, and the game only writes those after that tab has been opened. The button opens it and switches back for you.
-- **Keep the Combat Log's filter on "My actions"** (the default). On **What happened to me?** your own hits stop showing.
-- **Misses and your pet are left out of that filter by default.** To add them: with **My actions** selected, right-click the Combat Log tab and choose **Settings**. Tick the **Misses** boxes under **Message Types** and **Pet** in the **Done By** column under **Message Sources**, then press **Okay**.
-- **Damage you take has no spell names**, and **enemy names aren't shown** (the game scrambles them).
-- **Leave "Use Verbose Mode" off** in the Combat Log's Formatting settings.
+- **Your hits are read from the unit you hit**: your target, and the mobs attacking you or your pet. Turn on **enemy nameplates** to see your hits on the ones you aren't targeting.
+- **Alone, every hit on those units is shown as yours**, your pet's hits included (they can't be told apart, so they aren't marked).
+- **In a group, click Start BattleText once per login.** It opens the Combat Log tab and switches back for you. From then on the game tells BattleText *when* you did something, and only that many hits are shown. Keep the Combat Log's filter on **My actions** (the default). Now and then a number may still be a groupmate's hit that landed at the same moment as yours.
+- **Spell names and icons** show for hits that land the instant you cast (instant attacks and spells with no travel time). Other hits show as a plain number in their school's color.
+- **The last swing on a mob may not show**: the game stops reporting a unit the moment it dies.
+- **Damage you take has no spell names.**
+- When the game does let BattleText read the Combat Log's lines, they're used instead: every hit then has its spell, and your pet's hits are marked.
 
 ## Troubleshooting
 
-- **No numbers for your hits.** Click **Start BattleText**, or open the Combat Log tab once. Check that the Combat Log's filter is **My actions**.
-- **No misses, or nothing from your pet.** Tick them in the Combat Log's filter (see Good to know).
+- **No numbers for your hits.** Target what you're hitting, or turn on enemy nameplates. In a group, click **Start BattleText**.
+- **Other people's hits show as mine.** In a group, click **Start BattleText** and keep the Combat Log's filter on **My actions**.
 - **Numbers show twice.** Tick **Hide the game's own numbers** in the options.
 - **Something isn't shown.** Type `/btf debug`, fight for a moment, then type `/btf copy` and copy the lines into a bug report. Type `/btf debug` again to stop.
 - **The text is in the wrong place.** Type `/btf unlock` and drag the boxes, or `/btf reset`.
@@ -98,3 +100,5 @@ BattleText Forever is free. If you enjoy it, you can [leave a small tip on Ko-fi
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+The fonts in the `Fonts` folder are open fonts, unmodified, each under its own licence (in `Fonts/Licenses`): Anton, Archivo Black, Bangers, Barlow Condensed, Bebas Neue, Fira Sans, Lato, Poppins, Press Start 2P, PT Sans Narrow, Rajdhani and Russo One (SIL Open Font License 1.1), Luckiest Guy and Permanent Marker (Apache License 2.0), and Ubuntu (Ubuntu Font Licence 1.0).

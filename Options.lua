@@ -129,6 +129,11 @@ function BT:BuildConfig()
     f:SetClampedToScreen(true)
     f:Hide()
     table.insert(UISpecialFrames, "BattleTextForeverOptions")   -- Escape closes it
+    -- Closing the window is the end of moving things about: the text areas lock
+    -- again (and "Move the text areas" is unticked the next time it opens)
+    f:SetScript("OnHide", function()
+        if not BT.db.locked then BT:SetLocked(true) end
+    end)
 
     local banner = CreateFrame("Frame", nil, f)
     banner:SetPoint("TOPLEFT", 2, -2)
@@ -181,15 +186,42 @@ function BT:BuildConfig()
     y = y - 34
 
     Label(f, "Font", x + 4, y)
-    local fontButton = Button(f, "", 150, x + 50, y + 4, function(self)
-        local nextIndex = 1
-        for i, font in ipairs(BT.FONTS) do
-            if font.name == BT.db.font then nextIndex = (i % #BT.FONTS) + 1 break end
+    -- The list of fonts, for the game's menus: one to pick, ticked
+    local plainButton   -- set on a client without the game's dropdown
+    local function fontMenu(_, root)
+        if root.SetScrollMode then root:SetScrollMode(20 * 12) end   -- twelve rows, then it scrolls
+        for _, font in ipairs(BT.FONTS) do
+            root:CreateRadio(font.name, function() return BT.db.font == font.name end, function()
+                BT:SetFont(font.name)
+                if plainButton then plainButton:SetText(font.name) end
+            end)
         end
-        BT.db.font = BT.FONTS[nextIndex].name
-        self:SetText(BT.db.font)
-    end)
-    AddRefresher(function() fontButton:SetText(BT.db.font) end)
+    end
+    local made, dropdown = pcall(CreateFrame, "DropdownButton", nil, f, "WowStyle1DropdownTemplate")
+    if made and dropdown and dropdown.SetupMenu then
+        -- The game's own dropdown: it shows the font that's ticked
+        dropdown:SetPoint("TOPLEFT", x + 50, y + 6)
+        dropdown:SetWidth(175)
+        dropdown:SetupMenu(fontMenu)
+        AddRefresher(function() dropdown:GenerateMenu() end)
+    else
+        -- A client without it: a button that opens the same list, or steps through the fonts
+        dropdown = Button(f, "", 175, x + 50, y + 4, function(self)
+            if MenuUtil and MenuUtil.CreateContextMenu then
+                MenuUtil.CreateContextMenu(self, fontMenu)
+                return
+            end
+            local nextIndex = 1
+            for i, font in ipairs(BT.FONTS) do
+                if font.name == BT.db.font then nextIndex = (i % #BT.FONTS) + 1 break end
+            end
+            BT:SetFont(BT.FONTS[nextIndex].name)
+            self:SetText(BT.db.font)
+        end)
+        plainButton = dropdown
+        AddRefresher(function() dropdown:SetText(BT.db.font) end)
+    end
+    f.fontDropdown = dropdown
     y = y - 32
     Slider(f, "Text size", x + 4, y, "fontSize", 10, 40)
     y = y - 44
@@ -209,11 +241,10 @@ function BT:BuildConfig()
     Check(f, "Damage", x, y, "outDamage")
     Check(f, "Heals", x + 120, y, "outHeals")
     y = y - 24
-    Check(f, "Misses", x, y, "outMisses",
-        "Your attacks that miss or are dodged, parried, blocked or resisted. "
-        .. "The Combat Log leaves these out until you tick them in its settings (see Good to know).")
+    Check(f, "Misses", x, y, "outMisses", "Your attacks that miss or are dodged, parried, blocked or resisted.")
     Check(f, "Pet", x + 120, y, "outPet",
-        "Your pet's hits. The Combat Log leaves your pet out until you tick it in its settings (see Good to know).")
+        "Your pet's hits, marked (Pet). This only works when the game lets BattleText read its combat lines; "
+        .. "when it doesn't, your pet's hits can't be told from yours and show with them.")
     y = y - 32
     Slider(f, "Hide hits below", x + 4, y, "minDamage", 0, 500, "", 5)
     y = y - 50
@@ -230,7 +261,8 @@ function BT:BuildConfig()
     Heading(f, "Notifications", x, y, W)
     y = y - 24
     Check(f, "Combat", x, y, "nCombat", "Entering and leaving combat.")
-    Check(f, "Killing blows", x + 120, y, "nKill")
+    Check(f, "Killing blows", x + 120, y, "nKill",
+        "Only when the game lets BattleText read its combat lines (it often hides them).")
     y = y - 24
     Check(f, "Experience", x, y, "nXP")
     Check(f, "Reputation", x + 120, y, "nRep")
@@ -249,11 +281,12 @@ function BT:BuildConfig()
     note:SetWidth(W)
     note:SetJustifyH("LEFT")
     note:SetWordWrap(true)
-    note:SetText("Click \"Start BattleText\" once after you log in (or open the Combat Log tab). "
-        .. "The game only writes its combat lines after that.\n\n"
-        .. "Your hits and heals follow the filter chosen on the Combat Log tab. \"My actions\" is the one to use.\n\n"
-        .. "For your misses and your pet too: right-click that tab, choose Settings, tick the Misses boxes "
-        .. "(Message Types) and Pet under Done By (Message Sources), and press Okay.")
+    note:SetText("Your hits are read from the unit you hit: your target, and the mobs attacking you or your pet. "
+        .. "Turn on enemy nameplates to see your hits on the ones you aren't targeting.\n\n"
+        .. "The game doesn't say whose hit it was. Alone, every hit on those units is shown as yours "
+        .. "(your pet's too).\n\n"
+        .. "In a group, click \"Start BattleText\" once after you log in. The Combat Log then tells BattleText "
+        .. "when you did something, so other people's hits are left out.")
 
     self.config = f
 end

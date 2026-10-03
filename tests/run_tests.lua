@@ -522,7 +522,248 @@ step("old and hidden lines")
 log(hit("Claw", 16827, 50), Enum.CombatLogMessageOrder.Oldest)
 assertEq(#lines("outgoing"), 0, "replayed history isn't shown")
 log(Secret(hit("Claw", 16827, 50)))
-assertEq(last("outgoing"), "<secret fmt>", "hidden text is shown as it is")
+assertEq(#lines("outgoing"), 0, "a line whose text the game hides isn't shown")
+clear()
+
+---------------------------------------------------------------------------
+-- The game hides the text of its combat log lines (each arrives as a token
+-- like |Ky7|k). Your hits are then read from UNIT_COMBAT on the unit you hit.
+---------------------------------------------------------------------------
+step("your hits, when the game hides its combat log lines")
+local C = BT.TEXT_COLORS
+local function colorOf(line) return line.text.__color[1] .. " " .. line.text.__color[2] .. " " .. line.text.__color[3] end
+local function isColor(line, c) return colorOf(line) == c[1] .. " " .. c[2] .. " " .. c[3] end
+local function newest() local a = BT.areas.outgoing.active return a[#a] end
+local function hidden(n) return log("|Ky" .. (n or 7) .. "|k") end
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.unit.mobB = { enemy = true, guid = "Creature-0-1-2-3-100-00000B", target = "friend" }
+STATE.unit.friend = { enemy = false, guid = "Player-5555-0FRIEND1" }
+STATE.who.target, STATE.who.nameplate1, STATE.who.nameplate2, STATE.who.mouseover = "mobA", "mobA", "mobB", "friend"
+STATE.who.targettarget = "me"
+BT.hiddenSeen = nil
+assertEq(hidden(), true, "a hidden line arrives")
+assertEq(#lines("outgoing"), 0, "it can't be read, so it isn't shown")
+assertEq(BT.hiddenSeen, true, "but it's noticed")
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(last("outgoing"), "27", "your hit on your target")
+assert(isColor(newest(), C.melee), "a physical hit is white")
+fire("UNIT_COMBAT", "nameplate1", "WOUND", "", 27, 1)
+assertEq(#lines("outgoing"), 1, "the same hit under the unit's other name is counted once")
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(#lines("outgoing"), 2, "a second hit in the same moment is a second hit")
+Advance(0.1)
+fire("UNIT_COMBAT", "nameplate1", "WOUND", "", 31, 1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 31, 1)
+assertEq(#lines("outgoing"), 3, "whichever name arrives first is the one that counts")
+assertEq(last("outgoing"), "31", "with its amount")
+clear()
+STATE.unit.mobA.guid = nil   -- a unit whose GUID the game won't give
+fire("UNIT_COMBAT", "nameplate1", "WOUND", "", 27, 1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(#lines("outgoing"), 1, "still once: your target counts as \"target\"")
+STATE.unit.mobA.guid = Secret("Creature-0-1-2-3-100-00000A")
+Advance(0.1)
+fire("UNIT_COMBAT", "nameplate1", "WOUND", "", 27, 1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(#lines("outgoing"), 2, "and with a hidden GUID")
+STATE.unit.mobA.guid = "Creature-0-1-2-3-100-00000A"
+clear()
+fire("UNIT_COMBAT", "target", "WOUND", "CRITICAL", 80, 1)
+assertEq(newest().sticky, true, "a crit holds")
+fire("UNIT_COMBAT", "target", "WOUND", "", 44, 4)
+assert(isColor(newest(), BT:SchoolColor("Fire")), "a fire hit is tinted fire")
+fire("UNIT_COMBAT", "target", "WOUND", "", 44, 6)
+assert(isColor(newest(), C.spell), "a hit of two schools is spell-colored")
+fire("UNIT_COMBAT", "target", "WOUND", "", 44, Secret(4))
+assert(isColor(newest(), C.melee), "a hidden school isn't looked at")
+fire("UNIT_COMBAT", "target", "WOUND", "GLANCING", 12, 1)
+assertEq(last("outgoing"), "12 |cffb0b0b0(glancing)|r", "a glancing blow says so")
+fire("UNIT_COMBAT", "target", "WOUND", "", Secret(40), 1)
+assertEq(last("outgoing"), "<secret fmt>", "a hidden amount is still shown by the game")
+clear()
+fire("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
+assertEq(last("outgoing"), "Dodge", "your attack was dodged")
+fire("UNIT_COMBAT", "target", "WOUND", "", 0, 1)
+assertEq(last("outgoing"), "Miss", "a hit for nothing is a miss")
+fire("UNIT_COMBAT", "target", "WOUND", "ABSORB", 0, 1)
+assertEq(last("outgoing"), "Absorb", "or says what stopped it")
+BT.db.outMisses = false
+fire("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+assertEq(#lines("outgoing"), 3, "misses turned off")
+BT.db.outMisses = true
+BT.db.minDamage = 40
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(#lines("outgoing"), 3, "hits below \"Hide hits below\" are hidden")
+BT.db.minDamage = 0
+BT.db.outDamage = false
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(#lines("outgoing"), 3, "damage turned off")
+BT.db.outDamage = true
+fire("UNIT_COMBAT", "target", "ENERGIZE", "", 10, 1)
+assertEq(#lines("outgoing"), 3, "a mob gaining power is nothing of yours")
+clear()
+
+-- Whose fight it is
+local incomingBefore = #lines("incoming")
+fire("UNIT_COMBAT", "targettarget", "WOUND", "", 50, 1)
+assertEq(#lines("outgoing") + #lines("incoming"), incomingBefore, "you, under another name, aren't your own target")
+fire("UNIT_COMBAT", "mouseover", "WOUND", "", 50, 1)
+assertEq(#lines("outgoing"), 0, "a friend being hit isn't your hit")
+fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 50, 1)
+assertEq(#lines("outgoing"), 0, "nor is a mob that's fighting someone else")
+STATE.unit.mobB.target = "me"
+fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 50, 1)
+assertEq(last("outgoing"), "50", "a mob that's after you is your fight")
+STATE.unit.mobB.target, STATE.pet = "pet", true
+fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 51, 1)
+assertEq(last("outgoing"), "51", "so is one that's after your pet")
+STATE.unit.mobB.target = "friend"
+STATE.unit.pet = { target = "mobB" }
+fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 52, 1)
+assertEq(last("outgoing"), "52", "and the one your pet is on")
+STATE.unit.pet, STATE.pet = nil, false
+clear()
+STATE.who.target = "friend"
+fire("UNIT_COMBAT", "target", "HEAL", "CRITICAL", 120, 2)
+assertEq(last("outgoing"), "+120", "a heal on the friend you're targeting")
+assert(isColor(newest(), C.heal), "in the heal color")
+assertEq(newest().sticky, true, "a crit heal holds")
+fire("UNIT_COMBAT", "target", "HEAL", "", Secret(90), 2)
+assertEq(last("outgoing"), "<secret fmt>", "with a hidden amount too")
+BT.db.outHeals = false
+fire("UNIT_COMBAT", "target", "HEAL", "", 120, 2)
+assertEq(#lines("outgoing"), 2, "heals turned off")
+BT.db.outHeals = true
+fire("UNIT_COMBAT", "target", "HEAL", "", 0, 2)
+assertEq(#lines("outgoing"), 2, "a heal for nothing isn't shown")
+STATE.who.target = "mobA"
+Advance(0.1)
+fire("UNIT_COMBAT", "mouseover", "HEAL", "", 120, 2)
+assertEq(#lines("outgoing"), 2, "a heal on a friend you aren't targeting could be anyone's")
+fire("UNIT_COMBAT", "target", "HEAL", "", 300, 2)
+assertEq(#lines("outgoing"), 2, "a mob healing itself isn't your heal")
+STATE.who.target = "me"
+fire("UNIT_COMBAT", "target", "HEAL", "", 120, 2)
+assertEq(#lines("outgoing"), 2, "a heal on yourself is shown with what happens to you, not here")
+STATE.pet, STATE.who.target = true, "pet"
+fire("UNIT_COMBAT", "target", "HEAL", "", 75, 2)
+assertEq(#lines("outgoing"), 2, "your pet under another name is left to its own event")
+STATE.who.target = "mobA"
+fire("UNIT_COMBAT", "pet", "HEAL", "", 75, 2)
+assertEq(last("outgoing"), "+75", "a heal on your pet")
+fire("UNIT_COMBAT", "pet", "WOUND", "", 30, 1)
+assertEq(#lines("outgoing"), 3, "a hit on your pet isn't your hit")
+STATE.pet = false
+clear()
+
+-- The spell: a cast of yours that finishes in the very frame the hit lands
+BT.db.icons = true
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1", 16827)
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assertEq(last("outgoing"), "|T132140:0|t Claw 50", "named, with its icon")
+assert(isColor(newest(), C.spell), "and spell-colored")
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assertEq(last("outgoing"), "|T132140:0|t Claw 100 |cffb0b0b0(x2)|r", "rapid hits of it add up")
+Advance(0.1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(last("outgoing"), "27", "a hit a moment later is just a hit")
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(#lines("outgoing"), 3, "hits without a spell don't add up (they may be different things)")
+Advance(0.1)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-2", 16827)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-3", 8921)
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assertEq(last("outgoing"), "50", "two casts in one frame: no telling which it was")
+Advance(0.1)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-4", Secret(16827))
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assertEq(last("outgoing"), "50", "a hidden spell isn't named")
+Advance(0.1)
+BT.db.spellNames, BT.db.icons = false, false
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-5", 16827)
+fire("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
+assertEq(last("outgoing"), "Dodge", "names and icons turned off")
+BT.db.spellNames, BT.db.icons = true, true
+Advance(0.1)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-6", 16827)
+fire("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+assertEq(last("outgoing"), "|T132140:0|t Claw Parry", "a named miss")
+BT.db.icons = false
+clear()
+
+-- A line that can be read is shown from the line, not a second time from the unit
+log(hit("Claw", 16827, 50))
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assertEq(#lines("outgoing"), 1, "a readable line's hit isn't shown twice")
+Advance(1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assertEq(#lines("outgoing"), 1, "even when the unit reports it a second later")
+Advance(0.3)
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(last("outgoing"), "27", "after that, the unit's hits show again")
+clear()
+log(hitMe("Fireball", 133, 84, "Fire"))
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(last("outgoing"), "27", "a readable line about someone else's hit doesn't stand in for yours")
+clear()
+
+-- In a group, anyone could have hit the mob. A hidden line says you did
+-- something just then: each one vouches for one hit.
+STATE.group = true
+STATE.who.party1 = "friend"
+BT.credits = nil
+fire("UNIT_COMBAT", "target", "WOUND", "", 99, 1)
+assertEq(#lines("outgoing"), 0, "in a group, a hit with no line of yours is someone else's")
+Advance(0.1)
+hidden(8)
+Advance(0.5)
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+assertEq(last("outgoing"), "27", "a hit after your line is yours (a swing lands with its animation)")
+fire("UNIT_COMBAT", "target", "WOUND", "", 99, 1)
+assertEq(#lines("outgoing"), 1, "one line, one hit")
+Advance(0.1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 28, 1)
+hidden(9)
+assertEq(last("outgoing"), "28", "the line may arrive just after its hit, in the same frame")
+assertEq(#lines("outgoing"), 2, "shown once")
+fire("UNIT_COMBAT", "target", "WOUND", "", 99, 1)
+assertEq(#lines("outgoing"), 2, "and the line is used up by it")
+Advance(0.1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 29, 1)
+hidden(14) hidden(15)
+assertEq(#lines("outgoing"), 3, "a second line in that frame doesn't show the hit again")
+fire("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
+assertEq(#lines("outgoing"), 4, "it vouches for the next hit instead")
+clear()
+BT.credits = nil
+fire("UNIT_COMBAT", "target", "WOUND", "", 99, 1)
+Advance(0.1)
+hidden(10)
+assertEq(#lines("outgoing"), 0, "a hit left waiting is forgotten by the next frame")
+Advance(1.3)
+fire("UNIT_COMBAT", "target", "WOUND", "", 99, 1)
+assertEq(#lines("outgoing"), 0, "a line from long ago vouches for nothing")
+Advance(0.1)
+hidden(11) hidden(12)
+fire("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 31, 1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 99, 1)
+assertEq(#lines("outgoing"), 2, "two lines, two hits")
+assertEq(last("outgoing"), "31", "the first two")
+Advance(0.1)
+hidden(13)
+fire("UNIT_COMBAT", "party1", "HEAL", "", 120, 2)
+assertEq(last("outgoing"), "+120", "your heal on a party member you aren't targeting")
+BT.hiddenSeen = nil
+BT.credits, BT.waitingHits = nil, nil
+fire("UNIT_COMBAT", "target", "WOUND", "", 33, 1)
+assertEq(last("outgoing"), "33", "in a group before any line has arrived: hits on your target are shown")
+STATE.group = false
+STATE.who.party1 = nil
+assertEq(BT:InGroup(), false, "not in a group")
+STATE.who.party1 = "friend"
+assertEq(BT:InGroup(), true, "a party member means a group, whatever the game says")
+STATE.who = {}
 clear()
 
 step("lines scroll, keep their distance and go away")
@@ -642,13 +883,51 @@ assertEq(BT.copyWindow:IsShown(), true, "the window opens")
 assert(copied:find("read    ||Hunit:Player-5555-0ABCDEF1:Abla||hYour||h ||Hspell:16827:0:SPELL_DAMAGE||h", 1, true),
     "a line that was shown, with its links readable")
 assert(copied:find("skipped ", 1, true) and copied:find("SPELL_CAST_SUCCESS", 1, true), "and one that wasn't")
-assert(copied:find("UNIT_COMBAT WOUND CRITICAL 58", 1, true), "what happened to you")
-assert(copied:find("UNIT_COMBAT WOUND  (hidden amount)", 1, true), "a hidden amount is named, not read")
+assert(copied:find("UNIT_COMBAT player WOUND CRITICAL 58", 1, true), "what happened to you")
+assert(copied:find("UNIT_COMBAT player WOUND  (hidden amount)", 1, true), "a hidden amount is named, not read")
 local _, newlines = copied:gsub("\n", "")
 assertEq(newlines, 3, "one line each")
+-- With the text hidden: the token, your casts, and each unit's hit with what became of it
+STATE.who.target, STATE.who.nameplate1, STATE.who.party1 = "mobA", "mobA", "friend"
+Advance(2)
+BT.recorded = {}
+log("|Ky7|k")
+log(Secret("x"))
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-9", 16827)
+fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
+fire("UNIT_COMBAT", "nameplate1", "WOUND", "", 27, 1)
+fire("UNIT_COMBAT", "party1", "WOUND", "CRITICAL", Secret(9), Secret(1))
+fire("UNIT_COMBAT", "target", "ENERGIZE", "", 5, 1)
+STATE.group = true
+Advance(2)
+fire("UNIT_COMBAT", "target", "WOUND", "", 28, 1)
+log("|Ky8|k")
+STATE.group = false
+SlashCmdList.BATTLETEXTFOREVER("copy")
+copied = BT.copyWindow.edit:GetText()
+for _, expect in ipairs({
+    "hidden  ||Ky7||k",
+    "hidden  (a hidden value)",
+    "CAST 16827 Claw",
+    "UNIT_COMBAT target WOUND  27 school 1: shown",
+    "UNIT_COMBAT nameplate1 WOUND  27 school 1: same hit, under another name",
+    "UNIT_COMBAT party1 WOUND CRITICAL (hidden amount) school (hidden): not an enemy",
+    "UNIT_COMBAT target ENERGIZE  5 school 1: not a hit",
+    "UNIT_COMBAT target WOUND  28 school 1: no line of yours with it (yet)",
+    "the hit before this line: shown",
+}) do
+    assert(copied:find(expect, 1, true), "recorded: " .. expect)
+end
+STATE.who = {}
 SlashCmdList.BATTLETEXTFOREVER("debug")
+local recordedSoFar = #BT.recorded
 log(real("spell"))
-assertEq(#BT.recorded, 4, "nothing is recorded once debug is off")
+fire("UNIT_COMBAT", "player", "WOUND", "", 5, 1)
+assertEq(#BT.recorded, recordedSoFar, "nothing is recorded once debug is off")
+for i = 1, 400 do BT:Record("line " .. i) end
+assertEq(#BT.recorded, 300, "only the last 300 are kept")
+assertEq(BT.recorded[300]:match("line %d+"), "line 400", "the newest ones")
+BT.recorded = {}
 BT.copyWindow:Hide()
 clear()
 
@@ -795,8 +1074,118 @@ assertEq(sliders, 5, "five sliders")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged after the sliders: " .. k) end
 end
+-- Fonts: every one in the list is a file that ships (or one of the game's own)
+local bundled = 0
+for i, font in ipairs(BT.FONTS) do
+    if i == 1 then
+        assertEq(font.name, "Default", "the game's own font comes first")
+        assertEq(font.path, nil, "and has no file")
+    elseif font.path:find("^Fonts\\") then
+        assert(i <= 5, "the game's fonts come before the bundled ones")
+    else
+        bundled = bundled + 1
+        local file = font.path:match("^Interface\\AddOns\\BattleTextForever\\(Fonts\\[%w%-]+%.ttf)$")
+        assert(file, "a bundled font's path is inside the addon: " .. font.path)
+        local fh = assert(io.open(ADDON_DIR .. "/" .. file:gsub("\\", "/"), "rb"), "font file is missing: " .. file)
+        local head = fh:read(4) fh:close()
+        assertEq(head, "\0\1\0\0", "a TrueType file: " .. file)
+        local family = file:match("\\([%a%d]+)%-")
+        assert(io.open(ADDON_DIR .. "/Fonts/Licenses/" .. family .. "-OFL.txt")
+            or io.open(ADDON_DIR .. "/Fonts/Licenses/" .. family .. "-UFL.txt")
+            or io.open(ADDON_DIR .. "/Fonts/Licenses/" .. family .. "-Apache.txt"), "its licence ships with it: " .. family)
+    end
+end
+assertEq(bundled, 15, "fifteen bundled fonts")
+assertEq(#BT.FONTS, 20, "twenty fonts to choose from")
+local names = {}
+for _, font in ipairs(BT.FONTS) do
+    assert(not names[font.name], "font listed twice: " .. font.name)
+    names[font.name] = true
+end
+local pkgmeta = read_file(ADDON_DIR .. "/.pkgmeta")
+assert(not pkgmeta:find("Fonts", 1, true), "the Fonts folder isn't left out of the download")
+
+-- The font dropdown: the game's own, listing every font with the current one ticked
+local dropdown = BT.config.fontDropdown
+assertEq(dropdown.__kind, "DropdownButton", "the game's dropdown")
+assertEq(dropdown.__template, "WowStyle1DropdownTemplate", "in its usual style")
+assertEq(dropdown:GetText(), "Default", "it shows the font in use")
+assertEq(#dropdown.__menu, 20, "every font is in the list")
+assertEq(dropdown.__menu.scroll, 240, "a long list scrolls")
+for i, row in ipairs(dropdown.__menu) do
+    assertEq(row.text, BT.FONTS[i].name, "in order")
+    assertEq(row.isSelected(), i == 1, "only the font in use is ticked")
+end
+clear()
+dropdown.__menu[12].pick()
+assertEq(BT.db.font, "Lato", "picking one sets the font")
+assertEq(BT:FontPath(), "Interface\\AddOns\\BattleTextForever\\Fonts\\Lato-Bold.ttf", "its file")
+assertEq(last("notify"), "Lato", "and shows a line in it straight away")
+assertEq(BT.areas.notify.active[1].text.__font[1], BT:FontPath(), "in that font")
+assertEq(dropdown.__menu[12].isSelected(), true, "it's the ticked one now")
+assertEq(dropdown.__menu[1].isSelected(), false, "and the old one isn't")
+SlashCmdList.BATTLETEXTFOREVER("off")
+dropdown.__menu[2].pick()
+assertEq(last("notify"), "Friz Quadrata", "the sample shows even with BattleText turned off")
+SlashCmdList.BATTLETEXTFOREVER("on")
+BT.db.font = "Morpheus"
+BT:RefreshConfig()
+assertEq(dropdown:GetText(), "Morpheus", "it follows the setting")
+BT.db.font = "A font that's gone"
+assertEq(BT:FontPath(), STANDARD_TEXT_FONT, "an unknown font falls back to the game's")
+BT.db.font = "Default"
+BT:RefreshConfig()
+clear()
+
+-- Closing the window locks the text areas again
+local moveBox
+for _, f in ipairs(ALL_FRAMES) do
+    if f.__kind == "CheckButton" and f.label and f.label:GetText() == "Move the text areas" then moveBox = f end
+end
+assert(moveBox, "the Move the text areas box")
+moveBox:SetChecked(true); moveBox.__scripts.OnClick(moveBox)
+assertEq(BT.db.locked, false, "ticked: unlocked")
+assertEq(BT.areas.outgoing.mover:IsShown(), true, "with boxes to drag")
 BT:OpenConfig()
 assertEq(BT.config:IsShown(), false, "closes")
+assertEq(BT.db.locked, true, "closing the window locks the text areas")
+assertEq(BT.areas.outgoing.mover:IsShown(), false, "the boxes go")
+BT:OpenConfig()
+assertEq(moveBox:GetChecked(), false, "and the box is unticked when it opens again")
+moveBox:SetChecked(true); moveBox.__scripts.OnClick(moveBox)
+BT.config:Hide()   -- Escape, or the X
+assertEq(BT.db.locked, true, "however it's closed")
+SlashCmdList.BATTLETEXTFOREVER("unlock")
+assertEq(BT.db.locked, false, "/btf unlock still works with the window closed")
+SlashCmdList.BATTLETEXTFOREVER("lock")
+
+-- A client without the game's dropdown: a button that opens the same list...
+local realConfig = BT.config
+STATE.noDropdown = true
+BT:BuildConfig()
+BT:RefreshConfig()
+local plain = BT.config.fontDropdown
+assertEq(plain.__kind, "Button", "a plain button instead")
+assertEq(plain:GetText(), "Default", "showing the font in use")
+MENU_OPENED = nil
+plain.__scripts.OnClick(plain)
+assertEq(#MENU_OPENED, 20, "its menu lists every font")
+MENU_OPENED[7].pick()
+assertEq(BT.db.font, "Archivo Black", "picking one sets the font")
+assertEq(plain:GetText(), "Archivo Black", "and the button says so")
+-- ...and with no menus at all, each click moves to the next font
+WithoutMenus(function()
+    plain.__scripts.OnClick(plain)
+    assertEq(BT.db.font, "Bangers", "the next font")
+    BT.db.font = "Ubuntu"
+    plain.__scripts.OnClick(plain)
+    assertEq(BT.db.font, "Default", "round to the start")
+    assertEq(plain:GetText(), "Default", "shown on the button")
+end)
+STATE.noDropdown = false
+BT.config:Hide()
+BT.config = realConfig
+clear()
 
 assertClean("by the end")
 print("ALL TESTS PASSED")

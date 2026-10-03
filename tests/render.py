@@ -91,6 +91,14 @@ def draw_view(view, scale=2):
         elif kind == "Button" and tmpl == "UIPanelCloseButton":
             d.rounded_rectangle([x0 + 2 * scale, y0 + 2 * scale, x1 - 2 * scale, y1 - 2 * scale], radius=3 * scale, fill=(140, 20, 15, 255))
             d.text(((x0 + x1) / 2, (y0 + y1) / 2), "x", font=font(12 * scale, True), fill=(255, 220, 200, 255), anchor="mm")
+        elif kind == "DropdownButton":
+            if y1 - y0 < 6 * scale:   # the template's own height
+                y1 = y0 + 25 * scale
+            d.rounded_rectangle([x0, y0, x1, y1], radius=3 * scale, fill=(20, 20, 20, 255), outline=(120, 120, 120, 255), width=scale)
+            if it.get("text"):
+                d.text((x0 + 8 * scale, (y0 + y1) / 2), it["text"], font=font(11 * scale), fill=(255, 255, 255, 255), anchor="lm")
+            ax, ay = x1 - 12 * scale, (y0 + y1) / 2
+            d.polygon([ax - 4 * scale, ay - 2 * scale, ax + 4 * scale, ay - 2 * scale, ax, ay + 3 * scale], fill=(255, 209, 0, 255))
         elif kind == "Slider":
             d.rectangle([x0, (y0 + y1) / 2 - 3 * scale, x1, (y0 + y1) / 2 + 3 * scale], fill=(30, 30, 30, 255), outline=(120, 120, 120, 255))
         elif kind == "FontString" and it.get("text"):

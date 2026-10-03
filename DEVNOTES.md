@@ -11,8 +11,9 @@ Scrolling combat text for **World of Warcraft: Forever** (interface 16001, clien
 
 - `BattleTextForever.toc` — `## Version: @project-version@` is filled in by the packager from the git tag. `BattleTextForeverDB` holds every setting (account-wide).
 - `Parse.lua` — turns one Combat Log line into a table (`ns.Parser:Parse(line)`). Its only game calls are reading the game's text and your own GUID.
-- `Core.lua` — settings, the three scroll areas and their animation (`Emit`, `Animate`), turning parsed lines and `UNIT_COMBAT` into text (`ShowCombat`, `OnUnitCombat`), notifications, the Start button, minimap button, slash commands, events.
+- `Core.lua` — settings, the three scroll areas and their animation (`Emit`, `Animate`), turning `UNIT_COMBAT` and parsed lines into text (`OnUnitCombat`, `OnUnitHit`, `ShowCombat`), notifications, the Start button, minimap button, slash commands, events.
 - `Options.lua` — the options window.
+- `Fonts/` — 15 open fonts, unmodified, as static `.ttf` files (from the google/fonts repository), with each one's licence in `Fonts/Licenses/` (`<Family>-OFL.txt`, `-UFL.txt` or `-Apache.txt`; the licences require the text to ship with the font). `BT.FONTS` in `Core.lua` lists them after "Default" and the game's four. A test checks every listed file and its licence exist.
 - `Bindings.xml` — keybindings (loaded automatically): `CLICK BattleTextForeverStart:LeftButton` and `BATTLETEXTFOREVER_OPTIONS`.
 - `Media/Icon.tga` — the logo mark (64×64 TGA). `art/` — logo sources (not shipped): `logo.svg`, `logo.png` (CurseForge and README), `icon.svg`.
 - `tests/` — offline tests and the layout renderer (not shipped).
@@ -20,9 +21,36 @@ Scrolling combat text for **World of Warcraft: Forever** (interface 16001, clien
 
 ## Where the combat data comes from
 
-Forever refuses `COMBAT_LOG_EVENT` and `COMBAT_LOG_EVENT_UNFILTERED` to addons. Two things are still allowed:
+Forever refuses `COMBAT_LOG_EVENT` and `COMBAT_LOG_EVENT_UNFILTERED` to addons. What's left:
 
-1. **`COMBAT_LOG_MESSAGE`** — the finished text of each Combat Log window line: `message, r, g, b, order`. Readable in combat. Blizzard's secure `Blizzard_CombatLogProcessor` builds it (`GenerateMessage`) for Blizzard's own Combat Log window; addons can register it too. On screen a line reads
+- **`UNIT_COMBAT`** — what happened to a unit: `unit, action, flag, amount, schoolMask`. No source, no spell. This is the one that always works, and since 1.1.0 it's the main source (next section).
+- **`COMBAT_LOG_MESSAGE`** — the finished text of each Combat Log window line. The game **hides the text** (below), so mostly it only says *that* you did something.
+
+### The lines are hidden (since 2026-10-03)
+
+On 2026-10-02 the lines arrived as readable text and 1.0.0 was built on parsing them. On 2026-10-03 (client 1.60.1.70205) every live line arrived as a **`|Ky<n>|k` token** (`|Ky7|k`, `|Ky8|k`, ...): a "K-string", which a font string can display but an addon can't read, split or measure. Blizzard's API notes have said so all along (`CombatLogSecureDocumentation.lua`: "A preformatted combat log message protected by a |K string wrapper"); none of the game's Lua changed between the builds, so the switch is in the client or on the server. Other Forever addons report the same and say lines can still be readable at times (out of combat), so **both paths are kept**: a readable line is parsed as before, a hidden one is only counted.
+
+### Hits from `UNIT_COMBAT` (`OnUnitHit`)
+
+Registered for every unit (`RegisterEvent`, not `RegisterUnitEvent`). `"player"` goes to `OnUnitCombat` as before (what happens to you); every other unit token goes to `OnUnitHit`, which decides whether it's something you did:
+
+- **You and your pet under other names** (`targettarget`, `raid3`, `focus`...) are dropped: `"player"` has its own event, and of what happens to your pet only heals on the `"pet"` token are shown (as your heal).
+- **Damage and misses** need a unit you can attack (`UnitCanAttack`) that you're **fighting**: your target, your pet's target, or a unit whose target is you or your pet (`Fighting`). So a mob someone else is fighting nearby isn't yours. Units other than your target only have a token when their **nameplate** is showing.
+- **Heals** need a friendly unit: alone, your target; vouched for (below), any friendly unit.
+- **One hit, many names.** The event fires once per token the unit has (`target`, `nameplate3`, `focus`). `FirstSight` keeps, per frame and per GUID, only the first token seen, so duplicates go and two real hits in one frame stay. With no readable GUID, your target counts under `target` only.
+- **A readable line of yours** (or your pet's) in the last 1.2s (`readAt`) means the log is showing your hits itself: the unit's hits are dropped so nothing is doubled.
+- **Alone**, everything that passes is shown. Your pet's hits can't be told from yours.
+- **In a group**, once a hidden line has been seen (`hiddenSeen`), a hit must be **vouched for** (`ClaimHit`): with the "My actions" filter every line is an action of yours, so each hidden line is one credit (`NoteHiddenLine`), good for 1.2s (`CREDIT_TIME`) and for one hit. A hit that arrives just before its line in the same frame waits in `waitingHits` and is shown when the line comes. Imperfect by nature: a groupmate's hit landing between your line and your hit takes the credit (and shows their number instead of yours). In a group before any line has arrived (Start not clicked), every hit on a unit you're fighting is shown.
+- **Spell names**: `UNIT_SPELLCAST_SUCCEEDED` for the player (`OnSpellcast`). A hit in the very frame exactly one cast of yours finished is that spell (`CastNow`): name, icon, and rapid hits add up. Anything else is a plain number (no adding up: two unnamed hits may be different things).
+- Amount, crit (`flag == "CRITICAL"`) and school (`schoolMask`: 1 physical, 2 holy, 4 fire, 8 nature, 16 frost, 32 shadow, 64 arcane) come from the event. `GLANCING`, `BLOCK_REDUCED`, `ABSORB`, `RESIST` flags on a hit add a note. A `WOUND` for 0 is a miss (the flag says how), as for the player. A hidden (secret) amount is handed to the game to draw (`Emit`'s `opts.secret`).
+
+Known gaps, all from the game: no spell for most hits; pet and player not told apart; a melee killing blow's event may never arrive (a unit that dies loses its tokens at once, and a swing's `UNIT_COMBAT` comes with its animation, after the death); no "Killing blow!" notice (it came from the readable `PARTY_KILL` line); hits on units with no token (no nameplate, not targeted) don't exist for addons.
+
+What's from where: the `|Ky<n>|k` tokens and readable `UNIT_COMBAT` amounts for `player` are from the author's own `/btf copy` (2026-10-03). That `UNIT_COMBAT` fires for target, focus, nameplate, party and pet tokens with readable amounts, that a swing's event trails its log line by about 0.4–1.0s while ticks, procs and heals come in the same frame, and that dead units lose their tokens, are from the notes of two other Forever addons (MikScrollingBattleText Continued 1.60.01, Galdor Combat Text F-1.0.1), which describe their own in-game tests. Both are All Rights Reserved: **nothing of their code is used here**, only those facts about the game. MSBT Continued goes much further (damage meter events, `PLAYER_SWING`, learning procs, settling against `C_DamageMeter` totals when a fight ends); that's the place to look for ideas if the simple rules here aren't enough. **Not yet confirmed in game for BattleText**: all of `OnUnitHit` (first tested live with 1.1.0); `/btf debug` records every unit event with what became of it, each hidden line and each cast, with times, for exactly this.
+
+### The readable lines (when the game allows)
+
+1. **`COMBAT_LOG_MESSAGE`** — the finished text of each Combat Log window line: `message, r, g, b, order`. Blizzard's secure `Blizzard_CombatLogProcessor` builds it (`GenerateMessage`) for Blizzard's own Combat Log window; addons can register it too. On screen a line reads
 
        Your Claw hit Bristleback Hunter Faust 50 Physical. (Critical)
 
@@ -33,7 +61,7 @@ Forever refuses `COMBAT_LOG_EVENT` and `COMBAT_LOG_EVENT_UNFILTERED` to addons. 
    - The **action link** names the event (`SWING_DAMAGE`, `SPELL_MISSED`, `SPELL_HEAL`, `PARTY_KILL`, ...). The **spell link** has the spell's ID. A swing has no spell: its name ("Melee") is a second action link. The **unit links** before and after the action are who did it and who it happened to; yours read "You" / "Your".
    - **Names are scrambled.** The other unit's name changes from line to line (a random mob name and surname). Never use it.
    - `order == Enum.CombatLogMessageOrder.Oldest` is history replayed when the window refills (the game does this at login too). Skip it.
-2. **`UNIT_COMBAT`** for `player` — `unit, action, flag, amount, schoolMask`. Damage, heals, avoids and power gains that happen to you, with no spell name. Needs no setup. `WOUND` with no amount is an attack that did nothing (`flag` says `ABSORB`, `BLOCK` or `RESIST`, else it's a miss).
+2. **`UNIT_COMBAT`** for `player` — damage, heals, avoids and power gains that happen to you, with no spell name. Needs no setup. `WOUND` with no amount is an attack that did nothing (`flag` says `ABSORB`, `BLOCK` or `RESIST`, else it's a miss).
 
 ### What makes the lines flow
 
@@ -66,7 +94,7 @@ They follow the **filter selected on the Combat Log tab** (`Blizzard_CombatLog_F
 - **Words as a fallback** (`ParseWords`), for a line with no links: finds "Your" and the action word (`ACTION_<EVENT>` strings). Someone else's line can't give a spell name this way (their scrambled name runs into it).
 - A spell that fails says how in place of the action word ("Your Moonfire resisted X."); a swing says it in a note ("Your Melee missed X. (Dodged)").
 - With the Combat Log's "Use Verbose Mode" the sentences are different and have no action link. Not supported.
-- `/btf debug` records every live line exactly as the game sent it, marked "read" or "skipped", along with each `UNIT_COMBAT`, and the time each arrived. `/btf copy` shows them in an edit box (with `|` doubled so the links can be read), because chat can't be copied.
+- `/btf debug` records every live line exactly as the game sent it, marked "read", "skipped" or "hidden", each `UNIT_COMBAT` with its unit and (for other units) whether it was shown or why not, each cast of yours (`CAST <id> <name>`), and the time each arrived (the last 300). `/btf copy` shows them in an edit box (with `|` doubled so the links can be read), because chat can't be copied.
 
 ## WoW Forever rules the code must follow
 
@@ -84,7 +112,8 @@ Run from the repo root before every commit:
 
 - `tests/real_lines.lua` holds **real Combat Log lines**: about 160 of them, written by the game's own `CombatLogProcessor:GenerateMessage` for made-up events, each with what BattleText should read from it. `tests/strings_enus.lua` is the game's English text the addon reads. Both are made by `tests/tools/make_real_lines.lua`, which needs the game's exported interface code and its global strings (see the top of that file). Run it again when the game's Combat Log code changes. Don't write combat lines by hand in tests: the first version's tests passed on wording the game never produces.
 - `tests/wowstub.lua` fakes the game. Where it matters it behaves like the game instead of just accepting calls: the Combat Log window loads its filter when shown, which only works from a real click (`ClickButton`) and never from addon code; lines only arrive once that has happened and they're turned on; a secure macro button fires on mouse down or up by the game setting. Things an addon must never do are recorded in `VIOLATIONS` (replacing a Blizzard global or a script on a Blizzard frame, registering the combat log events, calling `ApplyFilterSettings`), and the tests check it's empty.
-- `tests/run_tests.lua` holds the scenarios: the `.toc` and keybindings, reading every real line three ways (with the game's text, without it, and as plain words), the Start button, your hits, adding up, crits, misses and heals, what happens to you both ways, scrolling and spacing, notifications, pet lines, settings, combat lockdown, the options window.
+- `tests/run_tests.lua` holds the scenarios: the `.toc` and keybindings, reading every real line three ways (with the game's text, without it, and as plain words), the Start button, your hits, adding up, crits, misses and heals, what happens to you both ways, hits read from other units when the lines are hidden (whose fight it is, one hit under several names, spell names from casts, vouching in a group), scrolling and spacing, notifications, pet lines, settings, combat lockdown, the options window (fonts and their files, the dropdown and its two fallbacks, locking on close).
+- The stub's other units: `STATE.who` maps unit names (`target`, `nameplate1`, `party1`) to units and `STATE.unit` says what each is (`enemy`, `guid`, `target`); `STATE.group` is being in a party. Mind that a `party1` in `STATE.who` counts as being in a group.
 - The stub can't make `==` on a secret value throw (Lua won't call a metamethod there). Instead a test reads the source and fails on any comparison of `opts.secret`, a raw `amount`, `message` or `order`.
 - `lua5.1 tests/run.lua` also runs `tests/reload_in_combat.lua` in a process of its own: logging in mid-fight with the Combat Log tab showing.
 
@@ -95,6 +124,8 @@ Only testable in game:
 - that `/click ChatFrame2Tab` from the Start button opens the tab without a "blocked" message, in and out of combat, and from the keybinding
 - that the lines arrive with their links, and that the links' GUIDs are real (pet lines depend on it): `/btf debug`, then `/btf copy`
 - whether `UNIT_COMBAT` amounts are readable or secret, and whether the log line or `UNIT_COMBAT` comes first (the same recording shows both)
+- everything in `OnUnitHit`: that the event arrives for `target` and nameplate units, how far a hit trails its hidden line, whether a cast and its hit share a frame
+- the options window's font dropdown (`WowStyle1DropdownTemplate`; a client without it gets a button that opens a menu)
 - whether `order` is readable (if it's secret, replayed history can't be told from new lines)
 - whether `floatingCombatTextCombatDamage` and `floatingCombatTextCombatHealing` exist on this client (they aren't in the game's Lua; a missing one is skipped)
 - fonts, and how the text looks in motion

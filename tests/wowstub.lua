@@ -173,7 +173,39 @@ function Methods:SetTexture(t) self.__texture = t end
 function Methods:StartMoving() protectedCheck(self, "StartMoving") self.__moving = true end
 function Methods:StopMovingOrSizing() protectedCheck(self, "StopMovingOrSizing") self.__moving = false end
 
-function CreateFrame(kind, name, parent, template) return newObj(kind, name, parent, template) end
+function CreateFrame(kind, name, parent, template)
+    if kind == "DropdownButton" and STATE.noDropdown then error("Unknown frame type: DropdownButton") end
+    return newObj(kind, name, parent, template)
+end
+
+-- The game's menus. A menu is described by a function that's handed a "root"
+-- to add rows to; here the rows are just collected: { text, isSelected, pick }.
+local function describeMenu(generator, owner)
+    local rows = { scroll = nil }
+    local root = {}
+    function root:SetScrollMode(extent) rows.scroll = extent end
+    function root:CreateRadio(text, isSelected, setSelected)
+        rows[#rows + 1] = { text = text, isSelected = isSelected, pick = setSelected }
+    end
+    generator(owner, root)
+    return rows
+end
+-- The game's dropdown button shows whichever row is ticked
+function Methods:SetupMenu(generator)
+    assert(self.__kind == "DropdownButton", "SetupMenu is the dropdown button's")
+    self.__generator = generator
+    if self:IsVisible() then self:GenerateMenu() end
+end
+function Methods:GenerateMenu()
+    self.__menu = describeMenu(self.__generator, self)
+    for _, row in ipairs(self.__menu) do
+        if row.isSelected() then self.__text = row.text end
+    end
+end
+-- A menu opened from any other button: the test looks at MENU_OPENED
+MenuUtil = {
+    CreateContextMenu = function(owner, generator) MENU_OPENED = describeMenu(generator, owner) end,
+}
 UIParent = newObj("Frame", "UIParent")
 Minimap = newObj("Frame", "Minimap")
 GameTooltip = newObj("GameTooltip", "GameTooltip")
@@ -190,6 +222,12 @@ STATE = {
     cvars = { enableFloatingCombatText = "1", floatingCombatTextCombatDamage = "1", floatingCombatTextCombatHealing = "1" },
     filteredEvents = false,       -- C_CombatLog.SetFilteredEventsEnabled
     spellIcons = { [16827] = 132140, [8921] = 136096 },   -- by spell ID
+    spellNames = { [16827] = "Claw", [8921] = "Moonfire" },
+    -- Other units. who: the names a unit goes by ("target", "nameplate1"...) -> the unit.
+    -- unit: what's known about each (enemy, guid, target = the unit it's targeting; "me" and "pet" are yours).
+    who = {}, unit = {},
+    group = false,                -- you're in a party
+    noDropdown = false,           -- a client without the game's dropdown button
 }
 
 FAKE_TIME = 1000
@@ -197,12 +235,32 @@ function GetTime() return FAKE_TIME end
 function InCombatLockdown() return COMBAT end
 function UnitXP() return STATE.xp end
 function UnitXPMax() return STATE.xpMax end
-function UnitExists(unit) return unit == "pet" and STATE.pet or unit == "player" end
+-- Which unit a name like "target", "nameplate2" or "targettarget" stands for
+local function who(token)
+    if token == "player" then return "me" end
+    if token == "pet" then return STATE.pet and "pet" or nil end
+    if STATE.who[token] then return STATE.who[token] end
+    local base = token:match("^(.+)target$")
+    local id = base and who(base)
+    return id and STATE.unit[id] and STATE.unit[id].target or nil
+end
+function UnitExists(unit) return who(unit) ~= nil end
 function UnitGUID(unit)
     if unit == "player" then return "Player-5555-0ABCDEF1" end
     if unit == "pet" and STATE.pet then return "Pet-0-1-2-3-4-000002" end
-    return nil
+    local id = who(unit)
+    return id and STATE.unit[id] and STATE.unit[id].guid or nil
 end
+function UnitIsUnit(a, b)
+    local x, y = who(a), who(b)
+    return x ~= nil and x == y
+end
+function UnitCanAttack(a, b)
+    local id = who(b)
+    return a == "player" and id ~= nil and STATE.unit[id] ~= nil and STATE.unit[id].enemy == true
+end
+function IsInGroup() return STATE.group end
+function IsInRaid() return false end
 function UnitPowerType() return 1, "RAGE" end
 function GetCVar(name) return STATE.cvars[name] end
 function SetCVar(name, value) STATE.cvars[name] = tostring(value) end
@@ -258,7 +316,10 @@ C_CombatLog = {
     ApplyFilterSettings = ApplyFilterSettings,
 }
 Enum = { CombatLogMessageOrder = { Newest = 0, Oldest = 1 } }
-C_Spell = { GetSpellTexture = function(spell) return STATE.spellIcons[spell] end }
+C_Spell = {
+    GetSpellTexture = function(spell) return STATE.spellIcons[spell] end,
+    GetSpellName = function(id) return STATE.spellNames[id] end,
+}
 C_Item = { GetItemIconByID = function(id) return 134000 + id end }
 
 -- The chat tabs (General, Combat Log, Loot), and the Combat Log window behind the second one
@@ -341,7 +402,7 @@ dofile((ADDON_DIR or ".") .. "/tests/strings_enus.lua")
 -- may read it and add to its tables, but never replace it.
 local TEST = { LOG = 1, ALL_FRAMES = 1, BLOCKED = 1, VIOLATIONS = 1, COMBAT = 1, SECRET_MODE = 1, SECURE = 1,
     STUB_METHODS = 1, STATE = 1, FAKE_TIME = 1, TIMERS = 1, TICKERS = 1, Advance = 1, Secret = 1, newObj = 1,
-    ClickButton = 1, ClickTab = 1, WithoutGameText = 1 }
+    ClickButton = 1, ClickTab = 1, WithoutGameText = 1, MENU_OPENED = 1 }
 GAME = {}
 for k, v in pairs(_G) do
     if not STANDARD[k] and not TEST[k] then GAME[k] = v end
@@ -368,6 +429,14 @@ function WithoutGameText(fn)
     end
     local ok, err = pcall(fn)
     for k, v in pairs(hidden) do GAME[k] = v end
+    if not ok then error(err, 0) end
+end
+-- Runs fn on a client that has no menus to open
+function WithoutMenus(fn)
+    local menus = GAME.MenuUtil
+    GAME.MenuUtil = nil
+    local ok, err = pcall(fn)
+    GAME.MenuUtil = menus
     if not ok then error(err, 0) end
 end
 LOADED = true
