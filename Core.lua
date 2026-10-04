@@ -605,6 +605,7 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
     local n = Num(amount)
     if action == "WOUND" then
         if secret or (n and n > 0) then
+            self:Queue({ blow = true })   -- (a blow that landed: see the hit for nothing, below)
             if self:LogCovers("damage") or not db.inDamage then return end
             if secret then
                 self:Emit("incoming", "-", C.inDamage, { crit = crit, secret = amount })
@@ -614,7 +615,14 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
         else
             -- No damage: fully absorbed, blocked or resisted, or a plain miss
             if self:LogCovers("miss") or not db.inMisses then return end
-            self:Emit("incoming", MissText(flag and MISS_TEXT[flag] and flag or "MISS"), C.inAvoid)
+            if flag and MISS_TEXT[flag] then
+                self:Emit("incoming", MissText(flag), C.inAvoid)
+            else
+                -- Some attacks arrive in two parts, one of them for nothing (a mob's special
+                -- attack: "WOUND 0" and "WOUND 33" in one frame). That's no miss: it's shown
+                -- as one only if no blow landed on you in the same frame (ResolveFrame).
+                self:Queue({ nothing = true })
+            end
         end
     elseif action == "HEAL" then
         if self:LogCovers("heal") or not db.inHeals then return end
@@ -762,7 +770,7 @@ function BT:Queue(event)
     seq[#seq + 1] = event
     if C_Timer and C_Timer.After then
         self:FlushSoon()
-    elseif event.hit then
+    elseif event.hit or event.nothing then
         self:FlushHits(true)   -- no timers: each hit on its own
     end
 end
@@ -1022,12 +1030,16 @@ function BT:ResolveFrame(seq, first, last)
     local castSchool   -- the school of the hits this frame's cast has been given
     -- While the lines are arriving, a tick is known by its line: it comes right behind the hit
     local linesFlow = self.hiddenAt ~= nil and seq[first].time - self.hiddenAt < 10
-    local lineInFrame = false
+    local lineInFrame, blowInFrame = false, false
     for i = first, last do
         if seq[i].line then lineInFrame = true end
+        if seq[i].blow then blowInFrame = true end
     end
     for i = first, last do
         local h = seq[i]
+        if h.nothing and not blowInFrame then
+            self:Emit("incoming", MissText("MISS"), self.TEXT_COLORS.inAvoid)   -- a hit on you for nothing
+        end
         if h.hit then
             local mask = Num(h.school)
             local what, spell = "hit", nil

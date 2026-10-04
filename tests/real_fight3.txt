@@ -1,0 +1,251 @@
+ 397.34  hidden  |Ky63|k
+ 397.34  CAST 1082 Claw
+ 397.34  hidden  |Ky64|k
+ 397.34  UNIT_COMBAT nameplate2 WOUND  54 school 1
+ 397.34  UNIT_COMBAT target WOUND  54 school 1: same hit, under another name
+ 397.34    nameplate2 54: cast of Claw
+ 398.00  UNIT_COMBAT nameplate2 WOUND  1 school 8
+ 398.00  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 398.00    nameplate2 1: shield of Sporid Cape
+ 398.23  UNIT_COMBAT player WOUND  19
+ 398.34  hidden  |Ky65|k
+ 398.34  UNIT_COMBAT nameplate2 WOUND  29 school 1
+ 398.34  UNIT_COMBAT target WOUND  29 school 1: same hit, under another name
+ 398.34    nameplate2 29: shown
+ 398.77  UNIT_COMBAT nameplate2 WOUND CRITICAL 55 school 1
+ 398.77  UNIT_COMBAT target WOUND CRITICAL 55 school 1: same hit, under another name
+ 398.77    nameplate2 55: shown
+ 399.02  CAST 1082 Claw
+ 399.02  hidden  |Ky66|k
+ 399.02  UNIT_COMBAT nameplate2 WOUND  56 school 1
+ 399.02  UNIT_COMBAT target WOUND  56 school 1: same hit, under another name
+ 399.02    nameplate2 56: cast of Claw
+ 399.35  hidden  |Ky67|k
+ 399.78  UNIT_COMBAT nameplate2 WOUND  29 school 1
+ 399.78  UNIT_COMBAT target WOUND  29 school 1: same hit, under another name
+ 399.78    nameplate2 29: shown
+ 400.35  hidden  |Ky68|k
+ 400.47  UNIT_COMBAT player DODGE  0
+ 401.11  UNIT_COMBAT nameplate2 WOUND  24 school 1
+ 401.11  UNIT_COMBAT target WOUND  24 school 1: same hit, under another name
+ 401.11    nameplate2 24: shown
+ 401.13  CAST 1822 Rake
+ 401.13  hidden  |Ky69|k
+ 401.13  UNIT_COMBAT nameplate2 WOUND  35 school 1
+ 401.13  UNIT_COMBAT target WOUND  35 school 1: same hit, under another name
+ 401.13    nameplate2 35: cast of Rake
+ 401.26  hidden  |Ky70|k
+ 402.01  UNIT_COMBAT player WOUND  0
+ 402.01  UNIT_COMBAT player WOUND  33
+ 402.01  UNIT_COMBAT nameplate2 WOUND  1 school 8
+ 402.01  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 402.01    nameplate2 1: shield of Sporid Cape
+ 402.11  UNIT_COMBAT nameplate2 WOUND CRITICAL 62 school 1
+ 402.11  UNIT_COMBAT target WOUND CRITICAL 62 school 1: same hit, under another name
+ 402.11    nameplate2 62: shown
+ 402.36  hidden  |Ky71|k
+ 403.03  CAST 1082 Claw
+ 403.03  hidden  |Ky72|k
+ 403.03  UNIT_COMBAT nameplate2 WOUND  55 school 1
+ 403.03  UNIT_COMBAT target WOUND  55 school 1: same hit, under another name
+ 403.03    nameplate2 55: cast of Claw
+ 403.29  hidden  |Ky73|k
+ 403.35  UNIT_COMBAT nameplate2 WOUND  29 school 1
+ 403.35  UNIT_COMBAT target WOUND  29 school 1: same hit, under another name
+ 403.35    nameplate2 29: shown
+ 404.03  UNIT_COMBAT nameplate2 WOUND  1 school 8
+ 404.03  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 404.03    nameplate2 1: shield of Sporid Cape
+ 404.12  UNIT_COMBAT nameplate2 WOUND  25 school 1
+ 404.12  UNIT_COMBAT target WOUND  25 school 1: same hit, under another name
+ 404.12    nameplate2 25: shown
+ 404.36  hidden  |Ky74|k
+ 404.36  hidden  |Ky75|k
+ 405.52  UNIT_COMBAT player WOUND  19
+ 413.16  CAST 1075 Thorns
+ 414.80  CAST 768 Cat Form
+ 417.57  hidden  |Ky76|k
+ 417.57  UNIT_COMBAT nameplate1 WOUND  11 school 8
+ 417.57  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 417.57  UNIT_COMBAT nameplate1 WOUND  1 school 8
+ 417.57  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 417.57    nameplate1 11: shield of Thorns
+ 417.57    nameplate1 1: shield of Sporid Cape
+ 417.81  UNIT_COMBAT player WOUND  18
+ 418.34  UNIT_COMBAT nameplate1 WOUND  30 school 1
+ 418.34  UNIT_COMBAT target WOUND  30 school 1: same hit, under another name
+ 418.34    nameplate1 30: shown
+ 418.57  hidden  |Ky77|k
+ 419.33  UNIT_COMBAT nameplate1 WOUND CRITICAL 52 school 1
+ 419.33  UNIT_COMBAT target WOUND CRITICAL 52 school 1: same hit, under another name
+ 419.33    nameplate1 52: shown
+ 419.37  CAST 1822 Rake
+ 419.37  hidden  |Ky78|k
+ 419.37  UNIT_COMBAT nameplate1 WOUND  35 school 1
+ 419.37  UNIT_COMBAT target WOUND  35 school 1: same hit, under another name
+ 419.37    nameplate1 35: cast of Rake
+ 419.57  hidden  |Ky79|k
+ 419.57  UNIT_COMBAT player WOUND  0
+ 419.57  UNIT_COMBAT player WOUND  36
+ 419.57  UNIT_COMBAT nameplate1 WOUND  11 school 8
+ 419.57  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 419.57  UNIT_COMBAT nameplate1 WOUND  1 school 8
+ 419.57  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 419.57    nameplate1 11: shield of Thorns
+ 419.57    nameplate1 1: shield of Sporid Cape
+ 420.01  UNIT_COMBAT nameplate1 WOUND  25 school 1
+ 420.01  UNIT_COMBAT target WOUND  25 school 1: same hit, under another name
+ 420.01    nameplate1 25: shown
+ 420.57  hidden  |Ky80|k
+ 421.33  UNIT_COMBAT nameplate1 WOUND  27 school 1
+ 421.33  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 421.33    nameplate1 27: shown
+ 421.49  hidden  |Ky81|k
+ 421.64  UNIT_COMBAT nameplate1 WOUND  11 school 8
+ 421.64  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 421.64  UNIT_COMBAT nameplate1 WOUND  1 school 8
+ 421.64  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 421.64    nameplate1 11: shield of Thorns
+ 421.64    nameplate1 1: shield of Sporid Cape
+ 421.87  UNIT_COMBAT player WOUND  19
+ 422.33  UNIT_COMBAT nameplate1 WOUND CRITICAL 57 school 1
+ 422.33  UNIT_COMBAT target WOUND CRITICAL 57 school 1: same hit, under another name
+ 422.33    nameplate1 57: shown
+ 422.45  CAST 1082 Claw
+ 422.45  hidden  |Ky82|k
+ 422.45  UNIT_COMBAT nameplate1 WOUND CRITICAL 109 school 1
+ 422.45  UNIT_COMBAT target WOUND CRITICAL 109 school 1: same hit, under another name
+ 422.45    nameplate1 109: cast of Claw
+ 422.58  hidden  |Ky83|k
+ 423.01  UNIT_COMBAT nameplate1 WOUND  28 school 1
+ 423.01  UNIT_COMBAT target WOUND  28 school 1: same hit, under another name
+ 423.01    nameplate1 28: shown
+ 423.57  hidden  |Ky84|k
+ 423.57  UNIT_COMBAT nameplate1 WOUND  11 school 8
+ 423.57  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 423.57  UNIT_COMBAT nameplate1 WOUND  1 school 8
+ 423.57  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 423.57    nameplate1 11: shield of Thorns
+ 423.57    nameplate1 1: shield of Sporid Cape
+ 424.04  UNIT_COMBAT player WOUND  21
+ 424.34  UNIT_COMBAT nameplate1 WOUND  26 school 1
+ 424.34  UNIT_COMBAT target WOUND  26 school 1: same hit, under another name
+ 424.34    nameplate1 26: shown
+ 424.59  hidden  |Ky85|k
+ 425.35  UNIT_COMBAT nameplate1 WOUND  27 school 1
+ 425.35  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 425.35    nameplate1 27: shown
+ 425.52  hidden  |Ky86|k
+ 425.52  hidden  |Ky87|k
+ 425.60  UNIT_COMBAT nameplate1 WOUND  31 school 1
+ 425.60    nameplate1 31: shown
+ 431.16  UNIT_COMBAT nameplate2 WOUND  11 school 8
+ 431.16  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 431.16  UNIT_COMBAT softenemy WOUND  11 school 8: same hit, under another name
+ 431.16  UNIT_COMBAT nameplate2 WOUND  1 school 8
+ 431.16  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 431.16  UNIT_COMBAT softenemy WOUND  1 school 8: same hit, under another name
+ 431.16    nameplate2 11: shield of Thorns
+ 431.16    nameplate2 1: shield of Sporid Cape
+ 431.33  hidden  |Ky88|k
+ 431.33  CAST 1082 Claw
+ 431.33  hidden  |Ky89|k
+ 431.33  UNIT_COMBAT nameplate2 WOUND  50 school 1
+ 431.33  UNIT_COMBAT target WOUND  50 school 1: same hit, under another name
+ 431.33    nameplate2 50: cast of Claw
+ 431.39  UNIT_COMBAT player WOUND  18
+ 432.33  UNIT_COMBAT nameplate2 WOUND  29 school 1
+ 432.33  UNIT_COMBAT target WOUND  29 school 1: same hit, under another name
+ 432.33    nameplate2 29: shown
+ 432.35  hidden  |Ky90|k
+ 432.77  UNIT_COMBAT nameplate2 WOUND  29 school 1
+ 432.77  UNIT_COMBAT target WOUND  29 school 1: same hit, under another name
+ 432.77    nameplate2 29: shown
+ 433.09  CAST 1822 Rake
+ 433.09  hidden  |Ky91|k
+ 433.09  UNIT_COMBAT nameplate2 WOUND  34 school 1
+ 433.09  UNIT_COMBAT target WOUND  34 school 1: same hit, under another name
+ 433.09    nameplate2 34: cast of Rake
+ 433.21  UNIT_COMBAT nameplate2 WOUND  11 school 8
+ 433.21  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 433.21  UNIT_COMBAT nameplate2 WOUND  1 school 8
+ 433.21  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 433.21    nameplate2 11: shield of Thorns
+ 433.21    nameplate2 1: shield of Sporid Cape
+ 433.35  hidden  |Ky92|k
+ 433.56  UNIT_COMBAT player WOUND  19
+ 433.78  UNIT_COMBAT nameplate2 WOUND  25 school 1
+ 433.78  UNIT_COMBAT target WOUND  25 school 1: same hit, under another name
+ 433.78    nameplate2 25: shown
+ 434.35  hidden  |Ky93|k
+ 434.69  CAST 1079 Rip
+ 434.69  UNIT_COMBAT nameplate2 IMMUNE  0 school 1
+ 434.69  UNIT_COMBAT target IMMUNE  0 school 1: same hit, under another name
+ 434.69    nameplate2 0: cast of Rip
+ 435.18  UNIT_COMBAT player WOUND  0
+ 435.18  UNIT_COMBAT player WOUND  36
+ 435.18  UNIT_COMBAT nameplate2 WOUND  11 school 8
+ 435.18  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 435.18  UNIT_COMBAT nameplate2 WOUND  1 school 8
+ 435.18  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 435.18    nameplate2 11: shield of Thorns
+ 435.18    nameplate2 1: shield of Sporid Cape
+ 435.35  UNIT_COMBAT nameplate2 WOUND  27 school 1
+ 435.35  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 435.35    nameplate2 27: shown
+ 435.37  hidden  |Ky94|k
+ 435.80  UNIT_COMBAT nameplate2 WOUND CRITICAL 50 school 1
+ 435.80  UNIT_COMBAT target WOUND CRITICAL 50 school 1: same hit, under another name
+ 435.80    nameplate2 50: shown
+ 436.36  hidden  |Ky95|k
+ 436.83  CAST 1822 Rake
+ 436.83  hidden  |Ky96|k
+ 436.83  UNIT_COMBAT nameplate2 WOUND  35 school 1
+ 436.83  UNIT_COMBAT target WOUND  35 school 1: same hit, under another name
+ 436.83    nameplate2 35: cast of Rake
+ 437.18  UNIT_COMBAT nameplate2 WOUND  11 school 8
+ 437.18  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 437.18  UNIT_COMBAT nameplate2 WOUND  1 school 8
+ 437.18  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 437.18    nameplate2 11: shield of Thorns
+ 437.18    nameplate2 1: shield of Sporid Cape
+ 437.36  UNIT_COMBAT nameplate2 WOUND  27 school 1
+ 437.36  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 437.37  hidden  |Ky97|k
+ 437.36    nameplate2 27: shown
+ 437.65  UNIT_COMBAT player WOUND  21
+ 437.80  UNIT_COMBAT nameplate2 WOUND  27 school 1
+ 437.80  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 437.80    nameplate2 27: shown
+ 438.37  hidden  |Ky98|k
+ 438.80  UNIT_COMBAT nameplate2 WOUND  28 school 1
+ 438.80  UNIT_COMBAT target WOUND  28 school 1: same hit, under another name
+ 438.80    nameplate2 28: shown
+ 439.18  UNIT_COMBAT nameplate2 WOUND  11 school 8
+ 439.18  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 439.18  UNIT_COMBAT nameplate2 WOUND  1 school 8
+ 439.18  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 439.18    nameplate2 11: shield of Thorns
+ 439.18    nameplate2 1: shield of Sporid Cape
+ 439.37  hidden  |Ky99|k
+ 439.65  UNIT_COMBAT player WOUND  20
+ 440.05  CAST 1822 Rake
+ 440.05  hidden  |Ky100|k
+ 440.05  UNIT_COMBAT nameplate2 WOUND  35 school 1
+ 440.05  UNIT_COMBAT target WOUND  35 school 1: same hit, under another name
+ 440.05    nameplate2 35: cast of Rake
+ 440.36  UNIT_COMBAT nameplate2 WOUND  27 school 1
+ 440.36  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 440.36    nameplate2 27: shown
+ 440.38  hidden  |Ky101|k
+ 440.81  UNIT_COMBAT nameplate2 WOUND  27 school 1
+ 440.81  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 440.81    nameplate2 27: shown
+ 441.19  hidden  |Ky102|k
+ 441.19  UNIT_COMBAT nameplate2 WOUND  11 school 8
+ 441.19  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 441.19  UNIT_COMBAT nameplate2 WOUND  1 school 8
+ 441.19  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 441.19    nameplate2 11: shield of Thorns
+ 441.19    nameplate2 1: shield of Sporid Cape
+ 442.52  UNIT_COMBAT player WOUND  20

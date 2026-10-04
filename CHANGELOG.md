@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2
+
+- No more false **Miss**. Some mobs' special attacks arrive in two parts, one of them for no damage, and the empty part was shown as a miss beside the real hit.
+
 ## 1.2.1
 
 - **More than one damage shield at a time.** Thorns and a cloak that stings back were being mixed up: whichever hit first was called Thorns. Now each is its own.

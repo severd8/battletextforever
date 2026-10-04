@@ -420,6 +420,37 @@ assertEq(#lines("incoming"), 5, "other units are ignored")
 fire("UNIT_COMBAT", "player", "WOUND", "", Secret(40), 1)
 assertEq(last("incoming"), "<secret fmt>", "a hidden amount is still shown by the game")
 clear()
+-- A mob's special attack arrives in two parts, one of them for nothing: that's no miss
+Advance(0.1)
+local incomingSoFar = #lines("incoming")
+fire("UNIT_COMBAT", "player", "WOUND", "", 0, 1)
+fire("UNIT_COMBAT", "player", "WOUND", "", 33, 1)
+assertEq(#lines("incoming"), incomingSoFar + 1, "a hit for nothing beside a blow that landed isn't shown")
+assertEq(last("incoming"), "-33", "only the blow")
+Advance(0.1)
+fire("UNIT_COMBAT", "player", "WOUND", "", 34, 1)
+fire("UNIT_COMBAT", "player", "WOUND", "", 0, 1)
+assertEq(last("incoming"), "-34", "whichever part comes first")
+Advance(0.1)
+fire("UNIT_COMBAT", "player", "WOUND", "", 0, 1)
+Advance(0.1)
+fire("UNIT_COMBAT", "player", "WOUND", "", 35, 1)
+assertEq(table.concat(lines("incoming"), " "):match("Miss %-35$"), "Miss -35", "in different frames they're two attacks")
+Advance(0.1)
+fire("UNIT_COMBAT", "player", "WOUND", "ABSORB", 0, 1)
+fire("UNIT_COMBAT", "player", "WOUND", "", 36, 1)
+assertEq(table.concat(lines("incoming"), " "):match("Absorb %-36$"), "Absorb -36", "a hit that says what stopped it is its own attack")
+WithoutTimers(function()
+    fire("UNIT_COMBAT", "player", "WOUND", "", 0, 1)
+    assertEq(BT.areas.incoming.active[#BT.areas.incoming.active].text:GetText(), "Miss", "no timers: shown at once")
+end)
+BT.db.inMisses = false
+Advance(0.1)
+local shownBefore2 = #lines("incoming")
+fire("UNIT_COMBAT", "player", "WOUND", "", 0, 1)
+assertEq(#lines("incoming"), shownBefore2, "avoids turned off: not shown")
+BT.db.inMisses = true
+clear()
 fire("UNIT_COMBAT", "player", "HEAL", "", 120, 8)
 Advance(0.3)
 assertEq(last("incoming"), "+120", "a heal on you")
@@ -1295,6 +1326,39 @@ same(out, {
     "Sporid Cape 1", "Claw 103",
 })
 assertEq(BT.db.shieldAmounts.Thorns, 11, "Thorns was learned on the way")
+
+step("a third real fight: mobs that can't bleed, and attacks that land in two parts")
+freshFight()
+STATE.equipped[15] = CAPE
+STATE.buffs = { { name = "Thorns", spellId = 1075 } }
+fire("PLAYER_ENTERING_WORLD")
+BT.db.shieldAmounts = { Thorns = 11 }
+local taken = {}
+local emit = BT.Emit
+BT.Emit = function(self, area, text, ...)
+    if area == "incoming" then taken[#taken + 1] = text end
+    return emit(self, area, text, ...)
+end
+out = replay("real_fight3.txt", {
+    -- (in the recording Thorns was cast before the second fight; the first has only the cape's answers)
+    { at = 390, fn = function() STATE.buffs = {} fire("UNIT_AURA", "player") end },
+})
+BT.Emit = emit
+same(out, {
+    -- first mob: Rake lands but never ticks
+    "Claw 54", "Sporid Cape 1", "29", "55", "Claw 56", "29", "24", "Rake 35", "Sporid Cape 1", "62", "Claw 55", "29",
+    "Sporid Cape 1", "25",
+    -- second mob, with Thorns up again: both shields answer every blow
+    "Thorns 11", "Sporid Cape 1", "30", "52", "Rake 35", "Thorns 11", "Sporid Cape 1", "25", "27", "Thorns 11",
+    "Sporid Cape 1", "57", "Claw 109", "28", "Thorns 11", "Sporid Cape 1", "26", "27", "31",
+    -- third mob: Rip finds it immune
+    "Thorns 11", "Sporid Cape 1", "Claw 50", "29", "29", "Rake 34", "Thorns 11", "Sporid Cape 1", "25", "Rip Immune",
+    "Thorns 11", "Sporid Cape 1", "27", "50", "Rake 35", "Thorns 11", "Sporid Cape 1", "27", "27", "28", "Thorns 11",
+    "Sporid Cape 1", "Rake 35", "27", "27", "Thorns 11", "Sporid Cape 1",
+})
+-- What happened to you: three of the mobs' attacks came as "WOUND 0" and "WOUND 33" in one
+-- frame. Each is one blow, not a miss and a blow.
+same(taken, { "-19", "Dodge", "-33", "-19", "-18", "-36", "-19", "-21", "-18", "-19", "-36", "-21", "-20", "-20" })
 -- Cast naming goes by order: a hit ahead of the cast in its frame isn't the cast's
 freshFight()
 STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
