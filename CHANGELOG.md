@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.0
+
+- **Damage-over-time ticks are named**, with the spell's icon: Rake, Rip, Rend, Garrote, Rupture, Moonfire, Insect Swarm, Corruption, Immolate, Curse of Agony, Shadow Word: Pain, Flame Shock and more. Bleeds need Start BattleText clicked (it's how a tick is told from a swing).
+- **Your damage shield is named** (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen it answer two blows.
+- **New option: Damage shields** (under "What you do"). Untick it to hide your shield's hits.
+- A hit of another school that lands in the same instant as your cast is no longer named after the cast (Thorns answering as you open with Claw).
+- A spell that only ticks (Rip) no longer names a swing that lands as you cast it.
+
 ## 1.1.0
 
 - **Your hits show again.** The game now hides the text of its combat log lines from addons, so BattleText reads your hits from the unit you hit instead: your target, and the mobs attacking you or your pet (turn on enemy nameplates to see the ones you aren't targeting). No setup needed when you play alone.

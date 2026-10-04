@@ -1,0 +1,182 @@
+ 612.08  hidden  |Ky59|k
+ 612.08  CAST 1082 Claw
+ 612.08  hidden  |Ky60|k
+ 612.08  UNIT_COMBAT nameplate2 WOUND  56 school 1: shown
+ 612.08  UNIT_COMBAT target WOUND  56 school 1: same hit, under another name
+ 612.84  UNIT_COMBAT player DODGE  0
+ 613.10  hidden  |Ky61|k
+ 613.28  UNIT_COMBAT nameplate2 WOUND  27 school 1: shown
+ 613.28  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 613.28  UNIT_COMBAT nameplate2 WOUND  32 school 1: shown
+ 613.28  UNIT_COMBAT target WOUND  32 school 1: same hit, under another name
+ 613.46  UNIT_COMBAT nameplate2 WOUND  1 school 8: shown
+ 613.46  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 613.95  CAST 1822 Rake
+ 613.95  hidden  |Ky62|k
+ 613.95  UNIT_COMBAT nameplate2 WOUND  35 school 1: shown
+ 613.95  UNIT_COMBAT target WOUND  35 school 1: same hit, under another name
+ 614.10  hidden  |Ky63|k
+ 614.22  UNIT_COMBAT player WOUND  11
+ 614.54  UNIT_COMBAT nameplate2 WOUND  29 school 1: shown
+ 614.54  UNIT_COMBAT target WOUND  29 school 1: same hit, under another name
+ 614.91  UNIT_COMBAT nameplate2 WOUND  1 school 8: shown
+ 614.91  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 615.11  hidden  |Ky64|k
+ 615.55  UNIT_COMBAT nameplate2 WOUND  31 school 1: shown
+ 615.55  UNIT_COMBAT target WOUND  31 school 1: same hit, under another name
+ 615.57  UNIT_COMBAT player WOUND  12
+ 616.12  hidden  |Ky65|k
+ 616.12  CAST 1079 Rip
+ 616.30  UNIT_COMBAT nameplate2 WOUND  1 school 8: shown
+ 616.30  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 616.73  UNIT_COMBAT player WOUND  11
+ 616.95  UNIT_COMBAT nameplate2 WOUND  28 school 1: shown
+ 616.95  UNIT_COMBAT target WOUND  28 school 1: same hit, under another name
+ 616.95  hidden  |Ky66|k
+ 617.12  hidden  |Ky67|k
+ 617.12  UNIT_COMBAT nameplate2 WOUND  28 school 1: shown
+ 617.12  UNIT_COMBAT target WOUND  28 school 1: same hit, under another name
+ 617.55  UNIT_COMBAT nameplate2 WOUND  32 school 1: shown
+ 617.55  UNIT_COMBAT target WOUND  32 school 1: same hit, under another name
+ 617.63  UNIT_COMBAT nameplate2 WOUND  1 school 8: shown
+ 617.63  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 618.05  hidden  |Ky68|k
+ 618.06  UNIT_COMBAT player WOUND  12
+ 618.17  UNIT_COMBAT nameplate2 WOUND  16 school 1: shown
+ 618.17  UNIT_COMBAT target WOUND  16 school 1: same hit, under another name
+ 618.17  hidden  |Ky69|k
+ 618.88  UNIT_COMBAT nameplate2 WOUND CRITICAL 56 school 1: shown
+ 618.88  UNIT_COMBAT target WOUND CRITICAL 56 school 1: same hit, under another name
+ 619.11  hidden  |Ky70|k
+ 619.11  UNIT_COMBAT nameplate2 WOUND  1 school 8: shown
+ 619.11  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 619.11  hidden  |Ky71|k
+ 619.11  UNIT_COMBAT nameplate2 WOUND  29 school 1: shown
+ 620.11  UNIT_COMBAT player WOUND  11
+ 624.83  hidden  |Ky72|k
+ 624.83  CAST 1082 Claw
+ 624.83  hidden  |Ky73|k
+ 624.83  UNIT_COMBAT nameplate3 WOUND CRITICAL 111 school 1: shown
+ 624.83  UNIT_COMBAT target WOUND CRITICAL 111 school 1: same hit, under another name
+ 624.93  UNIT_COMBAT nameplate3 WOUND  1 school 8: shown
+ 624.93  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 625.26  UNIT_COMBAT player WOUND  11
+ 625.83  UNIT_COMBAT nameplate3 WOUND CRITICAL 60 school 1: shown
+ 625.83  UNIT_COMBAT target WOUND CRITICAL 60 school 1: same hit, under another name
+ 625.89  hidden  |Ky74|k
+ 626.30  UNIT_COMBAT nameplate3 WOUND  1 school 8: shown
+ 626.30  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 626.66  UNIT_COMBAT nameplate3 WOUND  28 school 1: shown
+ 626.66  UNIT_COMBAT target WOUND  28 school 1: same hit, under another name
+ 626.81  CAST 1079 Rip
+ 626.81  UNIT_COMBAT nameplate3 PARRY  0 school 1: shown
+ 626.81  UNIT_COMBAT target PARRY  0 school 1: same hit, under another name
+ 626.81  hidden  |Ky75|k
+ 627.06  UNIT_COMBAT player WOUND  11
+ 627.14  UNIT_COMBAT nameplate3 WOUND  1 school 8: shown
+ 627.14  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 627.24  UNIT_COMBAT nameplate3 WOUND  27 school 1: shown
+ 627.24  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 627.73  UNIT_COMBAT player WOUND  12
+ 627.88  hidden  |Ky76|k
+ 628.09  CAST 1079 Rip
+ 628.88  UNIT_COMBAT nameplate3 WOUND  29 school 1: shown
+ 628.88  UNIT_COMBAT target WOUND  29 school 1: same hit, under another name
+ 628.91  hidden  |Ky77|k
+ 629.25  UNIT_COMBAT player DODGE  0
+ 629.67  UNIT_COMBAT nameplate3 WOUND  31 school 1: shown
+ 629.67  UNIT_COMBAT target WOUND  31 school 1: same hit, under another name
+ 629.89  hidden  |Ky78|k
+ 629.89  UNIT_COMBAT nameplate3 WOUND  1 school 8: shown
+ 629.89  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 630.03  UNIT_COMBAT nameplate3 WOUND  10 school 1: shown
+ 630.03  UNIT_COMBAT target WOUND  10 school 1: same hit, under another name
+ 630.03  hidden  |Ky79|k
+ 630.66  UNIT_COMBAT player WOUND  13
+ 630.67  UNIT_COMBAT nameplate3 WOUND CRITICAL 56 school 1: shown
+ 630.67  UNIT_COMBAT target WOUND CRITICAL 56 school 1: same hit, under another name
+ 631.35  UNIT_COMBAT nameplate3 WOUND  1 school 8: shown
+ 631.35  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 632.00  UNIT_COMBAT nameplate3 WOUND  10 school 1: shown
+ 632.00  UNIT_COMBAT target WOUND  10 school 1: same hit, under another name
+ 632.00  hidden  |Ky80|k
+ 632.11  UNIT_COMBAT player WOUND  12
+ 632.75  UNIT_COMBAT nameplate3 WOUND  1 school 8: shown
+ 632.75  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 633.51  UNIT_COMBAT player WOUND  12
+ 634.09  hidden  |Ky81|k
+ 634.09  UNIT_COMBAT nameplate3 WOUND CRITICAL 19 school 1: shown
+ 634.09  UNIT_COMBAT target WOUND CRITICAL 19 school 1: same hit, under another name
+ 634.09  hidden  |Ky82|k
+ 641.73  hidden  |Ky83|k
+ 641.73  CAST 1082 Claw
+ 641.73  hidden  |Ky84|k
+ 641.73  UNIT_COMBAT nameplate1 WOUND CRITICAL 108 school 1: shown
+ 641.73  UNIT_COMBAT target WOUND CRITICAL 108 school 1: same hit, under another name
+ 641.73  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 641.73  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 642.17  UNIT_COMBAT player WOUND  10
+ 642.73  UNIT_COMBAT nameplate1 WOUND CRITICAL 64 school 1: shown
+ 642.73  UNIT_COMBAT target WOUND CRITICAL 64 school 1: same hit, under another name
+ 643.12  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 643.12  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 643.70  CAST 1079 Rip
+ 643.70  hidden  |Ky85|k
+ 643.89  UNIT_COMBAT player WOUND  10
+ 644.14  UNIT_COMBAT nameplate1 WOUND  30 school 1: shown
+ 644.14  UNIT_COMBAT target WOUND  30 school 1: same hit, under another name
+ 644.53  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 644.53  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 644.74  hidden  |Ky86|k
+ 645.18  UNIT_COMBAT nameplate1 WOUND  30 school 1: shown
+ 645.18  UNIT_COMBAT target WOUND  30 school 1: same hit, under another name
+ 645.29  UNIT_COMBAT player WOUND  12
+ 645.70  UNIT_COMBAT nameplate1 WOUND  10 school 1: shown
+ 645.70  UNIT_COMBAT target WOUND  10 school 1: same hit, under another name
+ 645.70  hidden  |Ky87|k
+ 645.95  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 645.95  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 646.38  UNIT_COMBAT player WOUND  11
+ 647.34  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 647.34  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 647.69  UNIT_COMBAT nameplate1 WOUND  9 school 1: shown
+ 647.69  UNIT_COMBAT target WOUND  9 school 1: same hit, under another name
+ 647.69  hidden  |Ky88|k
+ 648.10  UNIT_COMBAT player WOUND  10
+ 648.72  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 648.72  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 649.49  UNIT_COMBAT player WOUND  10
+ 649.62  UNIT_COMBAT nameplate1 WOUND  9 school 1: shown
+ 649.62  UNIT_COMBAT target WOUND  9 school 1: same hit, under another name
+ 649.62  hidden  |Ky89|k
+ 650.14  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 650.14  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 650.57  UNIT_COMBAT player WOUND  11
+ 651.57  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 651.57  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 651.70  UNIT_COMBAT nameplate1 WOUND  9 school 1: shown
+ 651.70  UNIT_COMBAT target WOUND  9 school 1: same hit, under another name
+ 651.70  hidden  |Ky90|k
+ 652.33  UNIT_COMBAT player WOUND  9
+ 652.97  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 652.97  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 653.67  UNIT_COMBAT nameplate1 WOUND  9 school 1: shown
+ 653.67  UNIT_COMBAT target WOUND  9 school 1: same hit, under another name
+ 653.67  hidden  |Ky91|k
+ 653.73  UNIT_COMBAT player WOUND  11
+ 654.34  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 654.34  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 655.11  UNIT_COMBAT player WOUND  10
+ 655.65  UNIT_COMBAT nameplate1 WOUND  9 school 1: shown
+ 655.65  UNIT_COMBAT target WOUND  9 school 1: same hit, under another name
+ 655.65  hidden  |Ky92|k
+ 655.78  UNIT_COMBAT nameplate1 WOUND  1 school 8: shown
+ 655.78  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 656.21  UNIT_COMBAT player WOUND  12
+ 656.77  hidden  |Ky93|k
+ 657.18  CAST 1082 Claw
+ 657.18  hidden  |Ky94|k
+ 657.18  hidden  |Ky95|k
+ 657.18  UNIT_COMBAT nameplate1 WOUND  59 school 1: shown
+ 657.18  UNIT_COMBAT target WOUND  59 school 1: same hit, under another name
+ 658.18  UNIT_COMBAT player WOUND  12

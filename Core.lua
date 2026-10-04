@@ -64,7 +64,8 @@ local DEFAULTS = {
     icons = true,
     merge = true,             -- rapid hits of one spell add up on one line
     minDamage = 0,            -- hide your hits below this
-    outDamage = true, outHeals = true, outMisses = true, outPet = true,
+    outDamage = true, outHeals = true, outMisses = true, outPet = true, outShields = true,
+    shieldAmounts = {},       -- learned: what each damage shield of yours hits for (by its name)
     inDamage = true, inHeals = true, inMisses = true, inPower = false,
     nCombat = true, nKill = true, nXP = true, nRep = true, nHonor = true,
     nLoot = true, nMoney = false, nSkill = true,
@@ -597,6 +598,7 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
             .. (IsSecret(amount) and "(hidden amount)" or tostring(amount)))
     end
     if not action then return end
+    if action == "WOUND" then self:ConfirmShield(GetTime()) end
     local db, C = self.db, self.TEXT_COLORS
     local crit = flag == "CRITICAL" or flag == "CRUSHING"
     local secret = IsSecret(amount)
@@ -652,10 +654,62 @@ end
 -- your hits are read from UNIT_COMBAT on the unit they land on (your target,
 -- a mob with a nameplate, a party member): the amount, crit and school are
 -- there, but not who did it, nor with which spell.
+--
+-- Everything that arrives in one frame (hidden lines, your casts, hits) is
+-- kept in order in self.seq and worked out together once the frame is over
+-- (ResolveFrame): what comes before and after a hit says what it was.
 ---------------------------------------------------------------------------
 local CREDIT_TIME = 1.2   -- a hit can follow its combat log line by this long (a swing lands with its animation)
+local TICK_SLACK = 0.25   -- a tick can be this far off its beat
+local DOT_TIME = 45       -- a damage-over-time spell is forgotten this long after its cast
 local FLAG_NOTES = { GLANCING = "glancing", BLOCK = "blocked", BLOCK_REDUCED = "blocked", ABSORB = "absorbed",
     RESIST = "resisted" }
+
+-- Spells that keep hurting after the cast: { first rank's ID, English name,
+-- seconds between ticks, school, whether the cast itself also hits }. The ID
+-- gives the name in the game's language; every rank shares the name.
+local PERIODIC_SPELLS = {
+    { 1822, "Rake", 3, 1, true }, { 1079, "Rip", 2, 1 }, { 9005, "Pounce", 3, 1 },
+    { 8921, "Moonfire", 3, 64, true }, { 5570, "Insect Swarm", 2, 8 }, { 339, "Entangling Roots", 3, 8 },
+    { 772, "Rend", 3, 1 }, { 703, "Garrote", 3, 1 }, { 1943, "Rupture", 2, 1 },
+    { 1978, "Serpent Sting", 3, 8 },
+    { 172, "Corruption", 3, 32 }, { 348, "Immolate", 3, 4, true }, { 980, "Curse of Agony", 2, 32 },
+    { 18265, "Siphon Life", 3, 32 },
+    { 589, "Shadow Word: Pain", 3, 32 }, { 2944, "Devouring Plague", 3, 32 }, { 14914, "Holy Fire", 2, 2, true },
+    { 8050, "Flame Shock", 3, 4, true },
+}
+-- Buffs on you that hurt whoever hits you: { first rank's ID, English name, school }
+local SHIELD_SPELLS = {
+    { 467, "Thorns", 8 }, { 324, "Lightning Shield", 8 }, { 7294, "Retribution Aura", 2 }, { 2947, "Fire Shield", 4 },
+}
+
+local function SpellName(id)
+    if not (C_Spell and C_Spell.GetSpellName) then return nil end
+    local ok, name = pcall(C_Spell.GetSpellName, id)
+    return ok and Str(name) or nil
+end
+
+-- The two lists above by spell name, in English and in the game's language.
+-- On an English client the ID's name must agree with the list (if this game
+-- has given the ID to another spell, it's left out).
+function BT:SpellLists()
+    if self.periodic then return self.periodic, self.shields end
+    local english = not GetLocale or GetLocale() == "enUS" or GetLocale() == "enGB"
+    local function names(entry)
+        local out = { entry[2] }
+        local name = SpellName(entry[1])
+        if name and name ~= entry[2] and not english then out[2] = name end
+        return out
+    end
+    self.periodic, self.shields = {}, {}
+    for _, e in ipairs(PERIODIC_SPELLS) do
+        for _, name in ipairs(names(e)) do self.periodic[name] = { period = e[3], school = e[4], direct = e[5] or false } end
+    end
+    for _, e in ipairs(SHIELD_SPELLS) do
+        for _, name in ipairs(names(e)) do self.shields[name] = { school = e[3], id = e[1] } end
+    end
+    return self.periodic, self.shields
+end
 
 function BT:InGroup()
     return Flag(IsInGroup) or Flag(IsInRaid) or Flag(UnitExists, "party1")
@@ -665,6 +719,16 @@ end
 local function Fighting(unit)
     return Flag(UnitIsUnit, unit, "target") or Flag(UnitIsUnit, unit .. "target", "player")
         or Flag(UnitIsUnit, unit, "pettarget") or Flag(UnitIsUnit, unit .. "target", "pet")
+end
+
+-- What to know a unit by from one moment to the next: its GUID, or "target"
+-- when the game won't give one
+local function UnitKey(unit)
+    local ok, guid = pcall(UnitGUID, unit)
+    guid = ok and Str(guid) or nil
+    if guid then return guid end
+    if unit == "target" or Flag(UnitIsUnit, unit, "target") then return "target" end
+    return nil
 end
 
 -- One hit arrives once for every name its unit goes by (target, nameplate3,
@@ -690,62 +754,272 @@ function BT:FirstSight(unit, now)
     return seen[key] == unit
 end
 
+-- Adds to this frame's events, and sees that they're worked out when it's over
+function BT:Queue(event)
+    local seq = self.seq or {}
+    self.seq = seq
+    event.time = GetTime()
+    seq[#seq + 1] = event
+    if C_Timer and C_Timer.After then
+        self:FlushSoon()
+    elseif event.hit then
+        self:FlushHits(true)   -- no timers: each hit on its own
+    end
+end
+
+function BT:FlushSoon()
+    if self.flushing then return end
+    self.flushing = true
+    C_Timer.After(0, function()
+        BT.flushing = false
+        BT:FlushHits()
+    end)
+end
+
+-- Works out every frame that's over (all = this one too)
+function BT:FlushHits(all)
+    local seq = self.seq
+    if not seq or #seq == 0 then return end
+    local now, first = GetTime(), 1
+    while seq[first] and (all or seq[first].time ~= now) do
+        local last = first
+        while seq[last + 1] and seq[last + 1].time == seq[first].time do last = last + 1 end
+        self:ResolveFrame(seq, first, last)
+        first = last + 1
+    end
+    local left = {}
+    for i = first, #seq do left[#left + 1] = seq[i] end
+    self.seq = left
+    if #left > 0 then self:FlushSoon() end
+end
+
 -- In a group, a hit on a mob could be anyone's. The combat log lines can't be
 -- read, but with the "My actions" filter each one is something you did. So a
 -- hit is taken for yours only if a line came with it or shortly before it,
 -- and each line vouches for one hit. (credits: when those lines arrived.)
 function BT:NoteHiddenLine(now)
-    self.hiddenSeen = true
-    -- A hit that arrived just ahead of its line, in this same frame
-    local waiting = self.waitingHits
-    if waiting and waiting[1] and waiting[1].time == now then
-        table.remove(waiting, 1).show()
-        if self.db.debug then self:Record("  the hit before this line: shown") end
-        return
-    end
+    self.hiddenSeen, self.hiddenAt = true, now
     local credits = self.credits or {}
     self.credits = credits
     while credits[1] and (now - credits[1] > CREDIT_TIME or #credits >= 20) do table.remove(credits, 1) end
     credits[#credits + 1] = now
+    self:Queue({ line = true })
 end
 
-function BT:ClaimHit(now, show)
+function BT:ClaimHit(now)
     local credits = self.credits
     while credits and credits[1] and now - credits[1] > CREDIT_TIME do table.remove(credits, 1) end
-    if credits and credits[1] then
+    if credits and credits[1] and credits[1] <= now then
         table.remove(credits, 1)
-        show()
         return true
     end
-    local waiting = self.waitingHits or {}
-    self.waitingHits = waiting
-    while waiting[1] and waiting[1].time ~= now do table.remove(waiting, 1) end
-    waiting[#waiting + 1] = { time = now, show = show }
     return false
 end
 
--- Your own casts. A hit that lands in the very frame one of them finishes is
--- that spell (an instant attack, a spell with no travel time).
-local function SpellName(id)
-    if not (C_Spell and C_Spell.GetSpellName) then return nil end
-    local ok, name = pcall(C_Spell.GetSpellName, id)
-    return ok and Str(name) or nil
-end
-
+-- Your own casts. A hit in the very frame a cast finishes is that spell (an
+-- instant attack, a spell with no travel time). A cast of a damage-over-time
+-- spell is remembered against your target, to name its ticks later.
 function BT:OnSpellcast(spellId)
-    local now = GetTime()
-    if self.castAt == now then
-        self.castCount = self.castCount + 1
-    else
-        self.castAt, self.castCount = now, 1
+    local id = Num(spellId)
+    local name = id and SpellName(id) or nil
+    if self.db.debug then self:Record("CAST " .. tostring(id) .. " " .. tostring(name)) end
+    self:Queue({ cast = true, id = id, name = name })
+    if not name then return end
+    local periodic, shields = self:SpellLists()
+    local dot = periodic[name]
+    local key = dot and UnitKey("target")
+    if key then
+        self.dots = self.dots or {}
+        self.dots[key] = self.dots[key] or {}
+        self.dots[key][name] = { id = id, name = name, at = GetTime(), period = dot.period, school = dot.school }
     end
-    self.castId = Num(spellId)
-    if self.db.debug then self:Record("CAST " .. tostring(self.castId) .. " " .. tostring(self.castId and SpellName(self.castId))) end
+    if shields[name] then self.shield = { name = name, id = id, school = shields[name].school } end
 end
 
-function BT:CastNow(now)
-    if self.castAt ~= now or self.castCount ~= 1 or not self.castId then return nil end
-    return self.castId, SpellName(self.castId)
+-- Which damage shield you're wearing. Buffs can only be read some of the time
+-- (not in a fight), so the last answer is kept until there's a new one.
+function BT:ScanShield()
+    if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then return end
+    local _, shields = self:SpellLists()
+    local found
+    for i = 1, 40 do
+        local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
+        if not ok or IsSecret(a) then return end
+        if a == nil then break end
+        if type(a) ~= "table" or IsSecret(a.name) then return end
+        local name = Str(a.name)
+        if name and shields[name] then
+            found = { name = name, id = Num(a.spellId) or shields[name].id, school = shields[name].school }
+        end
+    end
+    self.shield = found
+end
+
+-- A hit that might be your damage shield's waits here for the proof: a shield
+-- answers a blow, so the blow on you shows up within a second. What the shield
+-- hits for is learned from two such answers of the same size, and kept; from
+-- then on a hit of that size and school is the shield's.
+function BT:ShieldFor(h)
+    local shield = self.shield
+    if not shield or h.kind ~= "damage" or not h.n or Num(h.school) ~= shield.school then return nil end
+    local pending = self.shieldPending or {}
+    self.shieldPending = pending
+    pending[#pending + 1] = { time = h.time, amount = h.n, name = shield.name }
+    if #pending > 10 then table.remove(pending, 1) end
+    if self.db.shieldAmounts[shield.name] == h.n then return shield end
+    return nil
+end
+
+function BT:ConfirmShield(now)
+    local pending = self.shieldPending
+    if not pending then return end
+    while pending[1] and now - pending[1].time > CREDIT_TIME do table.remove(pending, 1) end
+    local answer = table.remove(pending, 1)
+    if not answer or self.db.shieldAmounts[answer.name] == answer.amount then return end
+    local seen = self.shieldSeen
+    if seen and seen.name == answer.name and seen.amount == answer.amount then
+        self.db.shieldAmounts[answer.name] = answer.amount
+        self.shieldSeen = nil
+    else
+        self.shieldSeen = answer
+    end
+end
+
+-- The damage-over-time spell of yours whose tick this hit is: one you cast on
+-- that unit, on its beat now (so many periods after the cast), of the hit's school
+function BT:TickFor(h)
+    local dots = h.key and self.dots and self.dots[h.key]
+    if not dots or h.kind ~= "damage" then return nil end
+    local mask = Num(h.school)
+    local best, bestOff
+    for name, dot in pairs(dots) do
+        local since = h.time - dot.at
+        if since > DOT_TIME then
+            dots[name] = nil
+        else
+            local beats = math.floor(since / dot.period + 0.5)
+            local off = math.abs(since - beats * dot.period)
+            if beats >= 1 and off <= TICK_SLACK and (not mask or mask == dot.school) and (not best or off < bestOff) then
+                best, bestOff = dot, off
+            end
+        end
+    end
+    return best
+end
+
+-- One frame's events, in the order they came: seq[first..last]
+function BT:ResolveFrame(seq, first, last)
+    local periodic = self:SpellLists()
+    local cast, casts = nil, 0
+    for i = first, last do
+        if seq[i].cast then cast, casts = seq[i], casts + 1 end
+    end
+    if casts ~= 1 or not cast.id then cast = nil end   -- two casts in a frame: no telling which did what
+    local castSchool   -- the school of the hits this frame's cast has been given
+    -- While the lines are arriving, a tick is known by its line: it comes right behind the hit
+    local linesFlow = self.hiddenAt ~= nil and seq[first].time - self.hiddenAt < 10
+    for i = first, last do
+        local h = seq[i]
+        if h.hit then
+            local mask = Num(h.school)
+            local what, spell = "hit", nil
+            if cast then
+                local info = periodic[cast.name or ""]
+                if h.kind ~= "damage" then
+                    spell = cast
+                    -- The cast missed: nothing was put on the unit to tick
+                    if h.kind == "miss" and info and h.key and self.dots and self.dots[h.key] then
+                        self.dots[h.key][cast.name] = nil
+                    end
+                elseif not (info and not info.direct) then
+                    local expect = castSchool or (self.spellSchool and self.spellSchool[cast.id])
+                    if not (expect and mask and expect ~= mask) then
+                        spell, castSchool = cast, castSchool or mask
+                    end
+                end
+                if spell then what = "cast" end
+            end
+            if not spell then
+                local dot = self:TickFor(h)
+                if dot then
+                    local vouched
+                    if linesFlow then
+                        for j = i + 1, last do
+                            if seq[j].line and not seq[j].used then
+                                seq[j].used, vouched = true, true
+                                break
+                            end
+                        end
+                    else
+                        vouched = mask ~= nil and mask ~= 1   -- without the lines, a bleed's tick looks just like a swing
+                    end
+                    if vouched then what, spell = "tick", dot end
+                end
+            end
+            if not spell then
+                local shield = self:ShieldFor(h)
+                if shield then what, spell = "shield", shield end
+            end
+            local why
+            if h.grouped and not self:ClaimHit(h.time) then
+                why = "no line of yours with it"
+            else
+                why = self:ShowUnitHit(h, what, spell)
+            end
+            if self.db.debug then
+                self:Record(("  %s %s: %s"):format(h.unit, h.secret and "(hidden amount)" or tostring(h.amount),
+                    why or (spell and (what .. " of " .. tostring(spell.name)) or "shown")), h.time)
+            end
+        end
+    end
+    -- What this frame's cast turned out to be: the school, if every hit it was given agrees
+    if cast and castSchool then
+        self.spellSchool = self.spellSchool or {}
+        self.spellSchool[cast.id] = self.spellSchool[cast.id] or castSchool
+    end
+end
+
+-- Puts a hit on screen. what: "cast", "tick", "shield" or "hit"; spell: { id, name } when it's known.
+-- Returns why not, if a setting hides it.
+function BT:ShowUnitHit(h, what, spell)
+    local db, C = self.db, self.TEXT_COLORS
+    local name = spell and spell.name
+    local label = (spell and spell.id and self:IconText(spell.id) or "") .. ((name and db.spellNames) and (name .. " ") or "")
+    if h.kind == "damage" then
+        if what == "shield" and not db.outShields then return "damage shields are turned off" end
+        if not db.outDamage then return "damage is turned off" end
+        if h.n and h.n < db.minDamage then return "below \"Hide hits below\"" end
+        local mask = Num(h.school)
+        local color = MASK_COLORS[mask or 1] or ((name or (mask and mask ~= 1)) and C.spell) or C.melee
+        local note = FLAG_NOTES[h.flag or ""]
+        note = note and (" |cffb0b0b0(" .. note .. ")|r") or ""
+        if h.secret then
+            self:Emit("outgoing", label, color, { crit = h.crit, secret = h.amount, after = note })
+        else
+            self:Emit("outgoing", label .. Commas(h.n) .. note, color, {
+                crit = h.crit,
+                key = spell and (what .. ":" .. tostring(spell.id or name)) or nil,
+                amount = h.n,
+                format = function(total, count)
+                    return label .. Commas(total) .. " |cffb0b0b0(x" .. count .. ")|r"
+                end,
+            })
+        end
+    elseif h.kind == "heal" then
+        if not db.outHeals then return "heals are turned off" end
+        if h.secret then
+            self:Emit("outgoing", label .. "+", C.heal, { crit = h.crit, secret = h.amount })
+        else
+            self:Emit("outgoing", label .. "+" .. Commas(h.n), C.heal, { crit = h.crit })
+        end
+    else
+        if not db.outMisses then return "misses are turned off" end
+        -- A wound for nothing says how in its flag; a plain miss has none
+        local how = h.action
+        if how == "WOUND" then how = (h.flag and MISS_TEXT[h.flag]) and h.flag or "MISS" end
+        self:Emit("outgoing", label .. MissText(how), C.miss)
+    end
+    return nil
 end
 
 -- UNIT_COMBAT for a unit that isn't you
@@ -769,7 +1043,7 @@ function BT:OnUnitHit(unit, action, flag, amount, school)
     local healing = kind == "heal"
     local enemy = Flag(UnitCanAttack, "player", unit)
     -- In a group, once the combat log lines are arriving, they say which hits are yours
-    local vouched = self.hiddenSeen and self:InGroup()
+    local grouped = self.hiddenSeen and self:InGroup()
 
     local why
     if not kind then
@@ -780,63 +1054,21 @@ function BT:OnUnitHit(unit, action, flag, amount, school)
         why = "a heal on an enemy"
     elseif not healing and not enemy then
         why = "not an enemy"
-    elseif healing and not vouched and not myPet and not Flag(UnitIsUnit, unit, "target") then
+    elseif healing and not grouped and not myPet and not Flag(UnitIsUnit, unit, "target") then
         why = "not your target"
     elseif not healing and not Fighting(unit) then
         why = "not your fight"
     elseif not self:FirstSight(unit, now) then
         why = "same hit, under another name"
     end
-
-    if not why then
-        local db, C = self.db, self.TEXT_COLORS
-        local crit = flag == "CRITICAL"
-        local function show()
-            local spellId, name = self:CastNow(now)
-            local label = (spellId and self:IconText(spellId) or "") .. ((name and db.spellNames) and (name .. " ") or "")
-            if kind == "damage" then
-                if not db.outDamage or (n and n < db.minDamage) then return end
-                local mask = Num(school)
-                local color = MASK_COLORS[mask or 1] or ((name or (mask and mask ~= 1)) and C.spell) or C.melee
-                local note = FLAG_NOTES[flag or ""]
-                note = note and (" |cffb0b0b0(" .. note .. ")|r") or ""
-                if secret then
-                    self:Emit("outgoing", label, color, { crit = crit, secret = amount, after = note })
-                else
-                    self:Emit("outgoing", label .. Commas(n) .. note, color, {
-                        crit = crit,
-                        key = spellId and ("cast:" .. spellId) or nil,
-                        amount = n,
-                        format = function(total, count)
-                            return label .. Commas(total) .. " |cffb0b0b0(x" .. count .. ")|r"
-                        end,
-                    })
-                end
-            elseif healing then
-                if not db.outHeals then return end
-                if secret then
-                    self:Emit("outgoing", label .. "+", C.heal, { crit = crit, secret = amount })
-                else
-                    self:Emit("outgoing", label .. "+" .. Commas(n), C.heal, { crit = crit })
-                end
-            elseif db.outMisses then
-                -- A wound for nothing says how in its flag; a plain miss has none
-                local how = action
-                if action == "WOUND" then how = (flag and MISS_TEXT[flag]) and flag or "MISS" end
-                self:Emit("outgoing", label .. MissText(how), C.miss)
-            end
-        end
-        if not vouched then
-            show()
-        elseif not self:ClaimHit(now, show) then
-            why = "no line of yours with it (yet)"
-        end
-    end
     if self.db.debug then
-        self:Record(("UNIT_COMBAT %s %s %s %s school %s: %s"):format(unit, tostring(action), tostring(flag),
+        self:Record(("UNIT_COMBAT %s %s %s %s school %s%s"):format(unit, tostring(action), tostring(flag),
             secret and "(hidden amount)" or tostring(amount), IsSecret(school) and "(hidden)" or tostring(school),
-            why or "shown"))
+            why and (": " .. why) or ""))
     end
+    if why then return end
+    self:Queue({ hit = true, unit = unit, key = UnitKey(unit), kind = kind, action = action, flag = flag,
+        amount = amount, secret = secret, n = n, school = school, crit = flag == "CRITICAL", grouped = grouped })
 end
 
 -- A finished combat log line from the game
@@ -868,10 +1100,10 @@ end
 
 -- Debug (/btf debug, then /btf copy): what the game sent, exactly, with the time
 -- it arrived. Kept only while debug is on, and only the last 300.
-function BT:Record(text)
+function BT:Record(text, time)
     self.recorded = self.recorded or {}
     local list = self.recorded
-    list[#list + 1] = ("%7.2f  %s"):format(GetTime() % 1000, text)
+    list[#list + 1] = ("%7.2f  %s"):format((time or GetTime()) % 1000, text)
     if #list > 300 then table.remove(list, 1) end
 end
 
@@ -1285,6 +1517,7 @@ for _, e in ipairs({ "COMBAT_LOG_MESSAGE", "PLAYER_ENTERING_WORLD", "PLAYER_REGE
 end
 pcall(events.RegisterEvent, events, "UNIT_COMBAT")   -- every unit: you, your target, the mobs around you
 pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")
+pcall(events.RegisterUnitEvent, events, "UNIT_AURA", "player")
 
 events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
     if event == "ADDON_LOADED" then
@@ -1317,7 +1550,10 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         BT:OnUnitCombat(a1, a2, a3, a4, a5)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         BT:OnSpellcast(a3)
+    elseif event == "UNIT_AURA" then
+        BT:ScanShield()
     elseif event == "PLAYER_REGEN_DISABLED" then
+        BT:ScanShield()      -- last look at your buffs before the fight hides them
         BT:SetStartMacro()   -- last chance before the fight to note which chat tab you're on
         if BT.db.nCombat then BT:Notify("+Combat", BT.TEXT_COLORS.combat) end
     elseif event == "PLAYER_REGEN_ENABLED" then
@@ -1331,6 +1567,7 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
     elseif event == "PLAYER_LOGOUT" then
         BT:ApplyBlizzardText(true)
     elseif event == "PLAYER_ENTERING_WORLD" then
+        BT:ScanShield()
         BT:HookCombatLog()
         BT:SetStartMacro()
         BT:UpdateStartButton()

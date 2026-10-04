@@ -57,6 +57,7 @@ local function fire(event, ...)
 end
 -- The lines currently in an area, oldest first, as text
 local function lines(area)
+    BT:FlushHits(true)   -- (hits are worked out when their frame is over: looking is the end of the frame)
     local out = {}
     for _, o in ipairs(BT.areas[area].active) do out[#out + 1] = o.text:GetText() end
     return out
@@ -533,7 +534,7 @@ step("your hits, when the game hides its combat log lines")
 local C = BT.TEXT_COLORS
 local function colorOf(line) return line.text.__color[1] .. " " .. line.text.__color[2] .. " " .. line.text.__color[3] end
 local function isColor(line, c) return colorOf(line) == c[1] .. " " .. c[2] .. " " .. c[3] end
-local function newest() local a = BT.areas.outgoing.active return a[#a] end
+local function newest() BT:FlushHits(true) local a = BT.areas.outgoing.active return a[#a] end
 local function hidden(n) return log("|Ky" .. (n or 7) .. "|k") end
 STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
 STATE.unit.mobB = { enemy = true, guid = "Creature-0-1-2-3-100-00000B", target = "friend" }
@@ -660,15 +661,24 @@ clear()
 BT.db.icons = true
 fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1", 16827)
 fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
-assertEq(last("outgoing"), "|T132140:0|t Claw 50", "named, with its icon")
-assert(isColor(newest(), C.spell), "and spell-colored")
 fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
-assertEq(last("outgoing"), "|T132140:0|t Claw 100 |cffb0b0b0(x2)|r", "rapid hits of it add up")
-Advance(0.1)
+assertEq(last("outgoing"), "|T132140:0|t Claw 100 |cffb0b0b0(x2)|r", "named, with its icon, and rapid hits of it add up")
+assert(isColor(newest(), C.spell), "and spell-colored")
+clear()
+-- A hit of another school in that frame isn't the cast's (your damage shield answering a blow)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1b", 16827)
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 3, 8)
+assertEq(table.concat(lines("outgoing"), " / "), "|T132140:0|t Claw 50 / 3", "only the hit of the spell's school is named")
+Advance(1)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1c", 16827)
+fire("UNIT_COMBAT", "target", "WOUND", "", 4, 8)
+assertEq(last("outgoing"), "4", "and next time the spell's school is remembered")
+clear()
 fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
 assertEq(last("outgoing"), "27", "a hit a moment later is just a hit")
 fire("UNIT_COMBAT", "target", "WOUND", "", 27, 1)
-assertEq(#lines("outgoing"), 3, "hits without a spell don't add up (they may be different things)")
+assertEq(#lines("outgoing"), 2, "hits without a spell don't add up (they may be different things)")
 Advance(0.1)
 fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-2", 16827)
 fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-3", 8921)
@@ -764,6 +774,306 @@ assertEq(BT:InGroup(), false, "not in a group")
 STATE.who.party1 = "friend"
 assertEq(BT:InGroup(), true, "a party member means a group, whatever the game says")
 STATE.who = {}
+clear()
+
+---------------------------------------------------------------------------
+step("ticks, and your damage shield")
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.who.target, STATE.who.nameplate1 = "mobA", "mobA"
+BT.hiddenSeen, BT.hiddenAt, BT.credits, BT.dots, BT.spellSchool = nil, nil, nil, nil, nil
+local function cast(id) fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-x", id) end
+local function wound(amount, school, flag) fire("UNIT_COMBAT", "target", "WOUND", flag or "", amount, school or 1) end
+-- With the hidden lines arriving, a tick is the hit with a line right behind it, on its spell's beat
+hidden(20)
+cast(1822)   -- Rake: hits, then bleeds every 3 seconds
+hidden(21)
+wound(35)
+assertEq(last("outgoing"), "Rake 35", "the cast's own hit")
+Advance(2)
+wound(28) hidden(22)
+assertEq(last("outgoing"), "28", "off the beat: not a tick")
+Advance(1)
+hidden(23) wound(27)
+assertEq(last("outgoing"), "27", "on the beat, but its line came first: a swing that landed with the next swing's line")
+wound(14)
+BT:FlushHits()   -- (a look in the middle of the frame works nothing out yet)
+hidden(24)
+assertEq(last("outgoing"), "Rake 14", "on the beat, with its line behind it: Rake's tick")
+assert(isColor(newest(), C.spell), "spell-colored")
+Advance(3)
+wound(14) wound(27) hidden(124)
+assertEq(table.concat(lines("outgoing"), " / "):match("Rake 14 / 27$"), "Rake 14 / 27", "one line vouches for one tick")
+Advance(3)
+wound(14, 8) hidden(25)
+assertEq(last("outgoing"), "14", "a nature hit isn't a bleed's tick")
+Advance(3)
+STATE.who.target = "mobB"
+STATE.unit.mobB = { enemy = true, guid = "Creature-0-1-2-3-100-00000B", target = "me" }
+wound(14) hidden(26)
+assertEq(last("outgoing"), "14", "another mob isn't bleeding")
+STATE.who.target = "mobA"
+Advance(3)
+cast(1079)   -- Rip: only bleeds, every 2 seconds
+hidden(27)
+wound(30)
+assertEq(last("outgoing"), "30", "a spell that only ticks doesn't name a hit in its cast's frame")
+wound(13) hidden(28)
+assertEq(last("outgoing"), "Rake 13", "(Rake still ticking, 15 seconds on)")
+Advance(2)
+wound(9) hidden(29)
+assertEq(last("outgoing"), "Rip 9", "Rip's first tick, two seconds on")
+Advance(1)
+wound(13) hidden(30)
+assertEq(last("outgoing"), "Rake 13", "two bleeds: the one whose beat it is")
+Advance(30)
+wound(13) hidden(31)
+assertEq(last("outgoing"), "13", "a bleed is forgotten 45 seconds after its cast (48 on, and on Rake's beat)")
+clear()
+-- Two bleeds both near their beat: the nearer one
+cast(1822) hidden(40) wound(35)
+Advance(0.8)
+cast(1079) hidden(41)
+Advance(2.2)
+wound(13) hidden(42)
+assertEq(last("outgoing"), "Rake 13", "Rake dead on its beat, Rip a little off: Rake")
+Advance(3)
+cast(1822) hidden(43) wound(35)
+Advance(3.8)
+cast(1079) hidden(44)
+Advance(2)
+wound(9) hidden(45)
+assertEq(last("outgoing"), "Rip 9", "Rip dead on its beat, Rake a little off: Rip")
+BT.dots = nil
+clear()
+-- A cast that's parried put nothing on the mob
+cast(1079)
+fire("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+hidden(32)
+assertEq(last("outgoing"), "Rip Parry", "the miss is named")
+Advance(2)
+wound(9) hidden(33)
+assertEq(last("outgoing"), "9", "and there's no tick to name")
+clear()
+-- Without the lines, a bleed's tick can't be told from a swing; another school's can
+BT.hiddenSeen, BT.hiddenAt = nil, nil
+cast(1822)
+wound(35)
+Advance(3)
+wound(14)
+assertEq(last("outgoing"), "14", "no lines: a physical hit on the beat is left unnamed")
+cast(8921)   -- Moonfire: arcane, hits and then ticks every 3 seconds
+wound(20, 64)
+assertEq(last("outgoing"), "Moonfire 20", "Moonfire lands")
+Advance(3)
+wound(8, 64)
+assertEq(last("outgoing"), "Moonfire 8", "no lines: an arcane hit on Moonfire's beat is its tick")
+wound(8, Secret(64))
+assertEq(last("outgoing"), "8", "a hidden school isn't guessed at")
+clear()
+-- No GUID for the mob: your target is still followed
+STATE.unit.mobA.guid = nil
+cast(8921)
+wound(20, 64)
+Advance(3)
+wound(8, 64)
+assertEq(last("outgoing"), "Moonfire 8", "ticks are followed on your target without a GUID")
+STATE.unit.mobA.guid = "Creature-0-1-2-3-100-00000A"
+clear()
+
+-- Your damage shield: read from your buffs, learned from two answers to a blow
+BT.db.shieldAmounts = {}
+STATE.buffs = { { name = "Mark of the Wild", spellId = 1126 }, { name = "Thorns", spellId = 782 } }
+fire("UNIT_AURA", "player")
+assertEq(BT.shield and BT.shield.name, "Thorns", "Thorns is on you")
+assertEq(BT.shield.id, 782, "the rank you're wearing (for its icon)")
+wound(3, 8)
+assertEq(last("outgoing"), "3", "the first answer isn't known yet")
+Advance(0.6)
+fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)   -- the blow it answered, shown a moment later
+Advance(1)
+wound(3, 8)
+assertEq(last("outgoing"), "3", "nor the second")
+Advance(0.6)
+fire("UNIT_COMBAT", "player", "WOUND", "", 21, 1)
+assertEq(BT.db.shieldAmounts.Thorns, 3, "two answers of the same size: learned, and kept")
+Advance(1)
+wound(3, 8)
+assertEq(last("outgoing"), "Thorns 3", "from then on it's named")
+assert(isColor(newest(), BT:SchoolColor("Nature")), "in its school's color")
+wound(3, 8)
+assertEq(last("outgoing"), "Thorns 6 |cffb0b0b0(x2)|r", "two mobs hitting you at once add up")
+wound(45, 8)
+assertEq(last("outgoing"), "45", "a nature hit of another size is something else (a spell of yours landing)")
+wound(3, 4)
+assertEq(last("outgoing"), "3", "and so is a hit of another school")
+clear()
+BT.db.outShields = false
+wound(3, 8)
+assertEq(#lines("outgoing"), 0, "Damage shields unticked: hidden")
+wound(27)
+assertEq(last("outgoing"), "27", "your own hits still show")
+BT.db.outShields = true
+clear()
+-- In a fight the game hides your buffs: the last answer stands
+STATE.buffsHidden = true
+fire("UNIT_AURA", "player")
+wound(3, 8)
+assertEq(last("outgoing"), "Thorns 3", "buffs hidden: still known")
+STATE.buffsHidden = false
+STATE.buffs = { Secret({ name = "x" }) }
+fire("UNIT_AURA", "player")
+assertEq(BT.shield.name, "Thorns", "a hidden buff tells nothing")
+STATE.buffs = { { name = Secret("Thorns") } }
+fire("PLAYER_REGEN_DISABLED")
+assertEq(BT.shield.name, "Thorns", "nor a hidden name")
+STATE.buffs = { { name = "Lightning Shield", spellId = 324 } }
+fire("PLAYER_REGEN_DISABLED")
+assertEq(BT.shield.name, "Lightning Shield", "your buffs are looked at as a fight starts")
+STATE.buffs = { { name = "Mark of the Wild", spellId = 1126 } }
+fire("PLAYER_ENTERING_WORLD")
+assertEq(BT.shield, nil, "it wore off")
+Advance(1)
+wound(3, 8)
+assertEq(last("outgoing"), "3", "no shield on you: just a hit")
+cast(324)   -- Lightning Shield, put up mid-fight
+assertEq(BT.shield.name, "Lightning Shield", "a shield you cast is known at once")
+BT.db.shieldAmounts["Lightning Shield"] = 13
+Advance(1)
+wound(13, 8)
+assertEq(last("outgoing"), "Lightning Shield 13", "and named")
+-- A new rank hits for more: learned again, the same way
+wound(16, 8)
+Advance(0.5)
+fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
+Advance(1)
+wound(15, 8)
+Advance(0.5)
+fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
+assertEq(BT.db.shieldAmounts["Lightning Shield"], 13, "two answers of different sizes teach nothing")
+Advance(1)
+wound(16, 8)
+Advance(1.5)
+fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
+assertEq(BT.db.shieldAmounts["Lightning Shield"], 13, "nor does one with no blow behind it")
+Advance(1)
+wound(16, 8)
+Advance(0.5)
+fire("UNIT_COMBAT", "player", "DODGE", "", 0, 1)
+assertEq(BT.db.shieldAmounts["Lightning Shield"], 13, "a blow you dodged wasn't answered")
+Advance(1)
+wound(16, 8)
+Advance(0.5)
+fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
+assertEq(BT.db.shieldAmounts["Lightning Shield"], 13, "one answer isn't enough")
+Advance(1)
+wound(16, 8)
+Advance(0.5)
+fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
+assertEq(BT.db.shieldAmounts["Lightning Shield"], 16, "two of the new size in a row: learned")
+wound(Secret(16), 8)
+assertEq(last("outgoing"), "<secret fmt>", "a hidden amount can't be matched: just a hit")
+BT.shield, BT.shieldPending, BT.shieldSeen, BT.dots = nil, nil, nil, nil
+STATE.buffs = {}
+clear()
+-- The spell lists: by name, in English and in the game's language
+local periodic, shields = BT:SpellLists()
+assertEq(periodic.Rip.period, 2, "Rip ticks every two seconds")
+assertEq(periodic.Rake.direct, true, "Rake's cast hits too")
+assertEq(periodic.Rip.direct, false, "Rip's doesn't")
+assertEq(shields.Thorns.school, 8, "Thorns is nature")
+assertEq(periodic["Insect Swarm"] ~= nil, true, "listed by name even if this game has no such ID")
+BT.periodic, BT.shields = nil, nil
+STATE.locale, STATE.spellNames[1079], STATE.spellNames[1822] = "deDE", "Zerfetzen", "Mount Hyjal"
+periodic = BT:SpellLists()
+assertEq(periodic.Zerfetzen.period, 2, "another language: the ID's name is used as well")
+STATE.locale = "enUS"
+BT.periodic, BT.shields = nil, nil
+periodic = BT:SpellLists()
+assertEq(periodic["Mount Hyjal"], nil, "English: an ID this game gave to another spell is left out")
+STATE.spellNames[1079], STATE.spellNames[1822] = "Rip", "Rake"
+BT.periodic, BT.shields = nil, nil
+-- A client with no timers works each hit out as it comes
+local timers = C_Timer
+WithoutTimers(function()
+    cast(16827)
+    fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+    assertEq(BT.areas.outgoing.active[#BT.areas.outgoing.active].text:GetText(), "Claw 50", "no timers: shown at once")
+end)
+assert(C_Timer == timers, "(timers are back)")
+STATE.who = {}
+clear()
+
+---------------------------------------------------------------------------
+-- tests/real_fight.txt is a real /btf copy: a cat druid wearing Thorns kills
+-- three mobs with Claw, Rake and Rip. Each line is replayed at its own time.
+step("a real fight, as the game sent it")
+BT.hiddenSeen, BT.hiddenAt, BT.credits, BT.dots, BT.spellSchool = nil, nil, nil, nil, nil
+BT.db.shieldAmounts = {}
+BT.db.merge = false
+STATE.buffs = { { name = "Thorns", spellId = 467 } }
+fire("UNIT_AURA", "player")
+local out = {}
+local realEmit = BT.Emit
+BT.Emit = function(self, area, text, ...)
+    if area == "outgoing" then out[#out + 1] = text end
+    return realEmit(self, area, text, ...)
+end
+local base, frameTime = FAKE_TIME + 10, nil
+local fights = 0
+for line in read_file(ADDON_DIR .. "/tests/real_fight.txt"):gmatch("[^\r\n]+") do
+    local time, what = line:match("^%s*([%d%.]+)%s%s(.*)$")
+    assert(time, "a line of the recording: " .. line)
+    if time ~= frameTime then
+        -- A new frame: the one before is over (its timer runs)
+        frameTime = time
+        FAKE_TIME = base + tonumber(time) - 600
+        for i = #TIMERS, 1, -1 do
+            if TIMERS[i].at <= FAKE_TIME then table.remove(TIMERS, i).fn() end
+        end
+    end
+    local unit, action, flag, amount, school = what:match("^UNIT_COMBAT (%S+) (%S+) (%S*) (%S+) school (%d+)")
+    if what:find("^hidden") then
+        assertEq(log(what:match("(|K.-|k)")), true, "the line arrives")
+    elseif what:find("^CAST") then
+        fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-r", tonumber(what:match("^CAST (%d+)")))
+    elseif unit then
+        if unit ~= "target" and STATE.who[unit] == nil then
+            -- The next mob: it's your target, it has a nameplate, and it's after you
+            fights = fights + 1
+            local id = "fight" .. fights
+            STATE.unit[id] = { enemy = true, guid = "Creature-0-1-2-3-200-00000" .. fights, target = "me" }
+            STATE.who = { target = id, [unit] = id }
+        end
+        fire("UNIT_COMBAT", unit, action, flag, tonumber(amount), tonumber(school))
+    else
+        action, flag, amount = what:match("^UNIT_COMBAT player (%S+) (%S*) (%S+)$")
+        assert(action, "what happened to you: " .. what)
+        fire("UNIT_COMBAT", "player", action, flag, tonumber(amount), 1)
+    end
+end
+BT:FlushHits(true)
+BT.Emit = realEmit
+assertEq(fights, 3, "three mobs")
+local expect = {
+    -- first mob: Thorns is learned from its first two answers
+    "Claw 56", "27", "32", "1", "Rake 35", "29", "1", "31", "Thorns 1", "Rake 28", "28", "32", "Thorns 1",
+    "Rip 16", "56", "Thorns 1", "29",
+    -- second mob: the first Rip is parried, the second ticks three times (the last one a crit)
+    "Claw 111", "Thorns 1", "60", "Thorns 1", "28", "Rip Parry", "Thorns 1", "27", "29", "31", "Thorns 1",
+    "Rip 10", "56", "Thorns 1", "Rip 10", "Thorns 1", "Rip 19",
+    -- third mob: Thorns answers in the very frame of the opening Claw; Rip ticks six times
+    "Claw 108", "Thorns 1", "64", "Thorns 1", "30", "Thorns 1", "30", "Rip 10", "Thorns 1", "Thorns 1", "Rip 9",
+    "Thorns 1", "Rip 9", "Thorns 1", "Thorns 1", "Rip 9", "Thorns 1", "Rip 9", "Thorns 1", "Rip 9", "Thorns 1",
+    "Claw 59",
+}
+for i = 1, math.max(#expect, #out) do
+    assertEq(out[i], expect[i], "hit " .. i .. " of the fight")
+end
+assertEq(BT.db.shieldAmounts.Thorns, 1, "Thorns was learned on the way")
+BT.db.merge = true
+BT.db.shieldAmounts = {}
+BT.shield, BT.shieldPending, BT.shieldSeen, BT.dots, BT.spellSchool = nil, nil, nil, nil, nil
+STATE.buffs, STATE.who = {}, {}
 clear()
 
 step("lines scroll, keep their distance and go away")
@@ -902,19 +1212,32 @@ STATE.group = true
 Advance(2)
 fire("UNIT_COMBAT", "target", "WOUND", "", 28, 1)
 log("|Ky8|k")
-STATE.group = false
+fire("UNIT_COMBAT", "target", "WOUND", "", 29, 1)
+Advance(0.1)
+log("|Ky9|k")
+fire("UNIT_COMBAT", "target", "WOUND", "", Secret(31), 1)
+BT:FlushHits(true)
+STATE.group, STATE.who.party1 = false, nil
+BT.db.outDamage = false
+fire("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
+BT:FlushHits(true)
+BT.db.outDamage = true
 SlashCmdList.BATTLETEXTFOREVER("copy")
 copied = BT.copyWindow.edit:GetText()
 for _, expect in ipairs({
     "hidden  ||Ky7||k",
     "hidden  (a hidden value)",
     "CAST 16827 Claw",
-    "UNIT_COMBAT target WOUND  27 school 1: shown",
+    "UNIT_COMBAT target WOUND  27 school 1\n",
+    "  target 27: cast of Claw",
     "UNIT_COMBAT nameplate1 WOUND  27 school 1: same hit, under another name",
     "UNIT_COMBAT party1 WOUND CRITICAL (hidden amount) school (hidden): not an enemy",
     "UNIT_COMBAT target ENERGIZE  5 school 1: not a hit",
-    "UNIT_COMBAT target WOUND  28 school 1: no line of yours with it (yet)",
-    "the hit before this line: shown",
+    "UNIT_COMBAT target WOUND  28 school 1\n",
+    "  target 28: shown",
+    "  target 29: no line of yours with it",
+    "  target (hidden amount): shown",
+    "  target 30: damage is turned off",
 }) do
     assert(copied:find(expect, 1, true), "recorded: " .. expect)
 end

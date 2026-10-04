@@ -222,7 +222,10 @@ STATE = {
     cvars = { enableFloatingCombatText = "1", floatingCombatTextCombatDamage = "1", floatingCombatTextCombatHealing = "1" },
     filteredEvents = false,       -- C_CombatLog.SetFilteredEventsEnabled
     spellIcons = { [16827] = 132140, [8921] = 136096 },   -- by spell ID
-    spellNames = { [16827] = "Claw", [8921] = "Moonfire" },
+    spellNames = { [16827] = "Claw", [8921] = "Moonfire", [1082] = "Claw", [1822] = "Rake", [1079] = "Rip",
+        [467] = "Thorns", [782] = "Thorns", [324] = "Lightning Shield", [5570] = "Insect Swarm" },
+    buffs = {},                   -- your buffs: { name = "Thorns", spellId = 782 }
+    buffsHidden = false,          -- the game won't show buffs right now (asking throws an error)
     -- Other units. who: the names a unit goes by ("target", "nameplate1"...) -> the unit.
     -- unit: what's known about each (enemy, guid, target = the unit it's targeting; "me" and "pet" are yours).
     who = {}, unit = {},
@@ -320,6 +323,14 @@ C_Spell = {
     GetSpellTexture = function(spell) return STATE.spellIcons[spell] end,
     GetSpellName = function(id) return STATE.spellNames[id] end,
 }
+C_UnitAuras = {
+    GetAuraDataByIndex = function(unit, i, filter)
+        assert(unit == "player" and filter == "HELPFUL", "only your own buffs are read")
+        if STATE.buffsHidden then error("auras are hidden right now") end
+        return STATE.buffs[i]
+    end,
+}
+function GetLocale() return STATE.locale or "enUS" end
 C_Item = { GetItemIconByID = function(id) return 134000 + id end }
 
 -- The chat tabs (General, Combat Log, Loot), and the Combat Log window behind the second one
@@ -437,6 +448,14 @@ function WithoutMenus(fn)
     GAME.MenuUtil = nil
     local ok, err = pcall(fn)
     GAME.MenuUtil = menus
+    if not ok then error(err, 0) end
+end
+-- Runs fn on a client that has no timers
+function WithoutTimers(fn)
+    local timers = GAME.C_Timer
+    GAME.C_Timer = nil
+    local ok, err = pcall(fn)
+    GAME.C_Timer = timers
     if not ok then error(err, 0) end
 end
 LOADED = true

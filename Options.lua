@@ -117,7 +117,7 @@ end
 
 function BT:BuildConfig()
     local f = CreateFrame("Frame", "BattleTextForeverOptions", UIParent)
-    f:SetSize(560, 590)
+    f:SetSize(560, 606)
     f:SetPoint("CENTER")
     self:SkinFrame(f, self.COLORS.dark, self.COLORS.goldDark, 0.97, 2)
     f:SetFrameStrata("DIALOG")
@@ -231,8 +231,8 @@ function BT:BuildConfig()
     y = y - 44
     Slider(f, "Scroll distance", x + 4, y, "height", 100, 500, "", 10)
 
-    Button(f, "Show sample text", 130, x, -552, function() BT:Test() end)
-    Button(f, "Reset positions", 110, x + 136, -552, function() BT:ResetPositions() end)
+    Button(f, "Show sample text", 130, x, -568, function() BT:Test() end)
+    Button(f, "Reset positions", 110, x + 136, -568, function() BT:ResetPositions() end)
 
     -- Right column: what gets shown
     x, y = 300, -48
@@ -245,6 +245,10 @@ function BT:BuildConfig()
     Check(f, "Pet", x + 120, y, "outPet",
         "Your pet's hits, marked (Pet). This only works when the game lets BattleText read its combat lines; "
         .. "when it doesn't, your pet's hits can't be told from yours and show with them.")
+    y = y - 24
+    Check(f, "Damage shields", x, y, "outShields",
+        "What your damage shield does to whoever hits you (Thorns, Lightning Shield, Retribution Aura...). "
+        .. "BattleText learns a shield from its first two hits.")
     y = y - 32
     Slider(f, "Hide hits below", x + 4, y, "minDamage", 0, 500, "", 5)
     y = y - 50
@@ -282,11 +286,10 @@ function BT:BuildConfig()
     note:SetJustifyH("LEFT")
     note:SetWordWrap(true)
     note:SetText("Your hits are read from the unit you hit: your target, and the mobs attacking you or your pet. "
-        .. "Turn on enemy nameplates to see your hits on the ones you aren't targeting.\n\n"
-        .. "The game doesn't say whose hit it was. Alone, every hit on those units is shown as yours "
-        .. "(your pet's too).\n\n"
-        .. "In a group, click \"Start BattleText\" once after you log in. The Combat Log then tells BattleText "
-        .. "when you did something, so other people's hits are left out.")
+        .. "Turn on enemy nameplates for the ones you aren't targeting.\n\n"
+        .. "The game doesn't say whose hit it was: alone, your pet's hits show as yours.\n\n"
+        .. "Click \"Start BattleText\" once after you log in. It lets BattleText name the ticks of your bleeds, "
+        .. "and in a group it leaves other people's hits out.")
 
     self.config = f
 end
