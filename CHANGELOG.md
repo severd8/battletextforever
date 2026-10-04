@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1
+
+- **More than one damage shield at a time.** Thorns and a cloak that stings back were being mixed up: whichever hit first was called Thorns. Now each is its own.
+- **Gear with a damage shield is recognised from its tooltip** ("When struck in combat, inflicts 1 Nature damage to the attacker") and its hits are named after the item, with the item's icon. (English game clients.)
+- A buff's shield is learned only from clean answers to a blow, so a hit of yours landing in the same instant can't be mistaken for it.
+- A shield's answer that lands in the same instant as your cast, just ahead of it, is no longer named after the cast.
+
 ## 1.2.0
 
 - **Damage-over-time ticks are named**, with the spell's icon: Rake, Rip, Rend, Garrote, Rupture, Moonfire, Insect Swarm, Corruption, Immolate, Curse of Agony, Shadow Word: Pain, Flame Shock and more. Bleeds need Start BattleText clicked (it's how a tick is told from a swing).

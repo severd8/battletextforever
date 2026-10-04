@@ -73,7 +73,7 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
 - **Spell names and icons** show for:
   - hits that land the instant you cast (instant attacks and spells with no travel time);
   - the ticks of your damage-over-time spells (Rake, Rip, Rend, Moonfire, Corruption, Shadow Word: Pain and the like). Bleeds need Start BattleText clicked;
-  - your **damage shield** (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen it answer two blows. Untick **Damage shields** in the options to hide these.
+  - your **damage shields**: buffs (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen one answer two blows, and gear that hurts whoever strikes you (named after the item). Untick **Damage shields** in the options to hide these.
 
   Other hits show as a plain number in their school's color.
 - **The last swing on a mob may not show**: the game stops reporting a unit the moment it dies.

@@ -247,8 +247,8 @@ function BT:BuildConfig()
         .. "when it doesn't, your pet's hits can't be told from yours and show with them.")
     y = y - 24
     Check(f, "Damage shields", x, y, "outShields",
-        "What your damage shield does to whoever hits you (Thorns, Lightning Shield, Retribution Aura...). "
-        .. "BattleText learns a shield from its first two hits.")
+        "What your damage shields do to whoever hits you: buffs like Thorns, Lightning Shield and Retribution Aura "
+        .. "(learned from their first two hits), and gear that stings back.")
     y = y - 32
     Slider(f, "Hide hits below", x + 4, y, "minDamage", 0, 500, "", 5)
     y = y - 50

@@ -880,21 +880,79 @@ assertEq(last("outgoing"), "Moonfire 8", "ticks are followed on your target with
 STATE.unit.mobA.guid = "Creature-0-1-2-3-100-00000A"
 clear()
 
--- Your damage shield: read from your buffs, learned from two answers to a blow
-BT.db.shieldAmounts = {}
+-- Damage shields: what hurts whoever strikes you. An item's is read from its tooltip.
+local function blow() fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1) end
+local function reset()
+    BT.db.shieldAmounts = {}
+    BT.shieldCounts, BT.shieldPending = nil, nil
+    clear()
+end
+reset()
+STATE.equipped[15] = { name = "Sporid Cape", icon = 133762, lines = { "Soulbound", "Back", "+6 Stamina",
+    "Equip: When struck in combat, inflicts 1 Nature damage to the attacker.", "Requires Level 17" } }
+STATE.equipped[16] = { name = "Staff of the Grove", icon = 135145,
+    lines = { "Equip: Increases damage done by Nature spells and effects by up to 11." } }
+fire("PLAYER_EQUIPMENT_CHANGED", 15, true)
+assertEq(#BT.itemShields, 1, "one item of yours stings back (the staff's line is no shield)")
+assertEq(BT.itemShields[1].name, "Sporid Cape", "the cape")
+assertEq(BT.itemShields[1].amount .. " " .. BT.itemShields[1].school, "1 8", "for 1 Nature")
+BT.db.icons = true
+wound(1, 8)
+assertEq(last("outgoing"), "|T133762:0|t Sporid Cape 1", "its hit is named after the item, with the item's icon")
+BT.db.icons = false
+wound(1, 4)
+assertEq(last("outgoing"), "1", "a hit of another school isn't the cape's")
+wound(2, 8)
+assertEq(last("outgoing"), "2", "nor one of another size")
+clear()
+BT.db.outShields = false
+wound(1, 8)
+assertEq(#lines("outgoing"), 0, "Damage shields unticked: the cape's hit is hidden")
+wound(27)
+assertEq(last("outgoing"), "27", "your own hits still show")
+BT.db.outShields = true
+clear()
+-- Gear can't be read in a fight: what was read before stands, and it's read again after
+COMBAT = true
+STATE.equipped[15] = nil
+fire("PLAYER_EQUIPMENT_CHANGED", 15, false)
+assertEq(#BT.itemShields, 1, "in a fight: not read")
+COMBAT = false
+fire("PLAYER_REGEN_ENABLED")
+assertEq(#BT.itemShields, 0, "after it: the cape is off")
+STATE.equipped[15] = { name = "Sporid Cape", hidden = true }
+fire("PLAYER_REGEN_DISABLED")
+assertEq(#BT.itemShields, 0, "a tooltip the game hides tells nothing")
+STATE.equipped[15] = nil
+STATE.equipped[13] = { name = "Essence of the Pure Flame", icon = 135805,
+    lines = { "Equip: When struck in combat inflicts 13 Fire damage to the attacker." } }
+STATE.equipped[11] = { name = "Ring of Riddles", lines = { "Equip: When struck in combat inflicts 3 Chaos damage to the attacker." } }
+fire("PLAYER_EQUIPMENT_CHANGED", 13, true)
+assertEq(#BT.itemShields, 1, "a trinket that burns back (a school the game doesn't have isn't guessed at)")
+assertEq(BT.itemShields[1].amount .. " " .. BT.itemShields[1].school, "13 4", "for 13 Fire")
+STATE.equipped[13], STATE.equipped[11] = nil, nil
+STATE.equipped[2] = { name = "Naglering", icon = 133345, oldShape = true,
+    lines = { "Equip: When struck in combat inflicts 3 Arcane damage to the attacker." } }
+fire("PLAYER_EQUIPMENT_CHANGED", 2, true)
+assertEq(BT.itemShields[1] and BT.itemShields[1].name .. " " .. BT.itemShields[1].school, "Naglering 64",
+    "the tooltip's older shape is read too")
+STATE.equipped[2] = nil
+fire("PLAYER_EQUIPMENT_CHANGED", 2, false)
+clear()
+
+-- A buff's is learned: the hit, then the blow it answered (shown a moment later), twice
 STATE.buffs = { { name = "Mark of the Wild", spellId = 1126 }, { name = "Thorns", spellId = 782 } }
 fire("UNIT_AURA", "player")
-assertEq(BT.shield and BT.shield.name, "Thorns", "Thorns is on you")
-assertEq(BT.shield.id, 782, "the rank you're wearing (for its icon)")
+assertEq(BT.buffShields.Thorns.id, 782, "Thorns is on you (the rank you're wearing, for its icon)")
 wound(3, 8)
 assertEq(last("outgoing"), "3", "the first answer isn't known yet")
 Advance(0.6)
-fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)   -- the blow it answered, shown a moment later
+blow()
+assertEq(BT.db.shieldAmounts.Thorns, nil, "one answer isn't enough")
 Advance(1)
 wound(3, 8)
-assertEq(last("outgoing"), "3", "nor the second")
 Advance(0.6)
-fire("UNIT_COMBAT", "player", "WOUND", "", 21, 1)
+blow()
 assertEq(BT.db.shieldAmounts.Thorns, 3, "two answers of the same size: learned, and kept")
 Advance(1)
 wound(3, 8)
@@ -909,12 +967,127 @@ assertEq(last("outgoing"), "3", "and so is a hit of another school")
 clear()
 BT.db.outShields = false
 wound(3, 8)
-assertEq(#lines("outgoing"), 0, "Damage shields unticked: hidden")
-wound(27)
-assertEq(last("outgoing"), "27", "your own hits still show")
+assertEq(#lines("outgoing"), 0, "Damage shields unticked: Thorns is hidden")
 BT.db.outShields = true
+-- What doesn't teach: no blow behind it, a blow you dodged, a frame with a combat log line in it
+reset()
+wound(3, 8)
+Advance(1.5)
+blow()
+for _ = 1, 2 do
+    Advance(1)
+    wound(3, 8)
+    Advance(0.5)
+    fire("UNIT_COMBAT", "player", "DODGE", "", 0, 1)
+end
+Advance(1)
+hidden(50)
+wound(3, 8)
+Advance(0.5)
+blow()
+Advance(1)
+hidden(51)
+wound(3, 8)
+Advance(0.5)
+blow()
+assertEq(BT.db.shieldAmounts.Thorns, nil, "nothing learned from those")
+Advance(1)
+wound(3, 8)
+Advance(0.5)
+blow()
+Advance(1)
+wound(3, 8)
+Advance(0.5)
+blow()
+assertEq(BT.db.shieldAmounts.Thorns, 3, "two clean answers: learned")
+BT.hiddenSeen, BT.hiddenAt = nil, nil
+-- A new rank hits for more: the old amount gives way after three answers
+for i = 1, 3 do
+    assertEq(BT.db.shieldAmounts.Thorns, 3, "not yet (" .. i .. ")")
+    Advance(1)
+    wound(6, 8)
+    Advance(0.5)
+    blow()
+end
+assertEq(BT.db.shieldAmounts.Thorns, 6, "three answers of the new size: learned again")
 clear()
+
+-- Two shields at once: Thorns and the cape, answering the same blow
+reset()
+STATE.equipped[15] = { name = "Sporid Cape", icon = 133762,
+    lines = { "Equip: When struck in combat, inflicts 1 Nature damage to the attacker." } }
+fire("PLAYER_EQUIPMENT_CHANGED", 15, true)
+for _ = 1, 2 do
+    wound(11, 8) wound(1, 8)
+    Advance(0.5)
+    blow()
+    Advance(1)
+end
+assertEq(BT.db.shieldAmounts.Thorns, 11, "the cape's 1 is the cape's, so the 11 is Thorns'")
+wound(1, 8) wound(11, 8)
+assertEq(table.concat(lines("outgoing"), " / "):match("Sporid Cape 1 / Thorns 11$"), "Sporid Cape 1 / Thorns 11", "each is named")
+-- The same on a client that can't read the cape (another language): two amounts, one buff.
+-- Thorns' own description says which is its.
+reset()
+STATE.equipped[15].lines = { "Anlegen: Fügt dem Angreifer 1 Naturschaden zu." }
+fire("PLAYER_EQUIPMENT_CHANGED", 15, true)
+assertEq(#BT.itemShields, 0, "the cape isn't recognised")
+for _ = 1, 3 do
+    wound(11, 8) wound(1, 8)
+    Advance(0.5)
+    blow()
+    Advance(1)
+end
+assertEq(BT.db.shieldAmounts.Thorns, nil, "two amounts and no telling which is Thorns': neither is taken")
+STATE.spellDescriptions[782] = "Thorns sprout from the friendly target causing 11 Nature damage to attackers when hit. Lasts 10 min."
+wound(11, 8) wound(1, 8)
+Advance(0.5)
+blow()
+assertEq(BT.db.shieldAmounts.Thorns, 11, "the description names 11")
+Advance(1)
+wound(11, 8) wound(1, 8)
+assertEq(table.concat(lines("outgoing"), " / "):match("Thorns 11 / 1$"), "Thorns 11 / 1", "Thorns is named; the other is just a hit")
+STATE.spellDescriptions[782] = nil
+STATE.equipped[15] = nil
+fire("PLAYER_EQUIPMENT_CHANGED", 15, false)
+-- Two buffs of one school (a druid's Thorns on a shaman): the descriptions say whose is whose
+reset()
+STATE.buffs = { { name = "Thorns", spellId = 782 }, { name = "Lightning Shield", spellId = 324 } }
+STATE.spellDescriptions[782] = "causing 11 Nature damage to attackers when hit."
+STATE.spellDescriptions[324] = "struck in combat, the attacker takes 13 Nature damage. Lasts 10 min."
+fire("UNIT_AURA", "player")
+for _ = 1, 2 do
+    wound(13, 8) wound(11, 8)
+    Advance(0.5)
+    blow()
+    Advance(1)
+end
+assertEq(BT.db.shieldAmounts.Thorns .. " " .. BT.db.shieldAmounts["Lightning Shield"], "11 13", "each buff gets its own amount")
+-- A description is read for whole numbers: a 1 isn't the "11" in it
+reset()
+STATE.spellDescriptions[324] = "the attacker takes 23 Nature damage."
+for _ = 1, 3 do
+    wound(1, 8)
+    Advance(0.5)
+    blow()
+    Advance(1)
+end
+assertEq(next(BT.db.shieldAmounts), nil, "neither description says 1")
+STATE.spellDescriptions[782], STATE.spellDescriptions[324] = nil, nil
+reset()
+for _ = 1, 3 do
+    wound(13, 8)
+    Advance(0.5)
+    blow()
+    Advance(1)
+end
+assertEq(next(BT.db.shieldAmounts), nil, "two buffs it could be, and no description: not taken")
+clear()
+
 -- In a fight the game hides your buffs: the last answer stands
+STATE.buffs = { { name = "Thorns", spellId = 782 } }
+fire("UNIT_AURA", "player")
+BT.db.shieldAmounts = { Thorns = 3 }
 STATE.buffsHidden = true
 fire("UNIT_AURA", "player")
 wound(3, 8)
@@ -922,59 +1095,36 @@ assertEq(last("outgoing"), "Thorns 3", "buffs hidden: still known")
 STATE.buffsHidden = false
 STATE.buffs = { Secret({ name = "x" }) }
 fire("UNIT_AURA", "player")
-assertEq(BT.shield.name, "Thorns", "a hidden buff tells nothing")
+assertEq(BT.buffShields.Thorns ~= nil, true, "a hidden buff tells nothing")
 STATE.buffs = { { name = Secret("Thorns") } }
 fire("PLAYER_REGEN_DISABLED")
-assertEq(BT.shield.name, "Thorns", "nor a hidden name")
+assertEq(BT.buffShields.Thorns ~= nil, true, "nor a hidden name")
 STATE.buffs = { { name = "Lightning Shield", spellId = 324 } }
 fire("PLAYER_REGEN_DISABLED")
-assertEq(BT.shield.name, "Lightning Shield", "your buffs are looked at as a fight starts")
+assertEq(BT.buffShields["Lightning Shield"] ~= nil and BT.buffShields.Thorns == nil, true,
+    "your buffs are looked at as a fight starts")
 STATE.buffs = { { name = "Mark of the Wild", spellId = 1126 } }
 fire("PLAYER_ENTERING_WORLD")
-assertEq(BT.shield, nil, "it wore off")
+assertEq(next(BT.buffShields), nil, "it wore off")
 Advance(1)
 wound(3, 8)
 assertEq(last("outgoing"), "3", "no shield on you: just a hit")
+STATE.buffs = { { name = "Thorns", spellId = 782 } }
+fire("PLAYER_REGEN_ENABLED")
+assertEq(BT.buffShields.Thorns ~= nil, true, "and they're looked at again when a fight ends")
+fire("PLAYER_ENTERING_WORLD", false, false)
 cast(324)   -- Lightning Shield, put up mid-fight
-assertEq(BT.shield.name, "Lightning Shield", "a shield you cast is known at once")
-BT.db.shieldAmounts["Lightning Shield"] = 13
+assertEq(BT.buffShields["Lightning Shield"].id, 324, "a shield you cast is known at once")
+assertEq(BT.buffShields.Thorns ~= nil, true, "beside the one you had")
+BT.db.shieldAmounts = { ["Lightning Shield"] = 13, Thorns = 3 }
 Advance(1)
 wound(13, 8)
 assertEq(last("outgoing"), "Lightning Shield 13", "and named")
--- A new rank hits for more: learned again, the same way
-wound(16, 8)
-Advance(0.5)
-fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
-Advance(1)
-wound(15, 8)
-Advance(0.5)
-fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
-assertEq(BT.db.shieldAmounts["Lightning Shield"], 13, "two answers of different sizes teach nothing")
-Advance(1)
-wound(16, 8)
-Advance(1.5)
-fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
-assertEq(BT.db.shieldAmounts["Lightning Shield"], 13, "nor does one with no blow behind it")
-Advance(1)
-wound(16, 8)
-Advance(0.5)
-fire("UNIT_COMBAT", "player", "DODGE", "", 0, 1)
-assertEq(BT.db.shieldAmounts["Lightning Shield"], 13, "a blow you dodged wasn't answered")
-Advance(1)
-wound(16, 8)
-Advance(0.5)
-fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
-assertEq(BT.db.shieldAmounts["Lightning Shield"], 13, "one answer isn't enough")
-Advance(1)
-wound(16, 8)
-Advance(0.5)
-fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
-assertEq(BT.db.shieldAmounts["Lightning Shield"], 16, "two of the new size in a row: learned")
-wound(Secret(16), 8)
+wound(Secret(13), 8)
 assertEq(last("outgoing"), "<secret fmt>", "a hidden amount can't be matched: just a hit")
-BT.shield, BT.shieldPending, BT.shieldSeen, BT.dots = nil, nil, nil, nil
-STATE.buffs = {}
-clear()
+BT.buffShields, BT.itemShields, BT.dots = nil, nil, nil
+STATE.buffs, STATE.equipped = {}, {}
+reset()
 -- The spell lists: by name, in English and in the game's language
 local periodic, shields = BT:SpellLists()
 assertEq(periodic.Rip.period, 2, "Rip ticks every two seconds")
@@ -1004,77 +1154,166 @@ STATE.who = {}
 clear()
 
 ---------------------------------------------------------------------------
--- tests/real_fight.txt is a real /btf copy: a cat druid wearing Thorns kills
--- three mobs with Claw, Rake and Rip. Each line is replayed at its own time.
+-- tests/real_fight.txt and real_fight2.txt are real /btf copy recordings: a cat
+-- druid killing mobs with Claw, Rake and Rip, wearing a cape that stings back
+-- (and, in the second, Thorns). Each line is replayed at its own time.
+--
+-- A hit on your target is recorded twice, under its nameplate and then as
+-- "target": that's how the replay knows which mob your target is.
+local function replay(file, happenings)
+    local events = {}
+    for line in read_file(ADDON_DIR .. "/tests/" .. file):gmatch("[^\r\n]+") do
+        local time, what = line:match("^%s*([%d%.]+)%s%s(.*)$")
+        assert(time, "a line of the recording: " .. line)
+        if not what:find("^%s") then   -- (indented lines are BattleText's own verdicts)
+            local e = { time = tonumber(time), what = what }
+            e.unit, e.action, e.flag, e.amount, e.school = what:match("^UNIT_COMBAT (%S+) (%S+) (%S*) (%S+) school (%d+)")
+            events[#events + 1] = e
+        end
+    end
+    local targetIs
+    for i = #events, 1, -1 do
+        local e = events[i]
+        if e.unit == "target" and events[i - 1].unit and events[i - 1].unit:find("^nameplate") then
+            targetIs = events[i - 1].unit
+        end
+        e.targetIs = targetIs
+    end
+    for i = 2, #events do events[i].targetIs = events[i].targetIs or events[i - 1].targetIs end
+
+    local out = {}
+    local realEmit = BT.Emit
+    BT.Emit = function(self, area, text, ...)
+        if area == "outgoing" then out[#out + 1] = text end
+        return realEmit(self, area, text, ...)
+    end
+    local base = FAKE_TIME + 10 - events[1].time
+    local mobs, seen, count = {}, {}, 0
+    -- The mob behind a nameplate: a new one when that nameplate hasn't been heard of for a while
+    local function mob(token, now)
+        if not mobs[token] or now - seen[token] >= 8 then
+            count = count + 1
+            mobs[token] = "replay" .. count
+            STATE.unit[mobs[token]] = { enemy = true, guid = "Creature-0-1-2-3-300-0000" .. count, target = "me" }
+        end
+        seen[token] = now
+        return mobs[token]
+    end
+    local frame
+    for _, e in ipairs(events) do
+        if e.time ~= frame then
+            -- A new frame: the one before is over (its timer runs)
+            frame = e.time
+            FAKE_TIME = base + e.time
+            for i = #TIMERS, 1, -1 do
+                if TIMERS[i].at <= FAKE_TIME then table.remove(TIMERS, i).fn() end
+            end
+            for i, h in ipairs(happenings or {}) do
+                if h.at and e.time >= h.at then h.at = nil h.fn() end
+            end
+        end
+        local target = e.targetIs and mob(e.targetIs, e.time)
+        STATE.who = { target = target, softenemy = target }
+        for token, id in pairs(mobs) do STATE.who[token] = id end
+        if e.what:find("^hidden") then
+            assertEq(log(e.what:match("(|K.-|k)")), true, "the line arrives")
+        elseif e.what:find("^CAST") then
+            fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-r", tonumber(e.what:match("^CAST (%d+)")))
+        elseif e.unit then
+            if e.unit:find("^nameplate") then STATE.who[e.unit] = mob(e.unit, e.time) end
+            fire("UNIT_COMBAT", e.unit, e.action, e.flag, tonumber(e.amount), tonumber(e.school))
+        else
+            local action, flag, amount = e.what:match("^UNIT_COMBAT player (%S+) (%S*) (%S+)$")
+            assert(action, "what happened to you: " .. e.what)
+            fire("UNIT_COMBAT", "player", action, flag, tonumber(amount), 1)
+        end
+    end
+    BT:FlushHits(true)
+    BT.Emit = realEmit
+    STATE.who = {}
+    return out, count
+end
+local function freshFight()
+    BT.hiddenSeen, BT.hiddenAt, BT.credits, BT.dots, BT.spellSchool = nil, nil, nil, nil, nil
+    BT.db.shieldAmounts = {}
+    BT.shieldCounts, BT.shieldPending, BT.buffShields, BT.itemShields = nil, nil, nil, nil
+    STATE.buffs, STATE.equipped = {}, {}
+    clear()
+end
+local function same(out, expect)
+    for i = 1, math.max(#expect, #out) do
+        assertEq(out[i], expect[i], "hit " .. i .. " of the fight")
+    end
+end
+local CAPE = { name = "Sporid Cape", icon = 133762,
+    lines = { "Equip: When struck in combat, inflicts 1 Nature damage to the attacker." } }
+
 step("a real fight, as the game sent it")
-BT.hiddenSeen, BT.hiddenAt, BT.credits, BT.dots, BT.spellSchool = nil, nil, nil, nil, nil
-BT.db.shieldAmounts = {}
+freshFight()
 BT.db.merge = false
-STATE.buffs = { { name = "Thorns", spellId = 467 } }
-fire("UNIT_AURA", "player")
-local out = {}
-local realEmit = BT.Emit
-BT.Emit = function(self, area, text, ...)
-    if area == "outgoing" then out[#out + 1] = text end
-    return realEmit(self, area, text, ...)
-end
-local base, frameTime = FAKE_TIME + 10, nil
-local fights = 0
-for line in read_file(ADDON_DIR .. "/tests/real_fight.txt"):gmatch("[^\r\n]+") do
-    local time, what = line:match("^%s*([%d%.]+)%s%s(.*)$")
-    assert(time, "a line of the recording: " .. line)
-    if time ~= frameTime then
-        -- A new frame: the one before is over (its timer runs)
-        frameTime = time
-        FAKE_TIME = base + tonumber(time) - 600
-        for i = #TIMERS, 1, -1 do
-            if TIMERS[i].at <= FAKE_TIME then table.remove(TIMERS, i).fn() end
-        end
-    end
-    local unit, action, flag, amount, school = what:match("^UNIT_COMBAT (%S+) (%S+) (%S*) (%S+) school (%d+)")
-    if what:find("^hidden") then
-        assertEq(log(what:match("(|K.-|k)")), true, "the line arrives")
-    elseif what:find("^CAST") then
-        fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-r", tonumber(what:match("^CAST (%d+)")))
-    elseif unit then
-        if unit ~= "target" and STATE.who[unit] == nil then
-            -- The next mob: it's your target, it has a nameplate, and it's after you
-            fights = fights + 1
-            local id = "fight" .. fights
-            STATE.unit[id] = { enemy = true, guid = "Creature-0-1-2-3-200-00000" .. fights, target = "me" }
-            STATE.who = { target = id, [unit] = id }
-        end
-        fire("UNIT_COMBAT", unit, action, flag, tonumber(amount), tonumber(school))
-    else
-        action, flag, amount = what:match("^UNIT_COMBAT player (%S+) (%S*) (%S+)$")
-        assert(action, "what happened to you: " .. what)
-        fire("UNIT_COMBAT", "player", action, flag, tonumber(amount), 1)
-    end
-end
-BT:FlushHits(true)
-BT.Emit = realEmit
-assertEq(fights, 3, "three mobs")
-local expect = {
-    -- first mob: Thorns is learned from its first two answers
-    "Claw 56", "27", "32", "1", "Rake 35", "29", "1", "31", "Thorns 1", "Rake 28", "28", "32", "Thorns 1",
-    "Rip 16", "56", "Thorns 1", "29",
+STATE.equipped[15] = CAPE
+fire("PLAYER_EQUIPMENT_CHANGED", 15, true)
+local out, mobCount = replay("real_fight.txt")
+assertEq(mobCount, 3, "three mobs")
+same(out, {
+    -- first mob
+    "Claw 56", "27", "32", "Sporid Cape 1", "Rake 35", "29", "Sporid Cape 1", "31", "Sporid Cape 1", "Rake 28",
+    "28", "32", "Sporid Cape 1", "Rip 16", "56", "Sporid Cape 1", "29",
     -- second mob: the first Rip is parried, the second ticks three times (the last one a crit)
-    "Claw 111", "Thorns 1", "60", "Thorns 1", "28", "Rip Parry", "Thorns 1", "27", "29", "31", "Thorns 1",
-    "Rip 10", "56", "Thorns 1", "Rip 10", "Thorns 1", "Rip 19",
-    -- third mob: Thorns answers in the very frame of the opening Claw; Rip ticks six times
-    "Claw 108", "Thorns 1", "64", "Thorns 1", "30", "Thorns 1", "30", "Rip 10", "Thorns 1", "Thorns 1", "Rip 9",
-    "Thorns 1", "Rip 9", "Thorns 1", "Thorns 1", "Rip 9", "Thorns 1", "Rip 9", "Thorns 1", "Rip 9", "Thorns 1",
-    "Claw 59",
-}
-for i = 1, math.max(#expect, #out) do
-    assertEq(out[i], expect[i], "hit " .. i .. " of the fight")
-end
-assertEq(BT.db.shieldAmounts.Thorns, 1, "Thorns was learned on the way")
+    "Claw 111", "Sporid Cape 1", "60", "Sporid Cape 1", "28", "Rip Parry", "Sporid Cape 1", "27", "29", "31",
+    "Sporid Cape 1", "Rip 10", "56", "Sporid Cape 1", "Rip 10", "Sporid Cape 1", "Rip 19",
+    -- third mob: the cape answers in the very frame of the opening Claw; Rip ticks six times
+    "Claw 108", "Sporid Cape 1", "64", "Sporid Cape 1", "30", "Sporid Cape 1", "30", "Rip 10", "Sporid Cape 1",
+    "Sporid Cape 1", "Rip 9", "Sporid Cape 1", "Rip 9", "Sporid Cape 1", "Sporid Cape 1", "Rip 9", "Sporid Cape 1",
+    "Rip 9", "Sporid Cape 1", "Rip 9", "Sporid Cape 1", "Claw 59",
+})
+
+step("a second real fight: Thorns and the cape together")
+freshFight()
+STATE.equipped[15] = CAPE
+STATE.buffs = { { name = "Thorns", spellId = 1075 } }
+fire("PLAYER_ENTERING_WORLD")
+out = replay("real_fight2.txt", {
+    -- Thorns ran out between the second and third fights (its 11s stop), and was cast again before the last
+    { at = 630, fn = function() STATE.buffs = {} fire("UNIT_AURA", "player") end },
+})
+same(out, {
+    -- first mob (the recording starts mid-fight, so its Rake is unknown): the cape is named at once,
+    -- Thorns' 11 not yet (one clean answer so far: the others shared a frame with a combat log line)
+    "29", "Sporid Cape 1", "11", "31", "26", "27", "Sporid Cape 1", "11",
+    -- second mob: the cape and Thorns answer in the frame of the opening Rake, and the cape
+    -- again just ahead of a Claw in its frame
+    "Rake 67", "Sporid Cape 1", "11", "50", "Sporid Cape 1", "Claw 108", "29", "29", "Sporid Cape 1", "Rake 27",
+    -- third and fourth mobs at once, Thorns run out: only the cape answers
+    "Sporid Cape 1", "Claw 53", "27", "Rake 33", "Sporid Cape 1", "24", "Sporid Cape 1", "28", "48", "Sporid Cape 1",
+    "Sporid Cape 1", "Rake 27", "Rip 16", "29", "Sporid Cape 1", "Sporid Cape 1", "30", "Rip 31", "Sporid Cape 1", "29",
+    "Sporid Cape 1", "59", "Claw 49", "Sporid Cape 1", "28", "26", "Sporid Cape 1", "Rake 33", "Sporid Cape 1", "47",
+    "26", "30", "Rake 27", "Sporid Cape 1", "28", "29",
+    -- Thorns cast again; out of cat form the fifth mob is only answered: the second clean 11 teaches Thorns
+    "11", "Sporid Cape 1", "27", "Thorns 11", "Sporid Cape 1", "28", "Thorns 11", "Sporid Cape 1", "Thorns 11",
+    "Sporid Cape 1", "Thorns 11", "Sporid Cape 1", "Thorns 11", "Sporid Cape 1", "Claw 52", "27", "Thorns 11",
+    "Sporid Cape 1", "Claw 103",
+})
+assertEq(BT.db.shieldAmounts.Thorns, 11, "Thorns was learned on the way")
+-- Cast naming goes by order: a hit ahead of the cast in its frame isn't the cast's
+freshFight()
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.who.target = "mobA"
+fire("UNIT_COMBAT", "target", "WOUND", "", 7, 8)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-o", 1082)
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assertEq(table.concat(lines("outgoing"), " / "), "7 / Claw 50", "the hit before the cast is just a hit")
+-- And a shield's answer between a cast and its hit is still the shield's
+freshFight()
+STATE.equipped[15] = CAPE
+fire("PLAYER_EQUIPMENT_CHANGED", 15, true)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-p", 1082)
+fire("UNIT_COMBAT", "target", "WOUND", "", 1, 8)
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assertEq(table.concat(lines("outgoing"), " / "), "Sporid Cape 1 / Claw 50", "the cape's answer isn't taken for the cast's hit")
+STATE.who = {}
 BT.db.merge = true
-BT.db.shieldAmounts = {}
-BT.shield, BT.shieldPending, BT.shieldSeen, BT.dots, BT.spellSchool = nil, nil, nil, nil, nil
-STATE.buffs, STATE.who = {}, {}
-clear()
+freshFight()
 
 step("lines scroll, keep their distance and go away")
 log(hit("Claw", 16827, 50))

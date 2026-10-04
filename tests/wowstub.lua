@@ -223,8 +223,11 @@ STATE = {
     filteredEvents = false,       -- C_CombatLog.SetFilteredEventsEnabled
     spellIcons = { [16827] = 132140, [8921] = 136096 },   -- by spell ID
     spellNames = { [16827] = "Claw", [8921] = "Moonfire", [1082] = "Claw", [1822] = "Rake", [1079] = "Rip",
-        [467] = "Thorns", [782] = "Thorns", [324] = "Lightning Shield", [5570] = "Insect Swarm" },
+        [467] = "Thorns", [782] = "Thorns", [1075] = "Thorns", [324] = "Lightning Shield", [5570] = "Insect Swarm",
+        [768] = "Cat Form" },
     buffs = {},                   -- your buffs: { name = "Thorns", spellId = 782 }
+    equipped = {},                -- your gear by slot: { name = "Sporid Cape", icon = 133762, lines = { "Equip: ..." } }
+    spellDescriptions = {},       -- by spell ID
     buffsHidden = false,          -- the game won't show buffs right now (asking throws an error)
     -- Other units. who: the names a unit goes by ("target", "nameplate1"...) -> the unit.
     -- unit: what's known about each (enemy, guid, target = the unit it's targeting; "me" and "pet" are yours).
@@ -322,6 +325,7 @@ Enum = { CombatLogMessageOrder = { Newest = 0, Oldest = 1 } }
 C_Spell = {
     GetSpellTexture = function(spell) return STATE.spellIcons[spell] end,
     GetSpellName = function(id) return STATE.spellNames[id] end,
+    GetSpellDescription = function(id) return STATE.spellDescriptions[id] end,
 }
 C_UnitAuras = {
     GetAuraDataByIndex = function(unit, i, filter)
@@ -331,6 +335,24 @@ C_UnitAuras = {
     end,
 }
 function GetLocale() return STATE.locale or "enUS" end
+-- An equipped item's tooltip: its name, then its lines
+C_TooltipInfo = {
+    GetInventoryItem = function(unit, slot)
+        assert(unit == "player", "only your own gear is read")
+        local item = STATE.equipped[slot]
+        if not item then return nil end
+        if item.hidden then return Secret({}) end
+        local lines = { { leftText = item.name } }
+        for _, text in ipairs(item.lines or {}) do lines[#lines + 1] = { leftText = text } end
+        if item.oldShape then   -- the text kept in each line's "args" instead
+            for i, line in ipairs(lines) do
+                lines[i] = { args = { { field = "leftColor" }, { field = "leftText", stringVal = line.leftText } } }
+            end
+        end
+        return { lines = lines }
+    end,
+}
+function GetInventoryItemTexture(unit, slot) return STATE.equipped[slot] and STATE.equipped[slot].icon end
 C_Item = { GetItemIconByID = function(id) return 134000 + id end }
 
 -- The chat tabs (General, Combat Log, Loot), and the Combat Log window behind the second one

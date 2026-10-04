@@ -833,15 +833,22 @@ function BT:OnSpellcast(spellId)
         self.dots[key] = self.dots[key] or {}
         self.dots[key][name] = { id = id, name = name, at = GetTime(), period = dot.period, school = dot.school }
     end
-    if shields[name] then self.shield = { name = name, id = id, school = shields[name].school } end
+    if shields[name] then
+        self.buffShields = self.buffShields or {}
+        self.buffShields[name] = { name = name, id = id, school = shields[name].school }
+    end
 end
 
--- Which damage shield you're wearing. Buffs can only be read some of the time
--- (not in a fight), so the last answer is kept until there's a new one.
+-- Damage shields: what hurts whoever strikes you. There can be several at
+-- once (Thorns from a druid, and a cloak that stings back).
+--
+-- The buffs among them (self.buffShields, by name). Buffs can only be read
+-- some of the time (not in a fight), so the last answer stands until there's
+-- a new one.
 function BT:ScanShield()
     if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then return end
     local _, shields = self:SpellLists()
-    local found
+    local found = {}
     for i = 1, 40 do
         local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
         if not ok or IsSecret(a) then return end
@@ -849,39 +856,136 @@ function BT:ScanShield()
         if type(a) ~= "table" or IsSecret(a.name) then return end
         local name = Str(a.name)
         if name and shields[name] then
-            found = { name = name, id = Num(a.spellId) or shields[name].id, school = shields[name].school }
+            found[name] = { name = name, id = Num(a.spellId) or shields[name].id, school = shields[name].school }
         end
     end
-    self.shield = found
+    self.buffShields = found
 end
 
--- A hit that might be your damage shield's waits here for the proof: a shield
--- answers a blow, so the blow on you shows up within a second. What the shield
--- hits for is learned from two such answers of the same size, and kept; from
--- then on a hit of that size and school is the shield's.
-function BT:ShieldFor(h)
-    local shield = self.shield
-    if not shield or h.kind ~= "damage" or not h.n or Num(h.school) ~= shield.school then return nil end
-    local pending = self.shieldPending or {}
-    self.shieldPending = pending
-    pending[#pending + 1] = { time = h.time, amount = h.n, name = shield.name }
-    if #pending > 10 then table.remove(pending, 1) end
-    if self.db.shieldAmounts[shield.name] == h.n then return shield end
+-- The ones on your gear (self.itemShields): an item says so in its tooltip,
+-- with the amount and school ("When struck in combat, inflicts 1 Nature damage
+-- to the attacker."). Read in English only; on other languages an item's
+-- shield goes unrecognised.
+local SCHOOL_WORDS = { physical = 1, holy = 2, fire = 4, nature = 8, frost = 16, shadow = 32, arcane = 64 }
+function BT:ScanItemShields()
+    if not (C_TooltipInfo and C_TooltipInfo.GetInventoryItem) then return end
+    if InCombatLockdown() then return end
+    local found = {}
+    for slot = 1, 19 do
+        local ok, data = pcall(C_TooltipInfo.GetInventoryItem, "player", slot)
+        local rows = ok and not IsSecret(data) and type(data) == "table" and data.lines
+        if type(rows) == "table" then
+            local name
+            for _, row in ipairs(rows) do
+                local text = type(row) == "table" and Str(row.leftText) or nil
+                if not text and type(row) == "table" and type(row.args) == "table" then
+                    -- (an older shape of the same data: the text is among the line's "args")
+                    for _, arg in ipairs(row.args) do
+                        if type(arg) == "table" and arg.field == "leftText" then text = Str(arg.stringVal) end
+                    end
+                end
+                if text then
+                    name = name or text   -- the first line is the item's name
+                    local amount, school = text:match("[Ii]nflicts (%d+) (%a+) damage to the attacker")
+                    school = school and SCHOOL_WORDS[school:lower()]
+                    if school then
+                        local okIcon, icon = pcall(GetInventoryItemTexture, "player", slot)
+                        found[#found + 1] = { name = name, amount = tonumber(amount), school = school,
+                            icon = okIcon and (Num(icon) or Str(icon)) or nil }
+                    end
+                end
+            end
+        end
+    end
+    self.itemShields = found
+end
+
+-- Whose answer to a blow this hit is, if it's a damage shield's. An item's is
+-- known by its amount. A buff's amount has to be learned: a hit of the buff's
+-- school that nothing else explains waits here for the proof.
+function BT:KnownShield(h)
+    local mask = Num(h.school)
+    if h.kind ~= "damage" or not h.n or not mask then return nil end
+    for _, item in ipairs(self.itemShields or {}) do
+        if item.school == mask and item.amount == h.n then return item end
+    end
+    for name, shield in pairs(self.buffShields or {}) do
+        if shield.school == mask and self.db.shieldAmounts[name] == h.n then return shield end
+    end
     return nil
 end
 
+function BT:ShieldFor(h, lineInFrame)
+    local known = self:KnownShield(h)
+    if known then return known end
+    local mask = Num(h.school)
+    if h.kind ~= "damage" or not h.n or not mask then return nil end
+    local waiting = false
+    for _, shield in pairs(self.buffShields or {}) do
+        if shield.school == mask then waiting = true end
+    end
+    if waiting then
+        local pending = self.shieldPending or {}
+        self.shieldPending = pending
+        -- While the combat log lines arrive, a frame with a line in it proves nothing
+        -- (a shield's answer has no line; a spell of yours landing has)
+        pending[#pending + 1] = { time = h.time, amount = h.n, school = mask, clean = not lineInFrame }
+        if #pending > 10 then table.remove(pending, 1) end
+    end
+    return nil
+end
+
+-- A shield answers a blow, and the blow on you shows up within a second of the
+-- answer. An amount that has answered two blows is a shield's; three, to
+-- replace an amount learned before.
 function BT:ConfirmShield(now)
     local pending = self.shieldPending
-    if not pending then return end
-    while pending[1] and now - pending[1].time > CREDIT_TIME do table.remove(pending, 1) end
-    local answer = table.remove(pending, 1)
-    if not answer or self.db.shieldAmounts[answer.name] == answer.amount then return end
-    local seen = self.shieldSeen
-    if seen and seen.name == answer.name and seen.amount == answer.amount then
-        self.db.shieldAmounts[answer.name] = answer.amount
-        self.shieldSeen = nil
-    else
-        self.shieldSeen = answer
+    if not pending or not pending[1] then return end
+    local answers = {}
+    while pending[1] do
+        local p = table.remove(pending, 1)
+        if p.clean and now - p.time <= CREDIT_TIME then answers[p.school .. ":" .. p.amount] = p end
+    end
+    local counts = self.shieldCounts or {}
+    self.shieldCounts = counts
+    for key, p in pairs(answers) do
+        counts[key] = (counts[key] or 0) + 1
+        if counts[key] >= 2 then self:LearnShield(p, counts[key], answers) end
+    end
+end
+
+-- Does the buff's own description name this amount? ("...causing 11 Nature damage to attackers...")
+local function Describes(shield, amount)
+    if not (shield.id and C_Spell and C_Spell.GetSpellDescription) then return false end
+    local ok, text = pcall(C_Spell.GetSpellDescription, shield.id)
+    text = ok and Str(text) or nil
+    return text ~= nil and text:find("%f[%d]" .. amount .. "%f[%D]") ~= nil
+end
+
+-- Which of the buffs you're wearing hits for this amount: the one whose
+-- description says so, or the only one it could be
+function BT:LearnShield(p, count, answers)
+    local amounts = self.db.shieldAmounts
+    local could, described, describedCount = {}, nil, 0
+    for _, shield in pairs(self.buffShields or {}) do
+        if shield.school == p.school then
+            could[#could + 1] = shield
+            if Describes(shield, p.amount) then described, describedCount = shield, describedCount + 1 end
+        end
+    end
+    local owner
+    if describedCount == 1 then
+        owner = described
+    elseif #could == 1 then
+        -- Only if this is the one amount of its school that needs an owner
+        local others = 0
+        for _, other in pairs(answers) do
+            if other.school == p.school and other.amount ~= p.amount then others = others + 1 end
+        end
+        if others == 0 then owner = could[1] end
+    end
+    if owner and (amounts[owner.name] == nil or count >= 3 or describedCount == 1) then
+        amounts[owner.name] = p.amount
     end
 end
 
@@ -910,20 +1014,25 @@ end
 -- One frame's events, in the order they came: seq[first..last]
 function BT:ResolveFrame(seq, first, last)
     local periodic = self:SpellLists()
-    local cast, casts = nil, 0
+    local cast, castAt, casts = nil, nil, 0
     for i = first, last do
-        if seq[i].cast then cast, casts = seq[i], casts + 1 end
+        if seq[i].cast then cast, castAt, casts = seq[i], i, casts + 1 end
     end
     if casts ~= 1 or not cast.id then cast = nil end   -- two casts in a frame: no telling which did what
     local castSchool   -- the school of the hits this frame's cast has been given
     -- While the lines are arriving, a tick is known by its line: it comes right behind the hit
     local linesFlow = self.hiddenAt ~= nil and seq[first].time - self.hiddenAt < 10
+    local lineInFrame = false
+    for i = first, last do
+        if seq[i].line then lineInFrame = true end
+    end
     for i = first, last do
         local h = seq[i]
         if h.hit then
             local mask = Num(h.school)
             local what, spell = "hit", nil
-            if cast then
+            -- The cast's hit comes after the cast (a hit ahead of it in the frame is something else)
+            if cast and i > castAt then
                 local info = periodic[cast.name or ""]
                 if h.kind ~= "damage" then
                     spell = cast
@@ -933,7 +1042,9 @@ function BT:ResolveFrame(seq, first, last)
                     end
                 elseif not (info and not info.direct) then
                     local expect = castSchool or (self.spellSchool and self.spellSchool[cast.id])
-                    if not (expect and mask and expect ~= mask) then
+                    -- Not a hit of another school than the spell's; and a hit that's just what a
+                    -- damage shield of yours does is the shield's, unless the spell is of that school too
+                    if not (expect and mask and expect ~= mask) and not (expect ~= mask and self:KnownShield(h)) then
                         spell, castSchool = cast, castSchool or mask
                     end
                 end
@@ -957,7 +1068,7 @@ function BT:ResolveFrame(seq, first, last)
                 end
             end
             if not spell then
-                local shield = self:ShieldFor(h)
+                local shield = self:ShieldFor(h, lineInFrame)
                 if shield then what, spell = "shield", shield end
             end
             local why
@@ -984,7 +1095,13 @@ end
 function BT:ShowUnitHit(h, what, spell)
     local db, C = self.db, self.TEXT_COLORS
     local name = spell and spell.name
-    local label = (spell and spell.id and self:IconText(spell.id) or "") .. ((name and db.spellNames) and (name .. " ") or "")
+    local icon = ""
+    if spell and spell.id then
+        icon = self:IconText(spell.id)
+    elseif spell and spell.icon and db.icons then
+        icon = "|T" .. spell.icon .. ":0|t "   -- an item's
+    end
+    local label = icon .. ((name and db.spellNames) and (name .. " ") or "")
     if h.kind == "damage" then
         if what == "shield" and not db.outShields then return "damage shields are turned off" end
         if not db.outDamage then return "damage is turned off" end
@@ -1518,6 +1635,7 @@ end
 pcall(events.RegisterEvent, events, "UNIT_COMBAT")   -- every unit: you, your target, the mobs around you
 pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")
 pcall(events.RegisterUnitEvent, events, "UNIT_AURA", "player")
+pcall(events.RegisterEvent, events, "PLAYER_EQUIPMENT_CHANGED")
 
 events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
     if event == "ADDON_LOADED" then
@@ -1552,8 +1670,11 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         BT:OnSpellcast(a3)
     elseif event == "UNIT_AURA" then
         BT:ScanShield()
+    elseif event == "PLAYER_EQUIPMENT_CHANGED" then
+        BT:ScanItemShields()
     elseif event == "PLAYER_REGEN_DISABLED" then
-        BT:ScanShield()      -- last look at your buffs before the fight hides them
+        BT:ScanShield()      -- last look at your buffs and gear before the fight hides them
+        BT:ScanItemShields()
         BT:SetStartMacro()   -- last chance before the fight to note which chat tab you're on
         if BT.db.nCombat then BT:Notify("+Combat", BT.TEXT_COLORS.combat) end
     elseif event == "PLAYER_REGEN_ENABLED" then
@@ -1564,10 +1685,13 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         end
         BT:SetStartMacro()
         BT:ApplyBlizzardText()
+        BT:ScanShield()
+        BT:ScanItemShields()   -- (gear changed in the fight is read now)
     elseif event == "PLAYER_LOGOUT" then
         BT:ApplyBlizzardText(true)
     elseif event == "PLAYER_ENTERING_WORLD" then
         BT:ScanShield()
+        BT:ScanItemShields()
         BT:HookCombatLog()
         BT:SetStartMacro()
         BT:UpdateStartButton()
