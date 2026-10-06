@@ -71,6 +71,7 @@ local DEFAULTS = {
     nLoot = true, nMoney = false, nSkill = true,
     hideBlizzard = false,
     minimap = true,
+    startReminder = true,   -- a line in chat after logging in, while Start hasn't been clicked
     minimapAngle = 215,
     debug = false,
     areas = {
@@ -1463,6 +1464,16 @@ function BT:UpdateStartButton()
     b:SetShown(show)
 end
 
+-- A line in chat a little after logging in (or a /reload), if Start hasn't been clicked by then
+local REMIND_AFTER = 10
+function BT:RemindStart()
+    if not (self.db.enabled and self.db.startReminder) or self.started then return end
+    local key = GetBindingKey and Str(GetBindingKey("CLICK BattleTextForeverStart:LeftButton"))
+    Print("click |cffffd966Start BattleText|r at the top of your screen"
+        .. (key and (" (or press " .. key .. ")") or "")
+        .. ". It names your bleed ticks and, in a group, leaves other people's hits out.")
+end
+
 -- When the Combat Log window is shown the game loads its filter (so the lines
 -- start); when it hides, the game turns them off, and we turn them back on
 function BT:HookCombatLog()
@@ -1710,6 +1721,9 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
             C_Timer.NewTicker(3, function() BT:KeepLogFlowing() end)
         end
         print(BT.LOGO_TEXT .. " |cffffd966BattleText Forever|r loaded. Type /btf for options.")
+        if C_Timer and C_Timer.After then
+            C_Timer.After(REMIND_AFTER, function() BT:RemindStart() end)
+        end
         return
     end
     if not BT.built then return end

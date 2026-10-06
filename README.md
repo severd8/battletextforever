@@ -26,7 +26,7 @@ BattleText Forever puts the fight on your screen: your hits and heals scroll on 
 ## Using it
 
 - **Your hits show as soon as you log in**: on your target, and on the mobs attacking you or your pet.
-- **Click Start BattleText** (the button at the top of the screen) once after you log in. With it, BattleText can name the ticks of your bleeds and, in a group, tell your hits from everyone else's (see Good to know). You can also bind a key to it.
+- **Click Start BattleText** (the button at the top of the screen) once after you log in. With it, BattleText can name the ticks of your bleeds and, in a group, tell your hits from everyone else's (see Good to know). You can also bind a key to it. If you haven't clicked it ten seconds after logging in, a line in chat reminds you (untick **Remind me to click Start** in the options to stop that).
 - **Move the text.** Tick **Move the text areas** in the options (or type `/btf unlock`) and drag the three boxes where you want them. Closing the options locks them again.
 - **See it without fighting.** Type `/btf test`, or right-click the minimap button.
 - **Open the options.** Type `/btf`, or left-click the minimap button.

@@ -183,6 +183,9 @@ function BT:BuildConfig()
         "Turns off the game's floating combat text so numbers aren't shown twice. Untick to turn it back on.")
     y = y - 24
     Check(f, "Minimap button", x, y, "minimap")
+    y = y - 24
+    Check(f, "Remind me to click Start", x, y, "startReminder",
+        "Ten seconds after you log in, a line in chat reminds you to click Start BattleText if you haven't yet.")
     y = y - 34
 
     Label(f, "Font", x + 4, y)

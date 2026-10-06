@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.4
+
+- **A reminder to click Start.** Ten seconds after you log in or reload, if you haven't clicked **Start BattleText** yet, a line in chat reminds you (and names the key, if you've bound one). Turn it off with **Remind me to click Start** in the options.
+
 ## 1.2.3
 
 - **Shred is named.** Its hits were shown as a bare number, like a swing. The game reports Shred's hit just ahead of the cast, where other attacks (Claw, Rake) come just after it, so BattleText now goes by the combat log line that comes with the hit and no longer by which came first.

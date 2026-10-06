@@ -14,6 +14,7 @@ local STANDARD = {}   -- what Lua itself provides (everything else below is "the
 for k in pairs(_G) do STANDARD[k] = true end
 
 LOG = {}
+GetBindingKey = function(command) return STATE.bindingKeys and STATE.bindingKeys[command] end
 local function log(...) local t = {} for i = 1, select("#", ...) do t[#t + 1] = tostring((select(i, ...))) end LOG[#LOG + 1] = table.concat(t, " ") end
 print = function(...) log(...) end
 

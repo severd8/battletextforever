@@ -247,6 +247,48 @@ local function log(line, order)
     return true
 end
 
+step("a reminder in chat ten seconds after logging in")
+local function reminders()
+    local found = {}
+    for _, line in ipairs(LOG) do
+        if line:find("Start BattleText", 1, true) and line:find("click", 1, true) then found[#found + 1] = line end
+    end
+    return found
+end
+LOG = {}
+Advance(9.5)
+assertEq(#reminders(), 0, "nothing in the first ten seconds")
+Advance(1)
+assertEq(#reminders(), 1, "one reminder once ten seconds have passed without the Start click")
+assert(reminders()[1]:find("BattleText|r: click", 1, true), "it comes from BattleText: " .. reminders()[1])
+assert(not reminders()[1]:find("press", 1, true), "no key is named when none is bound")
+Advance(30)
+assertEq(#reminders(), 1, "and only the one")
+-- With a key bound to Start, the reminder names it
+LOG = {}
+STATE.bindingKeys = { ["CLICK BattleTextForeverStart:LeftButton"] = "F9" }
+BT:RemindStart()
+assert(reminders()[1] and reminders()[1]:find("(or press F9)", 1, true), "the bound key is named: " .. tostring(reminders()[1]))
+STATE.bindingKeys = nil
+-- Not when it's turned off, when BattleText is off, or once Start has been clicked
+LOG = {}
+BT.db.startReminder = false
+BT:RemindStart()
+assertEq(#reminders(), 0, "no reminder when the setting is off")
+BT.db.startReminder = true
+BT.db.enabled = false
+BT:RemindStart()
+assertEq(#reminders(), 0, "no reminder when BattleText is off")
+BT.db.enabled = true
+BT.started = true
+BT:RemindStart()
+assertEq(#reminders(), 0, "no reminder once it's started")
+BT.started = nil
+BT:RemindStart()
+assertEq(#reminders(), 1, "and one when it isn't")
+LOG = {}
+assertClean("after the reminder")
+
 step("start button: the combat log needs opening once")
 local start = BT.startButton
 assertEq(start:IsShown(), true, "Start button shows after login")
