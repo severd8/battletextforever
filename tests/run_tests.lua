@@ -1376,6 +1376,58 @@ fire("UNIT_COMBAT", "target", "WOUND", "", 1, 8)
 fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
 assertEq(table.concat(lines("outgoing"), " / "), "Sporid Cape 1 / Claw 50", "the cape's answer isn't taken for the cast's hit")
 STATE.who = {}
+
+step("a fourth real fight: Shred, whose hit comes ahead of its cast")
+-- tests/real_fight4.txt opens with a Shred from stealth. The game sent the line, the hit, the
+-- cast and then both damage shields' answers in one frame: the hit with a line just ahead of
+-- it is the cast's, whichever side of the cast it falls on.
+freshFight()
+STATE.equipped[15] = CAPE
+STATE.buffs = { { name = "Thorns", spellId = 1075 } }
+fire("PLAYER_ENTERING_WORLD")
+BT.db.shieldAmounts = { Thorns = 11 }
+BT.db.outShields = false   -- as in the recording
+out = replay("real_fight4.txt")
+same(out, {
+    "Shred 131", "59", "31", "26", "Rake 35", "Dodge", "24", "60", "Rake 29", "Rip 17", "Parry", "27", "Rip 17", "27",
+    "Rake 29",
+})
+assertEq(BT.spellSchool and BT.spellSchool[5221], 1, "Shred was learned as physical")
+BT.db.outShields = true
+-- The same fight with neither shield known yet: their answers still aren't taken for Shred
+freshFight()
+out = replay("real_fight4.txt")
+assertEq(out[1], "Shred 131", "the hit with the line is Shred's")
+assertEq(out[2], "11", "the first shield answer is just a hit")
+assertEq(out[3], "1", "and so is the second")
+assertEq(BT.spellSchool and BT.spellSchool[5221], 1, "and Shred isn't taken for a nature spell")
+-- A swing landing in the frame of a cast whose own hit has the line: only that hit is the cast's
+freshFight()
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.who.target = "mobA"
+fire("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
+log("|Ky1|k")
+fire("UNIT_COMBAT", "target", "WOUND", "", 72, 1)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-s", 5221)
+fire("UNIT_COMBAT", "target", "WOUND", "", 9, 1)
+assertEq(table.concat(lines("outgoing"), " / "), "30 / Shred 72 / 9", "one line, one hit for the cast")
+-- A miss with its line ahead of the cast is the cast's too
+freshFight()
+STATE.who.target = "mobA"
+log("|Ky2|k")
+fire("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-t", 5221)
+assertEq(table.concat(lines("outgoing"), " / "), "Shred Dodge", "a dodged Shred says so")
+-- Lines are arriving, but this frame's hit has none: it goes by order, as before
+freshFight()
+STATE.who.target = "mobA"
+log("|Ky3|k")
+Advance(1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 7, 1)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-u", 1082)
+fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
+assertEq(table.concat(lines("outgoing"), " / "), "7 / Claw 50", "no line in the frame: the hit after the cast is its hit")
+STATE.who = {}
 BT.db.merge = true
 freshFight()
 

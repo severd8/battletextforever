@@ -1035,6 +1035,45 @@ function BT:ResolveFrame(seq, first, last)
         if seq[i].line then lineInFrame = true end
         if seq[i].blow then blowInFrame = true end
     end
+    -- Which hits are the cast's. While the lines are arriving, the cast's hit is the one with a
+    -- line of its own just ahead of it in the frame, wherever the cast itself falls: Claw's and
+    -- Rake's hits come after the cast, Shred's comes before it. A damage shield's answer has
+    -- no line, and a tick's line comes behind the tick. If no hit has a line, it goes by order.
+    local byLine
+    if cast and linesFlow then
+        local info = periodic[cast.name or ""]
+        local taken, school = {}, nil
+        for i = first, last do
+            local h = seq[i]
+            if h.hit then
+                local mask = Num(h.school)
+                local can = true
+                if h.kind == "damage" then
+                    local expect = school or (self.spellSchool and self.spellSchool[cast.id])
+                    can = not (info and not info.direct) and not (expect and mask and expect ~= mask)
+                        and not (expect ~= mask and self:KnownShield(h))
+                end
+                local mine = false
+                if can then
+                    for j = i - 1, first, -1 do
+                        if seq[j].line and not taken[j] then
+                            taken[j], seq[j].used, mine = true, true, true
+                            break
+                        end
+                    end
+                end
+                if mine then
+                    byLine = byLine or {}
+                    byLine[i] = true
+                    if h.kind == "damage" then school = school or mask end
+                elseif self:TickFor(h) then
+                    for j = i + 1, last do   -- the tick's own line, which the loop below gives it
+                        if seq[j].line and not taken[j] then taken[j] = true break end
+                    end
+                end
+            end
+        end
+    end
     for i = first, last do
         local h = seq[i]
         if h.nothing and not blowInFrame then
@@ -1043,8 +1082,9 @@ function BT:ResolveFrame(seq, first, last)
         if h.hit then
             local mask = Num(h.school)
             local what, spell = "hit", nil
-            -- The cast's hit comes after the cast (a hit ahead of it in the frame is something else)
-            if cast and i > castAt then
+            -- Without a line to go by, the cast's hit comes after the cast (a hit ahead of it in
+            -- the frame is something else)
+            if cast and ((byLine and byLine[i]) or (not byLine and i > castAt)) then
                 local info = periodic[cast.name or ""]
                 if h.kind ~= "damage" then
                     spell = cast

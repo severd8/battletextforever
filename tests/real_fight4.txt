@@ -1,0 +1,93 @@
+ 785.16  CAST 5215 Prowl
+ 792.03  hidden  |Ky905|k
+ 792.15  hidden  |Ky906|k
+ 792.15  UNIT_COMBAT nameplate1 WOUND CRITICAL 131 school 1
+ 792.15  UNIT_COMBAT target WOUND CRITICAL 131 school 1: same hit, under another name
+ 792.15  CAST 5221 Shred
+ 792.15  UNIT_COMBAT nameplate1 WOUND  11 school 8
+ 792.15  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 792.15  UNIT_COMBAT nameplate1 WOUND  1 school 8
+ 792.15  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 792.15    nameplate1 131: shown
+ 792.15    nameplate1 11: damage shields are turned off
+ 792.15    nameplate1 1: damage shields are turned off
+ 792.46  UNIT_COMBAT player WOUND  24
+ 793.03  UNIT_COMBAT nameplate1 WOUND CRITICAL 59 school 1
+ 793.03  UNIT_COMBAT target WOUND CRITICAL 59 school 1: same hit, under another name
+ 793.03    nameplate1 59: shown
+ 793.13  hidden  |Ky907|k
+ 793.56  UNIT_COMBAT nameplate1 WOUND  31 school 1
+ 793.56  UNIT_COMBAT target WOUND  31 school 1: same hit, under another name
+ 793.56    nameplate1 31: shown
+ 794.05  hidden  |Ky908|k
+ 794.39  UNIT_COMBAT player MISS  0
+ 794.56  UNIT_COMBAT nameplate1 WOUND  26 school 1
+ 794.56  UNIT_COMBAT target WOUND  26 school 1: same hit, under another name
+ 794.56    nameplate1 26: shown
+ 795.65  CAST 1822 Rake
+ 795.65  hidden  |Ky909|k
+ 795.65  UNIT_COMBAT nameplate1 WOUND  35 school 1
+ 795.65  UNIT_COMBAT target WOUND  35 school 1: same hit, under another name
+ 795.65    nameplate1 35: cast of Rake
+ 796.07  UNIT_COMBAT nameplate1 WOUND  11 school 8
+ 796.07  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 796.07  UNIT_COMBAT nameplate1 WOUND  1 school 8
+ 796.07  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 796.07    nameplate1 11: damage shields are turned off
+ 796.07    nameplate1 1: damage shields are turned off
+ 796.50  UNIT_COMBAT player WOUND  23
+ 796.64  hidden  |Ky910|k
+ 796.65  UNIT_COMBAT nameplate1 DODGE  0 school 1
+ 796.65  UNIT_COMBAT target DODGE  0 school 1: same hit, under another name
+ 796.65    nameplate1 0: shown
+ 796.88  CAST 1079 Rip
+ 797.64  UNIT_COMBAT nameplate1 WOUND  24 school 1
+ 797.64  UNIT_COMBAT target WOUND  24 school 1: same hit, under another name
+ 797.65  hidden  |Ky911|k
+ 797.64    nameplate1 24: shown
+ 798.08  UNIT_COMBAT nameplate1 WOUND CRITICAL 60 school 1
+ 798.08  UNIT_COMBAT target WOUND CRITICAL 60 school 1: same hit, under another name
+ 798.08    nameplate1 60: shown
+ 798.09  UNIT_COMBAT nameplate1 WOUND  11 school 8
+ 798.09  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 798.09  UNIT_COMBAT nameplate1 WOUND  1 school 8
+ 798.09  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 798.09    nameplate1 11: damage shields are turned off
+ 798.09    nameplate1 1: damage shields are turned off
+ 798.42  UNIT_COMBAT player WOUND  24
+ 798.65  UNIT_COMBAT nameplate1 WOUND  29 school 1
+ 798.65  UNIT_COMBAT target WOUND  29 school 1: same hit, under another name
+ 798.65  hidden  |Ky912|k
+ 798.65    nameplate1 29: tick of Rake
+ 798.90  UNIT_COMBAT nameplate1 WOUND  17 school 1
+ 798.90  UNIT_COMBAT target WOUND  17 school 1: same hit, under another name
+ 798.90  hidden  |Ky913|k
+ 798.90    nameplate1 17: tick of Rip
+ 799.31  UNIT_COMBAT nameplate1 WOUND  11 school 8
+ 799.31  UNIT_COMBAT target WOUND  11 school 8: same hit, under another name
+ 799.31  UNIT_COMBAT nameplate1 WOUND  1 school 8
+ 799.31  UNIT_COMBAT target WOUND  1 school 8: same hit, under another name
+ 799.31    nameplate1 11: damage shields are turned off
+ 799.31    nameplate1 1: damage shields are turned off
+ 799.41  UNIT_COMBAT nameplate1 PARRY  0 school 1
+ 799.41  UNIT_COMBAT target PARRY  0 school 1: same hit, under another name
+ 799.41    nameplate1 0: shown
+ 799.64  UNIT_COMBAT player WOUND  23
+ 799.68  hidden  |Ky914|k
+ 800.11  UNIT_COMBAT nameplate1 WOUND  27 school 1
+ 800.11  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 800.11    nameplate1 27: shown
+ 800.68  hidden  |Ky915|k
+ 800.94  UNIT_COMBAT nameplate1 WOUND  17 school 1
+ 800.94  UNIT_COMBAT target WOUND  17 school 1: same hit, under another name
+ 800.94  hidden  |Ky916|k
+ 800.94    nameplate1 17: tick of Rip
+ 801.11  UNIT_COMBAT nameplate1 WOUND  27 school 1
+ 801.11  UNIT_COMBAT target WOUND  27 school 1: same hit, under another name
+ 801.11    nameplate1 27: shown
+ 801.68  UNIT_COMBAT nameplate1 WOUND  29 school 1
+ 801.68  UNIT_COMBAT target WOUND  29 school 1: same hit, under another name
+ 801.68  hidden  |Ky917|k
+ 801.68    nameplate1 29: tick of Rake
+ 802.68  hidden  |Ky918|k
+ 802.68  hidden  |Ky919|k

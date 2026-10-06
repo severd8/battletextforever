@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.3
+
+- **Shred is named.** Its hits were shown as a bare number, like a swing. The game reports Shred's hit just ahead of the cast, where other attacks (Claw, Rake) come just after it, so BattleText now goes by the combat log line that comes with the hit and no longer by which came first.
+- For the same reason a damage shield's answer landing in the same instant as one of your attacks can't be named after the attack, even before the shield has been learned.
+
 ## 1.2.2
 
 - No more false **Miss**. Some mobs' special attacks arrive in two parts, one of them for no damage, and the empty part was shown as a miss beside the real hit.

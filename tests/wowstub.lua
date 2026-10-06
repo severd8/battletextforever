@@ -222,7 +222,7 @@ STATE = {
     cvars = { enableFloatingCombatText = "1", floatingCombatTextCombatDamage = "1", floatingCombatTextCombatHealing = "1" },
     filteredEvents = false,       -- C_CombatLog.SetFilteredEventsEnabled
     spellIcons = { [16827] = 132140, [8921] = 136096 },   -- by spell ID
-    spellNames = { [16827] = "Claw", [8921] = "Moonfire", [1082] = "Claw", [1822] = "Rake", [1079] = "Rip",
+    spellNames = { [16827] = "Claw", [8921] = "Moonfire", [1082] = "Claw", [1822] = "Rake", [1079] = "Rip", [5221] = "Shred",
         [467] = "Thorns", [782] = "Thorns", [1075] = "Thorns", [324] = "Lightning Shield", [5570] = "Insect Swarm",
         [768] = "Cat Form" },
     buffs = {},                   -- your buffs: { name = "Thorns", spellId = 782 }
