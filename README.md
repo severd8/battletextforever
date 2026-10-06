@@ -35,7 +35,7 @@ BattleText Forever puts the fight on your screen: your hits and heals scroll on 
 
 | Side | What's there |
 |---|---|
-| **Text** (left) | Show BattleText, move the text areas, spell names, spell icons, crits pop and hold, curved scrolling, add up rapid hits, hide the game's own numbers, minimap button, font (a dropdown of 20), text size, crit size, scroll time, scroll distance |
+| **Text** (left) | Show BattleText, move the text areas, spell names, spell icons, crits pop and hold, curved scrolling, add up rapid hits, hide the game's own numbers, minimap button, remind me to click Start, font (a dropdown of 20), text size, crit size, scroll time, scroll distance |
 | **What you do** | Damage, heals, misses, pet, damage shields, hide hits below a number |
 | **What happens to you** | Damage, heals, avoids, power gains |
 | **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups |
