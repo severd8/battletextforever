@@ -63,8 +63,11 @@ local DEFAULTS = {
     outline = "OUTLINE",      -- the outline round normal lines (one of BT.OUTLINES)
     critOutline = "OUTLINE",  -- and round crits
     sticky = true,            -- crits pop and hold in place
-    spellNames = true,
-    icons = true,
+    -- Spell (and skill) icons and names, per section of the options
+    outIcons = true, outNames = true,      -- your hits and misses
+    inIcons = true, inNames = true,        -- what happens to you
+    healIcons = true, healNames = true,    -- heals, yours and on you
+    nIcons = true,                         -- notifications: loot and skill ups
     merge = true,             -- rapid hits of one spell add up on one line
     minDamage = 0,            -- hide your hits below this
     healArea = true,          -- heals (yours and on you) scroll in their own area
@@ -159,6 +162,22 @@ local function FillDefaults(t, defaults)
         end
     end
     return t
+end
+
+-- Settings that were renamed: an old one becomes the new ones it was split into
+local SPLIT_SETTINGS = {
+    icons = { "outIcons", "inIcons", "healIcons", "nIcons" },
+    spellNames = { "outNames", "inNames", "healNames" },
+}
+function BT:MoveOldSettings(db)
+    for old, new in pairs(SPLIT_SETTINGS) do
+        if db[old] ~= nil then
+            for _, key in ipairs(new) do
+                if db[key] == nil then db[key] = db[old] end
+            end
+            db[old] = nil
+        end
+    end
 end
 
 local function Commas(n)
@@ -457,7 +476,7 @@ end
 
 -- A spell's icon as text, by its ID or name
 function BT:IconText(spell)
-    if not self.db.icons or not spell then return "" end
+    if not spell then return "" end
     self.iconCache = self.iconCache or {}
     local cached = self.iconCache[spell]
     if cached == nil then
@@ -501,9 +520,11 @@ local function MissText(missType)
 end
 BT.MissText = MissText
 
-function BT:SpellLabel(info)
-    if info.spell and self.db.spellNames then return info.spell end
-    return nil
+-- A spell's icon and name as one section of the options shows them
+-- (section: "out", "in" or "heal"); either is left out when it's turned off
+function BT:SpellParts(section, icon, name)
+    local db = self.db
+    return db[section .. "Icons"] and icon or "", db[section .. "Names"] and name or nil
 end
 
 -- Your pet's line: the one who did it is your pet (the line's link says who)
@@ -542,8 +563,9 @@ end
 -- of line BattleText shows (even if a setting hides it), false if not.
 function BT:ShowCombat(info)
     local db, C = self.db, self.TEXT_COLORS
-    local name = self:SpellLabel(info)
-    local icon = self:IconText(info.spellId or info.spell)
+    local spellIcon = self:IconText(info.spellId or info.spell)
+    local section = info.kind == "heal" and "heal" or info.toMe and "in" or "out"
+    local icon, name = self:SpellParts(section, spellIcon, info.spell)
     local mine = info.fromMe == true
     local pet = not mine and self:IsPetLine(info)
     local outLabel = icon .. (name and (name .. " ") or "") .. (pet and "(Pet) " or "")
@@ -1194,20 +1216,22 @@ end
 -- Returns why not, if a setting hides it.
 function BT:ShowUnitHit(h, what, spell)
     local db, C = self.db, self.TEXT_COLORS
-    local name = spell and spell.name
     local icon = ""
     if spell and spell.id then
         icon = self:IconText(spell.id)
-    elseif spell and spell.icon and db.icons then
+    elseif spell and spell.icon then
         icon = "|T" .. spell.icon .. ":0|t "   -- an item's
     end
-    local label = icon .. ((name and db.spellNames) and (name .. " ") or "")
+    local spellName = spell and spell.name
+    local name
+    icon, name = self:SpellParts(h.kind == "heal" and "heal" or "out", icon, spellName)
+    local label = icon .. (name and (name .. " ") or "")
     if h.kind == "damage" then
         if what == "shield" and not db.outShields then return "damage shields are turned off" end
         if not db.outDamage then return "damage is turned off" end
         if h.n and h.n < db.minDamage then return "below \"Hide hits below\"" end
         local mask = Num(h.school)
-        local color = MASK_COLORS[mask or 1] or ((name or (mask and mask ~= 1)) and C.spell) or C.melee
+        local color = MASK_COLORS[mask or 1] or ((spellName or (mask and mask ~= 1)) and C.spell) or C.melee
         local note = FLAG_NOTES[h.flag or ""]
         note = note and (" |cffb0b0b0(" .. note .. ")|r") or ""
         if h.secret then
@@ -1215,7 +1239,7 @@ function BT:ShowUnitHit(h, what, spell)
         else
             self:Emit("outgoing", label .. Commas(h.n) .. note, color, {
                 crit = h.crit,
-                key = spell and (what .. ":" .. tostring(spell.id or name)) or nil,
+                key = spell and (what .. ":" .. tostring(spell.id or spellName)) or nil,
                 amount = h.n,
                 format = function(total, count)
                     return label .. Commas(total) .. " |cffb0b0b0(x" .. count .. ")|r"
@@ -1377,7 +1401,7 @@ function BT:OnLoot(message)
     local count = tonumber(message:match("|h|r?x(%d+)")) or 1
     local icon = ""
     local id = tonumber(link:match("|Hitem:(%d+)"))
-    if id and self.db.icons and C_Item and C_Item.GetItemIconByID then
+    if id and self.db.nIcons and C_Item and C_Item.GetItemIconByID then
         local ok, tex = pcall(C_Item.GetItemIconByID, id)
         if ok and not IsSecret(tex) and tex then icon = "|T" .. tex .. ":0|t " end
     end
@@ -1389,7 +1413,7 @@ local SKILL_SPELLS = { Herbalism = 2366, Mining = 2575, Fishing = 7620 }
 
 -- A skill-up's icon: the skill's spell, when the game has one ("Your skill in Cooking has increased to 5")
 function BT:SkillIcon(message)
-    if not self.db.icons then return "" end
+    if not self.db.nIcons then return "" end
     local pattern = Str(SKILL_RANK_UP) or "Your skill in %s has increased to %d."
     pattern = pattern:gsub("([%.%(%)%-%+%*%?%[%]%^%$])", "%%%1"):gsub("%%s", "(.-)"):gsub("%%d", "%%d+")
     local skill = message:match(pattern)
@@ -1626,7 +1650,8 @@ function BT:Test()
         function() self:Notify("Killing blow!", C.combat, { crit = true }) end,
     }
     -- Shown even while BattleText is turned off, and whatever is ticked in the options
-    local LOOKS = { sticky = true, curved = true, scrollUp = true, healArea = true, healOver = true, icons = true, spellNames = true, merge = true }
+    local LOOKS = { sticky = true, curved = true, scrollUp = true, healArea = true, healOver = true, merge = true,
+        outIcons = true, outNames = true, inIcons = true, inNames = true, healIcons = true, healNames = true, nIcons = true }
     local function show(fn)
         local saved = self.db
         self.db = setmetatable({}, { __index = function(_, k)
@@ -1776,6 +1801,7 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
     if event == "ADDON_LOADED" then
         if a1 ~= ADDON then return end
         BattleTextForeverDB = BattleTextForeverDB or {}
+        BT:MoveOldSettings(BattleTextForeverDB)
         FillDefaults(BattleTextForeverDB, DEFAULTS)
         BT.db = BattleTextForeverDB
         return

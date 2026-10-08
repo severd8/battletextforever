@@ -153,7 +153,7 @@ end
 
 function BT:BuildConfig()
     local f = CreateFrame("Frame", "BattleTextForeverOptions", UIParent)
-    f:SetSize(560, 700)
+    f:SetSize(820, 620)
     f:SetPoint("CENTER")
     self:SkinFrame(f, self.COLORS.dark, self.COLORS.goldDark, 0.97, 2)
     f:SetFrameStrata("DIALOG")
@@ -202,10 +202,6 @@ function BT:BuildConfig()
     y = y - 24
     Check(f, "Move the text areas", x, y, "locked",
         "Shows a box for each text area. Drag the boxes where you want them, then untick this.")
-    y = y - 24
-    Check(f, "Spell names", x, y, "spellNames", "Show the spell's name beside the number.")
-    y = y - 24
-    Check(f, "Spell icons", x, y, "icons", "Show icons beside spells and heals (yours and those on you), skill ups and loot. Untick to hide them all.")
     y = y - 24
     Check(f, "Crits pop and hold", x, y, "sticky",
         "Critical hits jump out and stay in place for a moment instead of scrolling.")
@@ -276,12 +272,17 @@ function BT:BuildConfig()
     y = y - 44
     Slider(f, "Scroll distance", x + 4, y, "height", 100, 500, "", 10)
 
-    Button(f, "Show sample text", 130, x, -662, function() BT:Test() end)
-    Button(f, "Reset positions", 110, x + 136, -662, function() BT:ResetPositions() end)
+    Button(f, "Show sample text", 130, x, -582, function() BT:Test() end)
+    Button(f, "Reset positions", 110, x + 136, -582, function() BT:ResetPositions() end)
 
-    -- Right column: what gets shown
-    x, y = 300, -48
-    Heading(f, "What you do", x, y, W)
+    -- Middle column: the combat areas
+    local function IconsAndNames(section, what)
+        Check(f, "Icons", x, y, section .. "Icons", "Show the spell's icon beside " .. what .. ".")
+        Check(f, "Names", x + 120, y, section .. "Names", "Show the spell's name beside " .. what .. ".")
+        y = y - 24
+    end
+    x, y = 290, -48
+    Heading(f, "Outgoing", x, y, W)
     y = y - 24
     Check(f, "Damage", x, y, "outDamage")
     Check(f, "Misses", x + 120, y, "outMisses", "Your attacks that miss or are dodged, parried, blocked or resisted.")
@@ -292,17 +293,21 @@ function BT:BuildConfig()
     Check(f, "Damage shields", x + 120, y, "outShields",
         "What your damage shields do to whoever hits you: buffs like Thorns, Lightning Shield and Retribution Aura "
         .. "(learned from their first two hits), and gear that stings back.")
-    y = y - 32
+    y = y - 24
+    IconsAndNames("out", "your hits and misses")
+    y = y - 8
     Slider(f, "Hide hits below", x + 4, y, "minDamage", 0, 500, "", 5)
     y = y - 46
 
-    Heading(f, "What happens to you", x, y, W)
+    Heading(f, "Incoming", x, y, W)
     y = y - 24
     Check(f, "Damage", x, y, "inDamage")
     Check(f, "Avoids", x + 120, y, "inMisses", "Attacks you dodge, parry, block or resist.")
     y = y - 24
     Check(f, "Power gains", x, y, "inPower", "Mana, rage and energy you gain.")
-    y = y - 36
+    y = y - 24
+    IconsAndNames("in", "spells that hit you or that you avoid (when the game says which)")
+    y = y - 12
 
     Heading(f, "Healing", x, y, W)
     y = y - 24
@@ -315,10 +320,13 @@ function BT:BuildConfig()
     y = y - 24
     Check(f, "Show overhealing", x, y, "healOver",
         "The grey \"(40 over)\" after a heal. Only when the game lets BattleText read its combat lines.")
-    y = y - 32
+    y = y - 24
+    IconsAndNames("heal", "heals")
+    y = y - 8
     Slider(f, "Hide heals below", x + 4, y, "minHeal", 0, 500, "", 5)
-    y = y - 46
 
+    -- Right column: notifications, and things to know
+    x, y = 560, -48
     Heading(f, "Notifications", x, y, W)
     y = y - 24
     Check(f, "Combat", x, y, "nCombat", "Entering and leaving combat.")
@@ -333,6 +341,8 @@ function BT:BuildConfig()
     y = y - 24
     Check(f, "Money", x, y, "nMoney")
     Check(f, "Skill ups", x + 120, y, "nSkill")
+    y = y - 24
+    Check(f, "Icons", x, y, "nIcons", "Show the icon beside loot and skill ups (professions like First Aid).")
     y = y - 34
 
     Heading(f, "Good to know", x, y, W)

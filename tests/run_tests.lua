@@ -67,6 +67,9 @@ local function clear()
     Advance(8)
     for _, a in pairs(BT.areas) do assertEq(#a.active, 0, "area emptied: " .. a.key) end
 end
+-- Icons and spell names, in every section of the options at once
+local function SetIcons(on) BT.db.outIcons, BT.db.inIcons, BT.db.healIcons, BT.db.nIcons = on, on, on, on end
+local function SetNames(on) BT.db.outNames, BT.db.inNames, BT.db.healNames = on, on, on end
 
 ---------------------------------------------------------------------------
 -- Real lines
@@ -339,22 +342,22 @@ assertClean("after starting from the Combat Log tab")
 
 ---------------------------------------------------------------------------
 step("your hits")
-BT.db.icons = false
+SetIcons(false)
 log(swing(27))
 assertEq(last("outgoing"), "27", "a swing shows its number")
 Advance(1)
 log(hit("Claw", 16827, 50, "Physical", "(1 Blocked)"))
 assertEq(last("outgoing"), "Claw 50 |cffb0b0b0(1 blocked)|r", "a spell shows its name, number and what was blocked")
 assertEq(#lines("incoming"), 0, "nothing in the incoming area")
-BT.db.spellNames = false
+SetNames(false)
 Advance(1)
 log(hit("Claw", 16827, 50))
 assertEq(last("outgoing"), "50", "spell names off")
-BT.db.spellNames, BT.db.icons = true, true
+SetNames(true); SetIcons(true)
 Advance(1)
 log(hit("Claw", 16827, 51))
 assertEq(last("outgoing"), "|T132140:0|t Claw 51", "spell icon, found by the spell's ID")
-BT.db.icons = false
+SetIcons(false)
 Advance(1)
 log(hit("Fireball", 133, 1234, "Fire"))
 assertEq(last("outgoing"), "Fireball 1,234", "thousands")
@@ -616,20 +619,46 @@ assertEq(last("incoming"), "Dodge", "a dodge between two hits isn't swallowed")
 clear()
 -- A spell with an icon shows it, on lines about you too
 STATE.spellIcons[133], STATE.spellIcons[5185], BT.iconCache = 135812, 136041, nil
-BT.db.icons = true
+SetIcons(true)
 fire("UNIT_COMBAT", "player", "WOUND", "", 84, 4)
 log(hitMe("Fireball", 133, 84, "Fire"))
 assertEq(last("incoming"), "-84 |T135812:0|t Fireball", "a spell that hits you, with its icon")
 log(healMe("Healing Touch", 5185, 380))
 assertEq(last("incoming"), "+380 |T136041:0|t Healing Touch", "a heal you get, with its icon")
-BT.db.spellNames = false
+SetNames(false)
 fire("UNIT_COMBAT", "player", "WOUND", "", 84, 4)
 log(hitMe("Fireball", 133, 84, "Fire"))
 assertEq(last("incoming"), "-84 |T135812:0|t", "names off: the icon alone")
-BT.db.spellNames, BT.db.icons = true, false
+SetNames(true); SetIcons(false)
 fire("UNIT_COMBAT", "player", "WOUND", "", 84, 4)
 log(hitMe("Fireball", 133, 84, "Fire"))
 assertEq(last("incoming"), "-84 Fireball", "icons off: no icon anywhere")
+-- Each section has its own boxes
+SetIcons(true)
+BT.db.inIcons = false
+fire("UNIT_COMBAT", "player", "WOUND", "", 84, 4)
+log(hitMe("Fireball", 133, 84, "Fire"))
+assertEq(last("incoming"), "-84 Fireball", "Incoming's icons off")
+log(healMe("Healing Touch", 5185, 380))
+assertEq(last("incoming"), "+380 |T136041:0|t Healing Touch", "a heal follows Healing's boxes, not Incoming's")
+BT.db.inIcons, BT.db.healNames = true, false
+log(healMe("Healing Touch", 5185, 380))
+assertEq(last("incoming"), "+380 |T136041:0|t", "Healing's names off")
+fire("UNIT_COMBAT", "player", "WOUND", "", 84, 4)
+log(hitMe("Fireball", 133, 84, "Fire"))
+assertEq(last("incoming"), "-84 |T135812:0|t Fireball", "and Incoming keeps its names")
+BT.db.healNames = true
+-- The old single boxes become the new ones they were split into
+local old = { icons = false, spellNames = true, outNames = false }
+BT:MoveOldSettings(old)
+assertEq(old.outIcons, false, "icons off carries over to Outgoing")
+assertEq(old.inIcons, false, "to Incoming")
+assertEq(old.healIcons, false, "to Healing")
+assertEq(old.nIcons, false, "and to Notifications")
+assertEq(old.inNames, true, "names carry over")
+assertEq(old.outNames, false, "but never over a new setting already made")
+assertEq(old.icons, nil, "the old setting goes")
+assertEq(old.spellNames, nil, "both of them")
 STATE.spellIcons[133], STATE.spellIcons[5185], BT.iconCache = nil, nil, nil
 clear()
 -- A filter that has misses too: then they come from the log, once
@@ -797,7 +826,7 @@ STATE.pet = false
 clear()
 
 -- The spell: a cast of yours that finishes in the very frame the hit lands
-BT.db.icons = true
+SetIcons(true)
 fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-1", 16827)
 fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
 fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
@@ -828,16 +857,16 @@ fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-4", Secret(16827))
 fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
 assertEq(last("outgoing"), "50", "a hidden spell isn't named")
 Advance(0.1)
-BT.db.spellNames, BT.db.icons = false, false
+SetNames(false); SetIcons(false)
 fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-5", 16827)
 fire("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
 assertEq(last("outgoing"), "Dodge", "names and icons turned off")
-BT.db.spellNames, BT.db.icons = true, true
+SetNames(true); SetIcons(true)
 Advance(0.1)
 fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-6", 16827)
 fire("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
 assertEq(last("outgoing"), "|T132140:0|t Claw Parry", "a named miss")
-BT.db.icons = false
+SetIcons(false)
 clear()
 
 -- A line that can be read is shown from the line, not a second time from the unit
@@ -1035,10 +1064,10 @@ fire("PLAYER_EQUIPMENT_CHANGED", 15, true)
 assertEq(#BT.itemShields, 1, "one item of yours stings back (the staff's line is no shield)")
 assertEq(BT.itemShields[1].name, "Sporid Cape", "the cape")
 assertEq(BT.itemShields[1].amount .. " " .. BT.itemShields[1].school, "1 8", "for 1 Nature")
-BT.db.icons = true
+SetIcons(true)
 wound(1, 8)
 assertEq(last("outgoing"), "|T133762:0|t Sporid Cape 1", "its hit is named after the item, with the item's icon")
-BT.db.icons = false
+SetIcons(false)
 wound(1, 4)
 assertEq(last("outgoing"), "1", "a hit of another school isn't the cape's")
 wound(2, 8)
@@ -1626,14 +1655,14 @@ assertEq(last("notify"), "Your reputation with Stormwind has increased by 25", "
 fire("CHAT_MSG_SKILL", Secret("Your skill in Swords has increased to 12."))
 assertEq(last("notify"), "Your reputation with Stormwind has increased by 25", "hidden chat lines are skipped")
 STATE.spellIcons["First Aid"], STATE.spellIcons[2366], BT.iconCache = 135966, 136065, nil
-BT.db.icons = true
+SetIcons(true)
 fire("CHAT_MSG_SKILL", "Your skill in First Aid has increased to 12.")
 assertEq(last("notify"), "|T135966:0|t Your skill in First Aid has increased to 12", "a skill up, with its spell's icon")
 fire("CHAT_MSG_SKILL", "Your skill in Herbalism has increased to 3.")
 assertEq(last("notify"), "|T136065:0|t Your skill in Herbalism has increased to 3", "Herbalism, by its spell's ID")
 fire("CHAT_MSG_SKILL", "Your skill in Swords has increased to 12.")
 assertEq(last("notify"), "Your skill in Swords has increased to 12", "a skill with no icon")
-BT.db.icons = false
+SetIcons(false)
 fire("CHAT_MSG_SKILL", "Your skill in First Aid has increased to 13.")
 assertEq(last("notify"), "Your skill in First Aid has increased to 13", "icons off")
 STATE.spellIcons["First Aid"], STATE.spellIcons[2366], BT.iconCache = nil, nil, nil

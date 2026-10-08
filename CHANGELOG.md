@@ -4,7 +4,8 @@
 
 - **Heals have their own area**, under your character: the heals you get and the heals you do. The damage areas now show only damage. Drag the new area where you like with **Move the text areas**, or untick **Own area for heals** to put heals back with the damage.
 - **A Healing section in the options**: heals you get, heals you do (your choices carry over), **Show overhealing**, and **Hide heals below** a number.
-- **More icons**: spells that hit you or that you avoid, heals you get, and skill ups (professions like First Aid or Herbalism) now show their icon. **Spell icons** turns every icon on or off, loot included.
+- **More icons**: spells that hit you or that you avoid, heals you get, and skill ups (professions like First Aid or Herbalism) now show their icon.
+- **The options are in three columns**, with sections named after the text areas: **Outgoing**, **Incoming**, **Healing** and **Notifications**. Each has its own **Icons** box, and the combat ones a **Names** box, in place of the old "Spell icons" and "Spell names". Your old choices carry over to every section.
 
 ## 1.3.0
 

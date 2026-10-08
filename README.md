@@ -34,13 +34,13 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 
 ### Options window
 
-| Side | What's there |
+| Column | What's there |
 |---|---|
-| **Text** (left) | Show BattleText, move the text areas, spell names, spell icons, crits pop and hold, curved scrolling, scroll upward, add up rapid hits, hide the game's own numbers, minimap button, remind me to click Start, font (a dropdown of 20), outline and crit outline (none, thin or thick), text size, crit size, scroll time, scroll distance |
-| **What you do** | Damage, misses, pet, damage shields, hide hits below a number |
-| **What happens to you** | Damage, avoids, power gains |
-| **Healing** | Own area for heals, heals you get, heals you do, show overhealing, hide heals below a number |
-| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups |
+| **Text** (left) | Show BattleText, move the text areas, crits pop and hold, curved scrolling, scroll upward, add up rapid hits, hide the game's own numbers, minimap button, remind me to click Start, font (a dropdown of 20), outline and crit outline (none, thin or thick), text size, crit size, scroll time, scroll distance |
+| **Outgoing** (middle) | Damage, misses, pet, damage shields, icons, names, hide hits below a number |
+| **Incoming** | Damage, avoids, power gains, icons, names |
+| **Healing** | Own area for heals, heals you get, heals you do, show overhealing, icons, names, hide heals below a number |
+| **Notifications** (right) | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons |
 
 ### Keybindings
 

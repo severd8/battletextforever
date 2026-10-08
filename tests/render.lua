@@ -205,7 +205,7 @@ end
 fire("ADDON_LOADED", ADDON)
 fire("PLAYER_LOGIN")
 fire("PLAYER_ENTERING_WORLD")
-BT.db.icons = false   -- the drawing has no icon art
+BT.db.outIcons, BT.db.inIcons, BT.db.healIcons, BT.db.nIcons = false, false, false, false   -- the drawing has no icon art
 local REAL = {}
 for _, entry in ipairs(dofile("tests/real_lines.lua")) do REAL[entry.id] = entry.raw end
 local function log(id) fire("COMBAT_LOG_MESSAGE", assert(REAL[id], id), 1, 1, 1, 0) end
@@ -243,7 +243,7 @@ BT:SetLocked(true)
 BT.started = true
 BT:UpdateStartButton()
 
-BT.db.icons = true
+BT.db.outIcons, BT.db.inIcons, BT.db.healIcons, BT.db.nIcons = true, true, true, true
 BT:OpenConfig()
 Dump("options", BT.config)
 
