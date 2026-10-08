@@ -614,6 +614,24 @@ log(hitMe("Fireball", 133, 20, "Fire"))
 fire("UNIT_COMBAT", "player", "DODGE", "", 0, 1)
 assertEq(last("incoming"), "Dodge", "a dodge between two hits isn't swallowed")
 clear()
+-- A spell with an icon shows it, on lines about you too
+STATE.spellIcons[133], STATE.spellIcons[5185], BT.iconCache = 135812, 136041, nil
+BT.db.icons = true
+fire("UNIT_COMBAT", "player", "WOUND", "", 84, 4)
+log(hitMe("Fireball", 133, 84, "Fire"))
+assertEq(last("incoming"), "-84 |T135812:0|t Fireball", "a spell that hits you, with its icon")
+log(healMe("Healing Touch", 5185, 380))
+assertEq(last("incoming"), "+380 |T136041:0|t Healing Touch", "a heal you get, with its icon")
+BT.db.spellNames = false
+fire("UNIT_COMBAT", "player", "WOUND", "", 84, 4)
+log(hitMe("Fireball", 133, 84, "Fire"))
+assertEq(last("incoming"), "-84 |T135812:0|t", "names off: the icon alone")
+BT.db.spellNames, BT.db.icons = true, false
+fire("UNIT_COMBAT", "player", "WOUND", "", 84, 4)
+log(hitMe("Fireball", 133, 84, "Fire"))
+assertEq(last("incoming"), "-84 Fireball", "icons off: no icon anywhere")
+STATE.spellIcons[133], STATE.spellIcons[5185], BT.iconCache = nil, nil, nil
+clear()
 -- A filter that has misses too: then they come from the log, once
 log(real("swing at me fails: PARRY"))
 assertEq(last("incoming"), "Parry", "an avoided swing, from the log")
@@ -1606,6 +1624,21 @@ clear()
 fire("CHAT_MSG_COMBAT_FACTION_CHANGE", "Your reputation with Stormwind has increased by 25.")
 assertEq(last("notify"), "Your reputation with Stormwind has increased by 25", "reputation")
 fire("CHAT_MSG_SKILL", Secret("Your skill in Swords has increased to 12."))
+assertEq(last("notify"), "Your reputation with Stormwind has increased by 25", "hidden chat lines are skipped")
+STATE.spellIcons["First Aid"], STATE.spellIcons[2366], BT.iconCache = 135966, 136065, nil
+BT.db.icons = true
+fire("CHAT_MSG_SKILL", "Your skill in First Aid has increased to 12.")
+assertEq(last("notify"), "|T135966:0|t Your skill in First Aid has increased to 12", "a skill up, with its spell's icon")
+fire("CHAT_MSG_SKILL", "Your skill in Herbalism has increased to 3.")
+assertEq(last("notify"), "|T136065:0|t Your skill in Herbalism has increased to 3", "Herbalism, by its spell's ID")
+fire("CHAT_MSG_SKILL", "Your skill in Swords has increased to 12.")
+assertEq(last("notify"), "Your skill in Swords has increased to 12", "a skill with no icon")
+BT.db.icons = false
+fire("CHAT_MSG_SKILL", "Your skill in First Aid has increased to 13.")
+assertEq(last("notify"), "Your skill in First Aid has increased to 13", "icons off")
+STATE.spellIcons["First Aid"], STATE.spellIcons[2366], BT.iconCache = nil, nil, nil
+clear()
+fire("CHAT_MSG_COMBAT_FACTION_CHANGE", "Your reputation with Stormwind has increased by 25.")
 assertEq(last("notify"), "Your reputation with Stormwind has increased by 25", "hidden chat lines are skipped")
 BT.db.nCombat = false
 fire("PLAYER_REGEN_DISABLED")

@@ -205,7 +205,7 @@ function BT:BuildConfig()
     y = y - 24
     Check(f, "Spell names", x, y, "spellNames", "Show the spell's name beside the number.")
     y = y - 24
-    Check(f, "Spell icons", x, y, "icons", "Show the spell's icon beside your own spells.")
+    Check(f, "Spell icons", x, y, "icons", "Show icons beside spells and heals (yours and those on you), skill ups and loot. Untick to hide them all.")
     y = y - 24
     Check(f, "Crits pop and hold", x, y, "sticky",
         "Critical hits jump out and stay in place for a moment instead of scrolling.")

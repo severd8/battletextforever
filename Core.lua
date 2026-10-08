@@ -471,6 +471,14 @@ function BT:IconText(spell)
     return cached or ""
 end
 
+-- A spell after a number, on lines about you: " <icon> Fireball", either part
+-- left out when it's turned off or unknown
+local function SpellAfter(icon, name)
+    if name then return " " .. icon .. name end
+    if icon ~= "" then return " " .. icon:gsub(" $", "") end
+    return ""
+end
+
 -- "(3 blocked)" style notes after a number
 local function Partials(info)
     local parts = {}
@@ -547,7 +555,7 @@ function BT:ShowCombat(info)
             if mine and not self:LogDelivers("damage") then return true end
             if not mine then self:NoteLogIncoming("damage") end
             if db.inDamage then
-                local text = "-" .. Commas(info.amount) .. (name and (" " .. name) or "") .. Partials(info)
+                local text = "-" .. Commas(info.amount) .. SpellAfter(icon, name) .. Partials(info)
                 self:Emit("incoming", text, C.inDamage, { crit = info.crit or info.crushing })
             end
             return true
@@ -573,7 +581,7 @@ function BT:ShowCombat(info)
             if mine then self.lastSelfHeal = GetTime() else self:NoteLogIncoming("heal") end
             if nothing or not self:HealShown(info.amount) then return true end
             if db.inHeals then
-                self:Emit(self:HealArea("incoming"), "+" .. Commas(info.amount) .. (name and (" " .. name) or "") .. over,
+                self:Emit(self:HealArea("incoming"), "+" .. Commas(info.amount) .. SpellAfter(icon, name) .. over,
                     C.heal, { crit = info.crit })
             elseif mine and db.outHeals then
                 self:Emit(self:HealArea("outgoing"), outLabel .. "+" .. Commas(info.amount) .. over, C.heal,
@@ -593,7 +601,7 @@ function BT:ShowCombat(info)
         if info.toMe then
             if not mine then self:NoteLogIncoming("miss") end
             if db.inMisses and not mine then
-                self:Emit("incoming", word .. (name and (" " .. name) or ""), C.inAvoid)
+                self:Emit("incoming", word .. SpellAfter(icon, name), C.inAvoid)
             end
             return true
         elseif mine or pet then
@@ -1376,11 +1384,25 @@ function BT:OnLoot(message)
     self:Notify(icon .. "+" .. count .. " " .. link, self.TEXT_COLORS.loot)
 end
 
+-- Professions whose spell has another name than the skill (the rest are found by name)
+local SKILL_SPELLS = { Herbalism = 2366, Mining = 2575, Fishing = 7620 }
+
+-- A skill-up's icon: the skill's spell, when the game has one ("Your skill in Cooking has increased to 5")
+function BT:SkillIcon(message)
+    if not self.db.icons then return "" end
+    local pattern = Str(SKILL_RANK_UP) or "Your skill in %s has increased to %d."
+    pattern = pattern:gsub("([%.%(%)%-%+%*%?%[%]%^%$])", "%%%1"):gsub("%%s", "(.-)"):gsub("%%d", "%%d+")
+    local skill = message:match(pattern)
+    if not skill then return "" end
+    return self:IconText(SKILL_SPELLS[skill] or skill)
+end
+
 -- Chat lines shown as they are, minus the trailing period
 function BT:OnChatNotice(setting, message, color)
     message = Str(message)
     if not message or not self.db[setting] then return end
-    self:Notify((message:gsub("%.%s*$", "")), color)
+    local icon = setting == "nSkill" and self:SkillIcon(message) or ""
+    self:Notify(icon .. (message:gsub("%.%s*$", "")), color)
 end
 
 ---------------------------------------------------------------------------
