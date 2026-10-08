@@ -27,20 +27,25 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 ## Using it
 
 - **Your hits show as soon as you log in**: on your target, and on the mobs attacking you or your pet.
-- **Click Start BattleText** (the button at the top of the screen) once after you log in. With it, BattleText can name the ticks of your bleeds and, in a group, tell your hits from everyone else's (see Good to know). You can also bind a key to it. If you haven't clicked it ten seconds after logging in, a line in chat reminds you (untick **Remind me to click Start** in the options to stop that).
-- **Move the text.** Tick **Move the text areas** in the options (or type `/btf unlock`) and drag the four boxes where you want them. Closing the options locks them again.
+- **Click Start BattleText** (the button at the top of the screen) once after you log in. With it, BattleText can name the ticks of your bleeds and, in a group, tell your hits from everyone else's (see Good to know). You can also bind a key to it. If you haven't clicked it ten seconds after logging in, a line in chat reminds you (turn off **Remind me to click Start** in the options to stop that).
+- **Move the text.** Turn on **Move the text areas** in the options (or type `/btf unlock`) and drag the four boxes where you want them. Closing the options locks them again.
 - **See it without fighting.** Type `/btf test`, or right-click the minimap button.
 - **Open the options.** Type `/btf`, or left-click the minimap button.
 
 ### Options window
 
-| Column | What's there |
+The options have the same look as TauntMaster Forever, ToppedOff Forever and Outfitter Forever: tabs down the left and a switch for each setting.
+
+
+| Tab | What's there |
 |---|---|
-| **Text** (left) | Show BattleText, move the text areas, crits pop and hold, curved scrolling, scroll upward, add up rapid hits, hide the game's own numbers, minimap button, remind me to click Start, font (a dropdown of 20), outline and crit outline (none, thin or thick), text size, crit size, scroll time, scroll distance |
-| **Outgoing** (middle) | Damage, misses, pet, damage shields, icons, names, hide hits below a number |
+| **General** | Show BattleText, move the text areas, hide the game's own numbers, minimap button, remind me to click Start, show sample text, reset positions |
+| **Text** | Font (a list of 20), outline and crit outline (none, thin or thick), text size, crit size |
+| **Scrolling** | Curved scrolling, scroll upward, crits pop and hold, add up rapid hits, scroll time, scroll distance |
+| **Outgoing** | Damage, misses, pet, damage shields, icons, names, hide hits below a number |
 | **Incoming** | Damage, avoids, power gains, icons, names |
-| **Healing** | Own area for heals, heals you get, heals you do, show overhealing, icons, names, hide heals below a number |
-| **Notifications** (right) | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons |
+| **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, hide heals below a number |
+| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons |
 
 ### Keybindings
 

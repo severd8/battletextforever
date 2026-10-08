@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0
+
+- **A new look**, the same as TauntMaster Forever, ToppedOff Forever and Outfitter Forever: the options are a window with tabs down the left (General, Text, Scrolling, Outgoing, Incoming, Healing, Notifications) and a switch for each setting. Your settings are kept.
+- The text areas' boxes (while you move them) and the **Start BattleText** button have the shared header bar with the logo, and chat lines start with the logo and name like the other addons.
+
 ## 1.4.0
 
 - **Heals have their own area**, under your character: the heals you get and the heals you do. The damage areas now show only damage. Drag the new area where you like with **Move the text areas**, or untick **Own area for heals** to put heals back with the damage.

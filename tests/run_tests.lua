@@ -31,7 +31,7 @@ local tocFiles = {}
 for line in toc:gmatch("[^\r\n]+") do
     if not line:find("^#") and line:find("%S") then tocFiles[#tocFiles + 1] = line:match("^%s*(.-)%s*$") end
 end
-assertEq(table.concat(tocFiles, " "), "Parse.lua Core.lua Options.lua", "the files the game loads, in order")
+assertEq(table.concat(tocFiles, " "), "Theme.lua Parse.lua Core.lua Options.lua", "the files the game loads, in order")
 for _, file in ipairs(tocFiles) do assert(io.open(ADDON_DIR .. "/" .. file), "listed file is missing: " .. file) end
 assertEq(toc:match("## Interface: (%d+)"), "16001", "made for WoW: Forever")
 assert(toc:find("## SavedVariables: BattleTextForeverDB", 1, true), "settings are saved")
@@ -268,7 +268,7 @@ Advance(9.5)
 assertEq(#reminders(), 0, "nothing in the first ten seconds")
 Advance(1)
 assertEq(#reminders(), 1, "one reminder once ten seconds have passed without the Start click")
-assert(reminders()[1]:find("BattleText|r: click", 1, true), "it comes from BattleText: " .. reminders()[1])
+assert(reminders()[1]:find("|cffe8a040BattleText Forever|r: click", 1, true), "it comes from BattleText, with the shared chat prefix: " .. reminders()[1])
 assert(not reminders()[1]:find("press", 1, true), "no key is named when none is bound")
 Advance(30)
 assertEq(#reminders(), 1, "and only the one")
@@ -1867,30 +1867,55 @@ step("options window")
 BT:OpenConfig()
 assertEq(BT.config:IsShown(), true, "opens")
 assertEq(UISpecialFrames[#UISpecialFrames], "BattleTextForeverOptions", "Escape closes it")
--- Click every checkbox twice: nothing errors, and the settings end where they began
+-- The shared look: header with the logo, tabs down the left, no Blizzard templates
+local win = BT.config
+assertEq(win.logo.__texture, "Interface\\AddOns\\BattleTextForever\\Media\\Icon", "the logo in the header")
+assertEq(win.title:GetText(), "BattleText Forever", "the name beside it")
+local tabNames = {}
+for _, t in ipairs(BT.CONFIG_TABS) do
+    tabNames[#tabNames + 1] = t.label
+    assert(win.pages[t.key] and win.tabButtons[t.key], "a tab and its page: " .. t.label)
+end
+assertEq(table.concat(tabNames, ", "), "General, Text, Scrolling, Outgoing, Incoming, Healing, Notifications", "the tabs")
+assertEq(win.currentTab, "general", "it opens on General")
+win:ShowTab("healing")
+assertEq(win.pages.healing:IsShown(), true, "a tab shows its page")
+assertEq(win.pages.general:IsShown(), false, "and only its page")
+win:ShowTab("general")
+local function inWindow(f)
+    while f do if f == win then return true end f = f.__parent end
+    return false
+end
+for _, f in ipairs(ALL_FRAMES) do
+    if inWindow(f) then assertEq(f.__template, nil, "no Blizzard template in the window: " .. tostring(f.__kind)) end
+    assert(not (inWindow(f) and f.__kind == "CheckButton"), "switches, not checkboxes")
+end
+-- Click every switch twice: nothing errors, and the settings end where they began
 local before = {}
 for k, v in pairs(BT.db) do before[k] = v end
-local boxes = 0
+local switches = 0
 for _, f in ipairs(ALL_FRAMES) do
-    if f.__kind == "CheckButton" and f.__scripts.OnClick then
-        boxes = boxes + 1
+    if f.isSwitch and f.key and inWindow(f) then
+        switches = switches + 1
+        assertEq(f:IsOn(), f.key == "locked" and not BT.db.locked or (f.key ~= "locked" and BT.db[f.key] == true),
+            "a switch shows its setting: " .. f.key)
         local changed = false
-        f:SetChecked(not f:GetChecked()); f.__scripts.OnClick(f)
+        f.__scripts.OnClick(f)
         for k, v in pairs(before) do
             if type(v) == "boolean" and BT.db[k] ~= v then changed = true end
         end
-        assert(changed, "a checkbox that changes no setting")
-        f:SetChecked(not f:GetChecked()); f.__scripts.OnClick(f)
+        assert(changed, "a switch that changes no setting: " .. f.key)
+        f.__scripts.OnClick(f)
     end
 end
-assert(boxes >= 20, "the checkboxes are there")
+assertEq(switches, 35, "the switches are there")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged: " .. k) end
 end
 -- Every slider writes the setting it's labelled with
 local sliders = 0
 for _, f in ipairs(ALL_FRAMES) do
-    if f.__kind == "Slider" and f.__scripts.OnValueChanged then
+    if f.__kind == "Slider" and f.key and f.__scripts.OnValueChanged then
         sliders = sliders + 1
         local snapshot = {}
         for k, v in pairs(BT.db) do snapshot[k] = v end
@@ -1944,27 +1969,32 @@ end
 local pkgmeta = read_file(ADDON_DIR .. "/.pkgmeta")
 assert(not pkgmeta:find("Fonts", 1, true), "the Fonts folder isn't left out of the download")
 
--- The font dropdown: the game's own, listing every font with the current one ticked
+-- The font dropdown, in the shared look: it shows the font in use and opens a menu of them all
 local dropdown = BT.config.fontDropdown
-assertEq(dropdown.__kind, "DropdownButton", "the game's dropdown")
-assertEq(dropdown.__template, "WowStyle1DropdownTemplate", "in its usual style")
+local function openMenu(d)
+    MENU_OPENED = nil
+    d.__scripts.OnClick(d)
+    return MENU_OPENED
+end
 assertEq(dropdown:GetText(), "Default", "it shows the font in use")
-assertEq(#dropdown.__menu, 20, "every font is in the list")
-assertEq(dropdown.__menu.scroll, 240, "a long list scrolls")
-for i, row in ipairs(dropdown.__menu) do
+local menu = openMenu(dropdown)
+assertEq(#menu, 20, "every font is in the list")
+assertEq(menu.scroll, 240, "a long list scrolls")
+for i, row in ipairs(menu) do
     assertEq(row.text, BT.FONTS[i].name, "in order")
     assertEq(row.isSelected(), i == 1, "only the font in use is ticked")
 end
 clear()
-dropdown.__menu[12].pick()
+menu[12].pick()
 assertEq(BT.db.font, "Lato", "picking one sets the font")
+assertEq(dropdown:GetText(), "Lato", "the dropdown says so")
 assertEq(BT:FontPath(), "Interface\\AddOns\\BattleTextForever\\Fonts\\Lato-Bold.ttf", "its file")
 assertEq(last("notify"), "Lato", "and shows a line in it straight away")
 assertEq(BT.areas.notify.active[1].text.__font[1], BT:FontPath(), "in that font")
-assertEq(dropdown.__menu[12].isSelected(), true, "it's the ticked one now")
-assertEq(dropdown.__menu[1].isSelected(), false, "and the old one isn't")
+assertEq(menu[12].isSelected(), true, "it's the ticked one now")
+assertEq(menu[1].isSelected(), false, "and the old one isn't")
 SlashCmdList.BATTLETEXTFOREVER("off")
-dropdown.__menu[2].pick()
+menu[2].pick()
 assertEq(last("notify"), "Friz Quadrata", "the sample shows even with BattleText turned off")
 SlashCmdList.BATTLETEXTFOREVER("on")
 BT.db.font = "Morpheus"
@@ -1975,24 +2005,37 @@ assertEq(BT:FontPath(), STANDARD_TEXT_FONT, "an unknown font falls back to the g
 BT.db.font = "Default"
 BT:RefreshConfig()
 clear()
+-- With no menus at all, each click moves to the next font
+WithoutMenus(function()
+    BT.db.font = "Archivo Black"
+    dropdown.__scripts.OnClick(dropdown)
+    assertEq(BT.db.font, "Bangers", "the next font")
+    BT.db.font = "Ubuntu"
+    dropdown.__scripts.OnClick(dropdown)
+    assertEq(BT.db.font, "Default", "round to the start")
+    assertEq(dropdown:GetText(), "Default", "shown on the dropdown")
+end)
+clear()
 
 -- The outlines: normal lines and crits each have their own
 assertEq(BT.DEFAULTS.outline, "OUTLINE", "a thin outline by default")
 assertEq(BT.DEFAULTS.critOutline, "OUTLINE", "for crits too")
 assertEq(BT.DEFAULTS.scrollUp, false, "lines scroll down by default")
 local outlineDropdown, critDropdown = BT.config.outlineDropdown, BT.config.critOutlineDropdown
-assertEq(outlineDropdown.__kind, "DropdownButton", "the game's dropdown for the outline")
 assertEq(outlineDropdown:GetText(), "Thin", "it shows the outline in use")
-assertEq(#outlineDropdown.__menu, 3, "none, thin, thick")
+local outlineMenu, critMenu = openMenu(outlineDropdown), openMenu(critDropdown)
+assertEq(#outlineMenu, 3, "none, thin, thick")
+assertEq(outlineMenu[1].text .. outlineMenu[2].text .. outlineMenu[3].text, "NoneThinThick", "named for people")
 clear()
-critDropdown.__menu[3].pick()
+critMenu[3].pick()
 assertEq(BT.db.critOutline, "THICKOUTLINE", "picking Thick sets the crits' outline")
+assertEq(critDropdown:GetText(), "Thick", "the dropdown says so")
 assertEq(BT.db.outline, "OUTLINE", "and leaves the normal one")
 assertEq(last("notify"), "Crit", "a sample crit shows straight away")
 assertEq(BT.areas.notify.active[1].text.__font[3], "THICKOUTLINE", "with the thick outline")
-assertEq(critDropdown.__menu[3].isSelected(), true, "it's the ticked one now")
+assertEq(critMenu[3].isSelected(), true, "it's the ticked one now")
 clear()
-outlineDropdown.__menu[1].pick()
+outlineMenu[1].pick()
 assertEq(BT.db.outline, "", "picking None takes the outline away")
 assertEq(last("notify"), "Normal", "a sample line shows straight away")
 assertEq(BT.areas.notify.active[1].text.__font[3], "", "with no outline")
@@ -2005,68 +2048,42 @@ assertEq(fonts["12"], "", "a normal line uses the normal outline")
 assertEq(fonts["34"], "THICKOUTLINE", "a crit uses the crits' outline")
 BT.db.outline = "SOMETHING ODD"
 assertEq(BT:OutlineFlags(false), "OUTLINE", "an unknown outline falls back to thin")
+WithoutMenus(function()
+    BT.db.critOutline = "OUTLINE"
+    critDropdown.__scripts.OnClick(critDropdown)
+    assertEq(BT.db.critOutline, "THICKOUTLINE", "with no menus, a click steps to the next outline")
+    critDropdown.__scripts.OnClick(critDropdown)
+    assertEq(BT.db.critOutline, "", "round to the start")
+    assertEq(critDropdown:GetText(), "None", "shown on the dropdown")
+end)
 BT.db.outline, BT.db.critOutline = "OUTLINE", "OUTLINE"
 BT:RefreshConfig()
 clear()
 
 -- Closing the window locks the text areas again
-local moveBox
+local moveSwitch
 for _, f in ipairs(ALL_FRAMES) do
-    if f.__kind == "CheckButton" and f.label and f.label:GetText() == "Move the text areas" then moveBox = f end
+    if f.isSwitch and f.key == "locked" and inWindow(f) then moveSwitch = f end
 end
-assert(moveBox, "the Move the text areas box")
-moveBox:SetChecked(true); moveBox.__scripts.OnClick(moveBox)
-assertEq(BT.db.locked, false, "ticked: unlocked")
+assert(moveSwitch, "the Move the text areas switch")
+assertEq(moveSwitch.label:GetText(), "Move the text areas", "named for what it does")
+moveSwitch.__scripts.OnClick(moveSwitch)
+assertEq(BT.db.locked, false, "on: unlocked")
 assertEq(BT.areas.outgoing.mover:IsShown(), true, "with boxes to drag")
+assertEq(BT.areas.outgoing.mover.header.text:GetText(), "Outgoing", "each with the header bar and its name")
+assertEq(BT.areas.outgoing.mover.header.logo.__texture, BT.ICON, "and the logo")
 BT:OpenConfig()
 assertEq(BT.config:IsShown(), false, "closes")
 assertEq(BT.db.locked, true, "closing the window locks the text areas")
 assertEq(BT.areas.outgoing.mover:IsShown(), false, "the boxes go")
 BT:OpenConfig()
-assertEq(moveBox:GetChecked(), false, "and the box is unticked when it opens again")
-moveBox:SetChecked(true); moveBox.__scripts.OnClick(moveBox)
+assertEq(moveSwitch:IsOn(), false, "and the switch is off when it opens again")
+moveSwitch.__scripts.OnClick(moveSwitch)
 BT.config:Hide()   -- Escape, or the X
 assertEq(BT.db.locked, true, "however it's closed")
 SlashCmdList.BATTLETEXTFOREVER("unlock")
 assertEq(BT.db.locked, false, "/btf unlock still works with the window closed")
 SlashCmdList.BATTLETEXTFOREVER("lock")
-
--- A client without the game's dropdown: a button that opens the same list...
-local realConfig = BT.config
-STATE.noDropdown = true
-BT:BuildConfig()
-BT:RefreshConfig()
-local plain = BT.config.fontDropdown
-assertEq(plain.__kind, "Button", "a plain button instead")
-assertEq(plain:GetText(), "Default", "showing the font in use")
-MENU_OPENED = nil
-plain.__scripts.OnClick(plain)
-assertEq(#MENU_OPENED, 20, "its menu lists every font")
-MENU_OPENED[7].pick()
-assertEq(BT.db.font, "Archivo Black", "picking one sets the font")
-assertEq(plain:GetText(), "Archivo Black", "and the button says so")
--- ...and with no menus at all, each click moves to the next font
-WithoutMenus(function()
-    plain.__scripts.OnClick(plain)
-    assertEq(BT.db.font, "Bangers", "the next font")
-    BT.db.font = "Ubuntu"
-    plain.__scripts.OnClick(plain)
-    assertEq(BT.db.font, "Default", "round to the start")
-    assertEq(plain:GetText(), "Default", "shown on the button")
-end)
--- ...and the outline is a button that steps through None, Thin, Thick
-local plainOutline = BT.config.critOutlineDropdown
-assertEq(plainOutline.__kind, "Button", "a plain button for the outline too")
-assertEq(plainOutline:GetText(), "Thin", "showing the outline in use")
-plainOutline.__scripts.OnClick(plainOutline)
-assertEq(BT.db.critOutline, "THICKOUTLINE", "the next outline")
-plainOutline.__scripts.OnClick(plainOutline)
-assertEq(BT.db.critOutline, "", "round to the start")
-assertEq(plainOutline:GetText(), "None", "shown on the button")
-BT.db.critOutline = "OUTLINE"
-STATE.noDropdown = false
-BT.config:Hide()
-BT.config = realConfig
 clear()
 
 assertClean("by the end")

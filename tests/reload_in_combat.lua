@@ -3,7 +3,7 @@
 -- fight ends.
 local ADDON = "BattleTextForever"
 local ns = {}
-for _, file in ipairs({ "Parse.lua", "Core.lua", "Options.lua" }) do
+for _, file in ipairs({ "Theme.lua", "Parse.lua", "Core.lua", "Options.lua" }) do
     local f = assert(io.open(ADDON_DIR .. "/" .. file)) local src = f:read("*a") f:close()
     assert(loadstring(src, "@" .. file))(ADDON, ns)
 end

@@ -9,6 +9,7 @@
 ## X-License: MIT
 ## X-Category: Combat
 
+Theme.lua
 Parse.lua
 Core.lua
 Options.lua

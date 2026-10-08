@@ -7,19 +7,12 @@ local ADDON, ns = ...
 local BT = {}
 ns.BT = BT
 local Parser = ns.Parser
+-- The look is the shared one of severd8's Forever addons (Theme.lua, loaded first)
+local T = ns.Theme
 
-BT.COLORS = {
-    gold     = { 1.00, 0.85, 0.40 },
-    goldDark = { 0.85, 0.65, 0.19 },
-    navy     = { 0.06, 0.14, 0.23 },
-    dark     = { 0.07, 0.05, 0.11 },
-    crimson  = { 0.55, 0.12, 0.12 },
-}
-BT.GOLD_HEX = "ffd966"
-BT.ICON = "Interface\\AddOns\\BattleTextForever\\Media\\Icon"
+BT.ICON = T.LOGO
 BT.LOGO_TEXT = "|T" .. BT.ICON .. ":0|t"
-local PREFIX = "|cffffd966BattleText|r: "
-local function Print(msg) print(BT.LOGO_TEXT .. " " .. PREFIX .. msg) end
+local function Print(msg) print(T.CHAT_PREFIX .. ": " .. msg) end
 BT.Print = Print
 
 -- Text colors
@@ -188,25 +181,6 @@ local function Commas(n)
     return tostring(n)
 end
 
-function BT:AddBorder(f, color, size)
-    size = size or 1
-    for _, e in ipairs({ { "TOPLEFT", "TOPRIGHT", nil, size }, { "BOTTOMLEFT", "BOTTOMRIGHT", nil, size },
-        { "TOPLEFT", "BOTTOMLEFT", size, nil }, { "TOPRIGHT", "BOTTOMRIGHT", size, nil } }) do
-        local t = f:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(color[1], color[2], color[3], 1)
-        t:SetPoint(e[1])
-        t:SetPoint(e[2])
-        if e[3] then t:SetWidth(e[3]) else t:SetHeight(e[4]) end
-    end
-end
-
-function BT:SkinFrame(f, bg, border, alpha, size)
-    local t = f:CreateTexture(nil, "BACKGROUND")
-    t:SetAllPoints()
-    t:SetColorTexture(bg[1], bg[2], bg[3], alpha or 0.95)
-    self:AddBorder(f, border or self.COLORS.goldDark, size or 2)
-end
-
 ---------------------------------------------------------------------------
 -- Scroll areas and the lines moving through them
 ---------------------------------------------------------------------------
@@ -234,14 +208,17 @@ function BT:BuildAreas()
         a.key, a.def = key, def
         a.active, a.pool, a.recent = {}, {}, {}
 
-        -- Shown while unlocked: a box to drag
+        -- Shown while unlocked: a box to drag, with the header bar along its top
         local mover = CreateFrame("Frame", nil, a)
         mover:SetAllPoints()
-        self:SkinFrame(mover, self.COLORS.navy, self.COLORS.goldDark, 0.55, 1)
-        mover.label = mover:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        mover.label:SetPoint("CENTER")
-        mover.label:SetText(def.label)
-        mover.label:SetTextColor(unpack(self.COLORS.gold))
+        T.Panel(mover, 0.6)
+        mover.header = CreateFrame("Frame", nil, mover)
+        mover.header:SetPoint("TOPLEFT")
+        mover.header:SetPoint("TOPRIGHT")
+        mover.header:SetHeight(18)
+        T.HeaderStrip(mover.header, def.label)
+        mover.header:FitLogo(18)
+        mover.label = mover.header.text
         mover:EnableMouse(true)
         mover:RegisterForDrag("LeftButton")
         a:SetMovable(true)
@@ -1473,19 +1450,16 @@ function BT:BuildStartButton()
     b:SetPoint("TOP", UIParent, "TOP", 0, -140)
     b:SetFrameStrata("HIGH")
     b:RegisterForClicks("AnyUp", "AnyDown")
-    self:SkinFrame(b, self.COLORS.crimson, self.COLORS.goldDark, 0.95, 1)
-    b.icon = b:CreateTexture(nil, "ARTWORK")
-    b.icon:SetSize(18, 18)
-    b.icon:SetPoint("LEFT", 6, 0)
-    b.icon:SetTexture(self.ICON)
-    b.label = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    b.label:SetPoint("LEFT", b.icon, "RIGHT", 6, 0)
-    b.label:SetText("Start BattleText")
-    b.label:SetTextColor(unpack(self.COLORS.gold))
-    b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+    -- The shared header bar: logo, then the words in gold on red
+    T.HeaderStrip(b, "Start BattleText")
+    b:FitLogo(26)
+    b.icon, b.label = b.logo, b.text
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(1, 1, 1, 0.08)
     b:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine("Start BattleText", unpack(BT.COLORS.gold))
+        GameTooltip:AddLine("Start BattleText", T.C.gold[1], T.C.gold[2], T.C.gold[3])
         GameTooltip:AddLine("The game only writes its combat lines after the Combat Log tab has been opened once. "
             .. "This click opens it and switches back for you.", 1, 1, 1, true)
         GameTooltip:AddLine("Playing alone, your hits show without it. In a group, BattleText needs those lines to tell "
@@ -1555,7 +1529,7 @@ local REMIND_AFTER = 10
 function BT:RemindStart()
     if not (self.db.enabled and self.db.startReminder) or self.started then return end
     local key = GetBindingKey and Str(GetBindingKey("CLICK BattleTextForeverStart:LeftButton"))
-    Print("click |cffffd966Start BattleText|r at the top of your screen"
+    Print("click |cffffd100Start BattleText|r at the top of your screen"
         .. (key and (" (or press " .. key .. ")") or "")
         .. ". It names your bleed ticks and, in a group, leaves other people's hits out.")
 end
@@ -1736,12 +1710,12 @@ end
 ---------------------------------------------------------------------------
 local function Help()
     Print("commands:")
-    print("  |cffffd966/btf|r  open or close the options")
-    print("  |cffffd966/btf test|r  show sample text")
-    print("  |cffffd966/btf lock|r, |cffffd966/btf unlock|r  lock or unlock the text areas (unlock to drag them)")
-    print("  |cffffd966/btf reset|r  put the text areas back where they started")
-    print("  |cffffd966/btf on|r, |cffffd966/btf off|r  turn the text on or off")
-    print("  |cffffd966/btf debug|r  record the combat lines the game sends; |cffffd966/btf copy|r shows them (for bug reports)")
+    print("  |cffffd100/btf|r  open or close the options")
+    print("  |cffffd100/btf test|r  show sample text")
+    print("  |cffffd100/btf lock|r, |cffffd100/btf unlock|r  lock or unlock the text areas (unlock to drag them)")
+    print("  |cffffd100/btf reset|r  put the text areas back where they started")
+    print("  |cffffd100/btf on|r, |cffffd100/btf off|r  turn the text on or off")
+    print("  |cffffd100/btf debug|r  record the combat lines the game sends; |cffffd100/btf copy|r shows them (for bug reports)")
 end
 
 -- Keybinding names (Options > Keybindings > BattleText Forever)
@@ -1818,7 +1792,7 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         if C_Timer and C_Timer.NewTicker then
             C_Timer.NewTicker(3, function() BT:KeepLogFlowing() end)
         end
-        print(BT.LOGO_TEXT .. " |cffffd966BattleText Forever|r loaded. Type /btf for options.")
+        print(T.CHAT_PREFIX .. " loaded. Type /btf for options.")
         if C_Timer and C_Timer.After then
             C_Timer.After(REMIND_AFTER, function() BT:RemindStart() end)
         end

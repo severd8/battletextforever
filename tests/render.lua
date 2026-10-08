@@ -53,6 +53,12 @@ function M:CreateFontString(_, _, template)
     return f
 end
 function M:SetFontString(fs) self.__fontString = fs end
+-- A button's text is drawn by its font string
+local baseSetText = M.SetText
+function M:SetText(t)
+    baseSetText(self, t)
+    if self.__fontString then self.__fontString.__text = t end
+end
 function M:CreateTexture(_, layer)
     local t = newObj("Texture", nil, self)
     t.__layer = layer
@@ -86,6 +92,7 @@ local function load_file(path)
     local f = assert(io.open(path)) local src = f:read("*a") f:close()
     assert(loadstring(src, "@" .. path))(ADDON, ns)
 end
+load_file("Theme.lua")
 load_file("Parse.lua")
 load_file("Core.lua")
 load_file("Options.lua")
@@ -246,6 +253,10 @@ BT:UpdateStartButton()
 BT.db.outIcons, BT.db.inIcons, BT.db.healIcons, BT.db.nIcons = true, true, true, true
 BT:OpenConfig()
 Dump("options", BT.config)
+BT.config:ShowTab("text")
+Dump("options-text", BT.config)
+BT.config:ShowTab("healing")
+Dump("options-healing", BT.config)
 
 local f = assert(io.open(arg and arg[1] or "tests/render-out.json", "w"))
 f:write("[" .. table.concat(out, ",\n") .. "]")

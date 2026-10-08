@@ -1,149 +1,61 @@
--- BattleText Forever: options window.
--- Left: how the text looks. Right: what gets shown.
+-- BattleText Forever: options window (/btf), in the shared look (Theme.lua).
+-- Tabs down the left: General, then how the text looks (Text, Scrolling), then
+-- one tab per text area (Outgoing, Incoming, Healing, Notifications).
 
-local _, ns = ...
+local ADDON, ns = ...
 local BT = ns.BT
+local T = ns.Theme
+local C, Text, FlatButton, Card = T.C, T.Text, T.FlatButton, T.Card
+
+local PAGE_W = T.WINDOW.PAGE_W
+local COL2 = 270   -- the second column of a card
 
 local refreshers = {}
 local function AddRefresher(fn) table.insert(refreshers, fn) end
 
-local function Label(parent, text, x, y, template)
-    local fs = parent:CreateFontString(nil, "OVERLAY", template or "GameFontHighlight")
-    fs:SetPoint("TOPLEFT", x, y)
-    fs:SetText(text)
-    return fs
-end
-
--- Section heading in gold, with a line under it
-local function Heading(parent, text, x, y, width)
-    local fs = Label(parent, text, x, y, "GameFontNormal")
-    fs:SetTextColor(unpack(BT.COLORS.gold))
-    local line = parent:CreateTexture(nil, "ARTWORK")
-    local g = BT.COLORS.goldDark
-    line:SetColorTexture(g[1], g[2], g[3], 0.6)
-    line:SetHeight(1)
-    line:SetPoint("TOPLEFT", x, y - 16)
-    line:SetWidth(width)
-    return fs
-end
-
-local function Check(parent, text, x, y, key, tip)
-    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    cb:SetSize(24, 24)
-    cb:SetPoint("TOPLEFT", x, y)
-    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    fs:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-    fs:SetText(text)
-    cb.label = fs
-    cb:SetScript("OnClick", function(self)
-        local v = self:GetChecked() and true or false
+-- A switch bound to a setting. "locked" reads as "Move the text areas", so it's turned round.
+local function Setting(parent, text, x, y, key, tip)
+    local sw = T.LabeledSwitch(parent, text, x, y)
+    sw.key = key
+    sw:SetScript("OnClick", function(self)
+        self:SetOn(not self:IsOn())
         if key == "locked" then
-            BT:SetLocked(not v)   -- the box reads "Move the text areas"
+            BT:SetLocked(not self:IsOn())
         else
-            BT.db[key] = v
+            BT.db[key] = self:IsOn()
             BT:ApplySettings()
         end
     end)
-    if tip then
-        cb:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine(text)
-            GameTooltip:AddLine(tip, 1, 1, 1, true)
-            GameTooltip:Show()
-        end)
-        cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
-    end
+    if tip then T.Tooltip(sw, text, tip) end
     AddRefresher(function()
         local v = BT.db[key]
         if key == "locked" then v = not v end
-        cb:SetChecked(v and true or false)
+        sw:SetOn(v and true or false)
     end)
-    return cb
+    return sw
 end
 
 local function Slider(parent, text, x, y, key, min, max, suffix, step)
-    suffix = suffix or ""
-    local title = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    title:SetPoint("TOPLEFT", x, y)
-    local s = CreateFrame("Slider", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    s:SetOrientation("HORIZONTAL")
-    s:SetSize(190, 17)
-    s:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -3)
-    s:SetHitRectInsets(0, 0, -8, -8)
-    if s.SetBackdrop and BACKDROP_SLIDER_8_8 then
-        s:SetBackdrop(BACKDROP_SLIDER_8_8)   -- the game's own slider track
-    else
-        local track = s:CreateTexture(nil, "BACKGROUND")
-        local n = BT.COLORS.navy
-        track:SetColorTexture(n[1], n[2], n[3], 1)
-        track:SetHeight(6)
-        track:SetPoint("LEFT")
-        track:SetPoint("RIGHT")
-    end
-    s:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
-    s:SetMinMaxValues(min, max)
-    s:SetValueStep(step or 1)
-    s.label = text
-    local function show(v) title:SetText(text .. ": |cff" .. BT.GOLD_HEX .. v .. suffix .. "|r") end
-    s:SetScript("OnValueChanged", function(_, v)
-        step = step or 1
-        v = math.floor(v / step + 0.5) * step
-        show(v)
-        if BT.db[key] ~= v then
-            BT.db[key] = v
-            BT:ApplySettings()
-        end
-    end)
-    AddRefresher(function()
-        s:SetValue(BT.db[key])
-        show(BT.db[key])
-    end)
+    local s = T.Slider(parent, text, x, y, 244,
+        function() return BT.db[key] end,
+        function(v) BT.db[key] = v BT:ApplySettings() end, min, max, suffix, step)
+    s.label, s.key = text, key
+    AddRefresher(s.Refresh)
     return s
 end
 
-local function Button(parent, text, width, x, y, onClick)
-    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    b:SetSize(width, 22)
-    b:SetPoint("TOPLEFT", x, y)
-    b:SetText(text)
-    b:SetScript("OnClick", onClick)
-    return b
+local function Dropdown(parent, x, y, width, keys, labels, key, choose)
+    local d = T.Dropdown(parent, width, keys, labels, function() return BT.db[key] end, choose)
+    d:SetPoint("TOPLEFT", x, y)
+    d.key = key
+    AddRefresher(d.Refresh)
+    return d
 end
 
--- A dropdown of outlines for one setting (outline or critOutline). A client
--- without the game's dropdown gets a button that steps through them.
-local function OutlineChoice(parent, text, x, y, key)
-    Label(parent, text, x + 4, y)
-    local function nameOf(flags)
-        for _, o in ipairs(BT.OUTLINES) do
-            if o.flags == flags then return o.name end
-        end
-        return BT.OUTLINES[2].name
-    end
-    local made, dropdown = pcall(CreateFrame, "DropdownButton", nil, parent, "WowStyle1DropdownTemplate")
-    if made and dropdown and dropdown.SetupMenu then
-        dropdown:SetPoint("TOPLEFT", x + 110, y + 6)
-        dropdown:SetWidth(115)
-        dropdown:SetupMenu(function(_, root)
-            for _, o in ipairs(BT.OUTLINES) do
-                root:CreateRadio(o.name, function() return BT:OutlineFlags(key == "critOutline") == o.flags end,
-                    function() BT:SetOutline(key, o.flags) end)
-            end
-        end)
-        AddRefresher(function() dropdown:GenerateMenu() end)
-    else
-        dropdown = Button(parent, "", 115, x + 110, y + 4, function(self)
-            local current = BT:OutlineFlags(key == "critOutline")
-            local nextIndex = 1
-            for i, o in ipairs(BT.OUTLINES) do
-                if o.flags == current then nextIndex = (i % #BT.OUTLINES) + 1 break end
-            end
-            BT:SetOutline(key, BT.OUTLINES[nextIndex].flags)
-            self:SetText(nameOf(BT.db[key]))
-        end)
-        AddRefresher(function() dropdown:SetText(nameOf(BT.db[key])) end)
-    end
-    return dropdown
+-- The two switches the combat tabs share
+local function IconsAndNames(card, y, section, what)
+    Setting(card, "Icons", 12, y, section .. "Icons", "Show the spell's icon beside " .. what .. ".")
+    Setting(card, "Names", COL2, y, section .. "Names", "Show the spell's name beside " .. what .. ".")
 end
 
 function BT:RefreshConfig()
@@ -151,214 +63,159 @@ function BT:RefreshConfig()
     for _, fn in ipairs(refreshers) do fn() end
 end
 
-function BT:BuildConfig()
-    local f = CreateFrame("Frame", "BattleTextForeverOptions", UIParent)
-    f:SetSize(820, 620)
-    f:SetPoint("CENTER")
-    self:SkinFrame(f, self.COLORS.dark, self.COLORS.goldDark, 0.97, 2)
-    f:SetFrameStrata("DIALOG")
-    f:SetMovable(true)
-    f:EnableMouse(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    f:SetClampedToScreen(true)
-    f:Hide()
-    table.insert(UISpecialFrames, "BattleTextForeverOptions")   -- Escape closes it
-    -- Closing the window is the end of moving things about: the text areas lock
-    -- again (and "Move the text areas" is unticked the next time it opens)
-    f:SetScript("OnHide", function()
-        if not BT.db.locked then BT:SetLocked(true) end
-    end)
-
-    local banner = CreateFrame("Frame", nil, f)
-    banner:SetPoint("TOPLEFT", 2, -2)
-    banner:SetPoint("TOPRIGHT", -2, -2)
-    banner:SetHeight(28)
-    self:SkinFrame(banner, self.COLORS.crimson, self.COLORS.goldDark, 1, 1)
-    local title = banner:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("CENTER")
-    title:SetText("BattleText Forever")
-    title:SetTextColor(unpack(self.COLORS.gold))
-    local close = CreateFrame("Button", nil, banner, "UIPanelCloseButton")
-    close:SetPoint("RIGHT", 2, 0)
-    close:SetScript("OnClick", function() f:Hide() end)
-
-    local logoFrame = CreateFrame("Frame", nil, f)
-    logoFrame:SetAllPoints(f)
-    logoFrame:SetFrameLevel(banner:GetFrameLevel() + 5)
-    local logo = logoFrame:CreateTexture(nil, "OVERLAY")
-    logo:SetSize(60, 60)
-    logo:SetPoint("TOPLEFT", -18, 18)
-    logo:SetTexture(self.ICON)
-    f.logo = logo
-
-    -- Left column: how the text looks
-    local x, y = 20, -48
-    local W = 240
-    Heading(f, "Text", x, y, W)
-    y = y - 24
-    Check(f, "Show BattleText", x, y, "enabled")
-    y = y - 24
-    Check(f, "Move the text areas", x, y, "locked",
-        "Shows a box for each text area. Drag the boxes where you want them, then untick this.")
-    y = y - 24
-    Check(f, "Crits pop and hold", x, y, "sticky",
-        "Critical hits jump out and stay in place for a moment instead of scrolling.")
-    y = y - 24
-    Check(f, "Curved scrolling", x, y, "curved", "Lines bow outward as they scroll. Untick for straight lines.")
-    y = y - 24
-    Check(f, "Scroll upward", x, y, "scrollUp", "Lines start at the bottom of their area and move up. Untick to scroll down.")
-    y = y - 24
-    Check(f, "Add up rapid hits", x, y, "merge",
-        "Hits from the same spell that land together are shown as one total, like \"Swipe 150 (x3)\".")
-    y = y - 24
-    Check(f, "Hide the game's own numbers", x, y, "hideBlizzard",
-        "Turns off the game's floating combat text so numbers aren't shown twice. Untick to turn it back on.")
-    y = y - 24
-    Check(f, "Minimap button", x, y, "minimap")
-    y = y - 24
-    Check(f, "Remind me to click Start", x, y, "startReminder",
+---------------------------------------------------------------------------
+-- The pages. refs collects the widgets the window keeps a name for.
+---------------------------------------------------------------------------
+local function BuildGeneral(p, refs)
+    local card = Card(p, "BattleText", 0, 0, PAGE_W, 150)
+    Setting(card, "Show BattleText", 12, -30, "enabled")
+    Setting(card, "Move the text areas", COL2, -30, "locked",
+        "Shows a box for each text area. Drag the boxes where you want them, then turn this off. "
+        .. "Closing the options locks them again.")
+    Setting(card, "Hide the game's own numbers", 12, -56, "hideBlizzard",
+        "Turns off the game's floating combat text so numbers aren't shown twice. Turn it off to bring them back.")
+    Setting(card, "Minimap button", COL2, -56, "minimap")
+    Setting(card, "Remind me to click Start", 12, -82, "startReminder",
         "Ten seconds after you log in, a line in chat reminds you to click Start BattleText if you haven't yet.")
-    y = y - 34
+    local sample = FlatButton(card, "Show sample text", 140)
+    sample:SetPoint("TOPLEFT", 12, -114)
+    sample:SetScript("OnClick", function() BT:Test() end)
+    local reset = FlatButton(card, "Reset positions", 120)
+    reset:SetPoint("LEFT", sample, "RIGHT", 8, 0)
+    reset:SetScript("OnClick", function() BT:ResetPositions() end)
+    refs.sampleButton, refs.resetButton = sample, reset
 
-    Label(f, "Font", x + 4, y)
-    -- The list of fonts, for the game's menus: one to pick, ticked
-    local plainButton   -- set on a client without the game's dropdown
-    local function fontMenu(_, root)
-        if root.SetScrollMode then root:SetScrollMode(20 * 12) end   -- twelve rows, then it scrolls
-        for _, font in ipairs(BT.FONTS) do
-            root:CreateRadio(font.name, function() return BT.db.font == font.name end, function()
-                BT:SetFont(font.name)
-                if plainButton then plainButton:SetText(font.name) end
-            end)
-        end
-    end
-    local made, dropdown = pcall(CreateFrame, "DropdownButton", nil, f, "WowStyle1DropdownTemplate")
-    if made and dropdown and dropdown.SetupMenu then
-        -- The game's own dropdown: it shows the font that's ticked
-        dropdown:SetPoint("TOPLEFT", x + 50, y + 6)
-        dropdown:SetWidth(175)
-        dropdown:SetupMenu(fontMenu)
-        AddRefresher(function() dropdown:GenerateMenu() end)
-    else
-        -- A client without it: a button that opens the same list, or steps through the fonts
-        dropdown = Button(f, "", 175, x + 50, y + 4, function(self)
-            if MenuUtil and MenuUtil.CreateContextMenu then
-                MenuUtil.CreateContextMenu(self, fontMenu)
-                return
-            end
-            local nextIndex = 1
-            for i, font in ipairs(BT.FONTS) do
-                if font.name == BT.db.font then nextIndex = (i % #BT.FONTS) + 1 break end
-            end
-            BT:SetFont(BT.FONTS[nextIndex].name)
-            self:SetText(BT.db.font)
-        end)
-        plainButton = dropdown
-        AddRefresher(function() dropdown:SetText(BT.db.font) end)
-    end
-    f.fontDropdown = dropdown
-    y = y - 30
-    f.outlineDropdown = OutlineChoice(f, "Outline", x, y, "outline")
-    y = y - 30
-    f.critOutlineDropdown = OutlineChoice(f, "Crit outline", x, y, "critOutline")
-    y = y - 32
-    Slider(f, "Text size", x + 4, y, "fontSize", 10, 40)
-    y = y - 44
-    Slider(f, "Crit size", x + 4, y, "critScale", 100, 250, "%", 10)
-    y = y - 44
-    Slider(f, "Scroll time", x + 4, y, "scrollTime", 1, 6, " sec")
-    y = y - 44
-    Slider(f, "Scroll distance", x + 4, y, "height", 100, 500, "", 10)
-
-    Button(f, "Show sample text", 130, x, -582, function() BT:Test() end)
-    Button(f, "Reset positions", 110, x + 136, -582, function() BT:ResetPositions() end)
-
-    -- Middle column: the combat areas
-    local function IconsAndNames(section, what)
-        Check(f, "Icons", x, y, section .. "Icons", "Show the spell's icon beside " .. what .. ".")
-        Check(f, "Names", x + 120, y, section .. "Names", "Show the spell's name beside " .. what .. ".")
-        y = y - 24
-    end
-    x, y = 290, -48
-    Heading(f, "Outgoing", x, y, W)
-    y = y - 24
-    Check(f, "Damage", x, y, "outDamage")
-    Check(f, "Misses", x + 120, y, "outMisses", "Your attacks that miss or are dodged, parried, blocked or resisted.")
-    y = y - 24
-    Check(f, "Pet", x, y, "outPet",
-        "Your pet's hits, marked (Pet). This only works when the game lets BattleText read its combat lines; "
-        .. "when it doesn't, your pet's hits can't be told from yours and show with them.")
-    Check(f, "Damage shields", x + 120, y, "outShields",
-        "What your damage shields do to whoever hits you: buffs like Thorns, Lightning Shield and Retribution Aura "
-        .. "(learned from their first two hits), and gear that stings back.")
-    y = y - 24
-    IconsAndNames("out", "your hits and misses")
-    y = y - 8
-    Slider(f, "Hide hits below", x + 4, y, "minDamage", 0, 500, "", 5)
-    y = y - 46
-
-    Heading(f, "Incoming", x, y, W)
-    y = y - 24
-    Check(f, "Damage", x, y, "inDamage")
-    Check(f, "Avoids", x + 120, y, "inMisses", "Attacks you dodge, parry, block or resist.")
-    y = y - 24
-    Check(f, "Power gains", x, y, "inPower", "Mana, rage and energy you gain.")
-    y = y - 24
-    IconsAndNames("in", "spells that hit you or that you avoid (when the game says which)")
-    y = y - 12
-
-    Heading(f, "Healing", x, y, W)
-    y = y - 24
-    Check(f, "Own area for heals", x, y, "healArea",
-        "Heals scroll in their own area, under your character. Untick to show them with damage: "
-        .. "heals you get on the left, heals you do on the right.")
-    y = y - 24
-    Check(f, "Heals you get", x, y, "inHeals")
-    Check(f, "Heals you do", x + 120, y, "outHeals")
-    y = y - 24
-    Check(f, "Show overhealing", x, y, "healOver",
-        "The grey \"(40 over)\" after a heal. Only when the game lets BattleText read its combat lines.")
-    y = y - 24
-    IconsAndNames("heal", "heals")
-    y = y - 8
-    Slider(f, "Hide heals below", x + 4, y, "minHeal", 0, 500, "", 5)
-
-    -- Right column: notifications, and things to know
-    x, y = 560, -48
-    Heading(f, "Notifications", x, y, W)
-    y = y - 24
-    Check(f, "Combat", x, y, "nCombat", "Entering and leaving combat.")
-    Check(f, "Killing blows", x + 120, y, "nKill",
-        "Only when the game lets BattleText read its combat lines (it often hides them).")
-    y = y - 24
-    Check(f, "Experience", x, y, "nXP")
-    Check(f, "Reputation", x + 120, y, "nRep")
-    y = y - 24
-    Check(f, "Honor", x, y, "nHonor")
-    Check(f, "Loot", x + 120, y, "nLoot")
-    y = y - 24
-    Check(f, "Money", x, y, "nMoney")
-    Check(f, "Skill ups", x + 120, y, "nSkill")
-    y = y - 24
-    Check(f, "Icons", x, y, "nIcons", "Show the icon beside loot and skill ups (professions like First Aid).")
-    y = y - 34
-
-    Heading(f, "Good to know", x, y, W)
-    y = y - 24
-    local note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    note:SetPoint("TOPLEFT", x, y)
-    note:SetWidth(W)
-    note:SetJustifyH("LEFT")
-    note:SetWordWrap(true)
-    note:SetText("Your hits are read from the unit you hit: your target, and the mobs attacking you or your pet. "
+    local know = Card(p, "Good to know", 0, -160, PAGE_W, 150)
+    T.Note(know, "Your hits are read from the unit you hit: your target, and the mobs attacking you or your pet. "
         .. "Turn on enemy nameplates for the ones you aren't targeting.\n\n"
         .. "The game doesn't say whose hit it was: alone, your pet's hits show as yours.\n\n"
         .. "Click \"Start BattleText\" once after you log in. It lets BattleText name the ticks of your bleeds, "
-        .. "and in a group it leaves other people's hits out.")
+        .. "and in a group it leaves other people's hits out.", 12, -30, PAGE_W - 24)
+end
 
-    self.config = f
+local function BuildText(p, refs)
+    local card = Card(p, "Font", 0, 0, PAGE_W, 130)
+    local fontKeys, outlineKeys, outlineNames = {}, {}, {}
+    for _, f in ipairs(BT.FONTS) do fontKeys[#fontKeys + 1] = f.name end
+    for _, o in ipairs(BT.OUTLINES) do
+        outlineKeys[#outlineKeys + 1] = o.flags
+        outlineNames[o.flags] = o.name
+    end
+    local function outlineName(flags) return outlineNames[flags] or outlineNames.OUTLINE end
+
+    T.RowLabel(card, "Font", 12, -30)
+    refs.fontDropdown = Dropdown(card, 140, -30, 220, fontKeys, function(k) return k end, "font",
+        function(name) BT:SetFont(name) end)
+    refs.fontDropdown.menuScroll = 20 * 12   -- twelve rows, then it scrolls
+    T.RowLabel(card, "Outline", 12, -60)
+    refs.outlineDropdown = Dropdown(card, 140, -60, 220, outlineKeys, outlineName, "outline",
+        function(flags) BT:SetOutline("outline", flags) end)
+    T.RowLabel(card, "Crit outline", 12, -90)
+    refs.critOutlineDropdown = Dropdown(card, 140, -90, 220, outlineKeys, outlineName, "critOutline",
+        function(flags) BT:SetOutline("critOutline", flags) end)
+
+    local size = Card(p, "Size", 0, -140, PAGE_W, 84)
+    Slider(size, "Text size", 12, -30, "fontSize", 10, 40)
+    Slider(size, "Crit size", COL2, -30, "critScale", 100, 250, "%", 10)
+end
+
+local function BuildScrolling(p)
+    local card = Card(p, "Scrolling", 0, 0, PAGE_W, 150)
+    Setting(card, "Curved scrolling", 12, -30, "curved", "Lines bow outward as they scroll. Turn off for straight lines.")
+    Setting(card, "Scroll upward", COL2, -30, "scrollUp",
+        "Lines start at the bottom of their area and move up. Turn off to scroll down.")
+    Setting(card, "Crits pop and hold", 12, -56, "sticky",
+        "Critical hits jump out and stay in place for a moment instead of scrolling.")
+    Setting(card, "Add up rapid hits", COL2, -56, "merge",
+        "Hits from the same spell that land together are shown as one total, like \"Swipe 150 (x3)\".")
+    Slider(card, "Scroll time", 12, -90, "scrollTime", 1, 6, " sec")
+    Slider(card, "Scroll distance", COL2, -90, "height", 100, 500, "", 10)
+end
+
+local function BuildOutgoing(p)
+    local card = Card(p, "What you do", 0, 0, PAGE_W, 170)
+    Setting(card, "Damage", 12, -30, "outDamage")
+    Setting(card, "Misses", COL2, -30, "outMisses", "Your attacks that miss or are dodged, parried, blocked or resisted.")
+    Setting(card, "Pet", 12, -56, "outPet",
+        "Your pet's hits, marked (Pet). This only works when the game lets BattleText read its combat lines; "
+        .. "when it doesn't, your pet's hits can't be told from yours and show with them.")
+    Setting(card, "Damage shields", COL2, -56, "outShields",
+        "What your damage shields do to whoever hits you: buffs like Thorns, Lightning Shield and Retribution Aura "
+        .. "(learned from their first two hits), and gear that stings back.")
+    IconsAndNames(card, -82, "out", "your hits and misses")
+    Slider(card, "Hide hits below", 12, -116, "minDamage", 0, 500, "", 5)
+end
+
+local function BuildIncoming(p)
+    local card = Card(p, "What happens to you", 0, 0, PAGE_W, 116)
+    Setting(card, "Damage", 12, -30, "inDamage")
+    Setting(card, "Avoids", COL2, -30, "inMisses", "Attacks you dodge, parry, block or resist.")
+    Setting(card, "Power gains", 12, -56, "inPower", "Mana, rage and energy you gain.")
+    IconsAndNames(card, -82, "in", "spells that hit you or that you avoid (when the game says which)")
+end
+
+local function BuildHealing(p)
+    local card = Card(p, "Heals", 0, 0, PAGE_W, 170)
+    Setting(card, "Own area for heals", 12, -30, "healArea",
+        "Heals scroll in their own area, under your character. Turn off to show them with damage: "
+        .. "heals you get on the left, heals you do on the right.")
+    Setting(card, "Show overhealing", COL2, -30, "healOver",
+        "The grey \"(40 over)\" after a heal. Only when the game lets BattleText read its combat lines.")
+    Setting(card, "Heals you get", 12, -56, "inHeals")
+    Setting(card, "Heals you do", COL2, -56, "outHeals")
+    IconsAndNames(card, -82, "heal", "heals")
+    Slider(card, "Hide heals below", 12, -116, "minHeal", 0, 500, "", 5)
+end
+
+local function BuildNotifications(p)
+    local card = Card(p, "Notifications", 0, 0, PAGE_W, 168)
+    Setting(card, "Combat", 12, -30, "nCombat", "Entering and leaving combat.")
+    Setting(card, "Killing blows", COL2, -30, "nKill",
+        "Only when the game lets BattleText read its combat lines (it often hides them).")
+    Setting(card, "Experience", 12, -56, "nXP")
+    Setting(card, "Reputation", COL2, -56, "nRep")
+    Setting(card, "Honor", 12, -82, "nHonor")
+    Setting(card, "Loot", COL2, -82, "nLoot")
+    Setting(card, "Money", 12, -108, "nMoney")
+    Setting(card, "Skill ups", COL2, -108, "nSkill")
+    Setting(card, "Icons", 12, -134, "nIcons", "Show the icon beside loot and skill ups (professions like First Aid).")
+end
+
+-- Tab icons are the game's own icon files
+local TABS = {
+    { key = "general",  label = "General",       icon = "Interface\\Icons\\INV_Misc_Gear_01",                build = BuildGeneral },
+    { key = "text",     label = "Text",          icon = "Interface\\Icons\\INV_Misc_Note_01",                build = BuildText },
+    { key = "scroll",   label = "Scrolling",     icon = "Interface\\Icons\\INV_Misc_Spyglass_03",            build = BuildScrolling },
+    { key = "outgoing", label = "Outgoing",      icon = "Interface\\Icons\\INV_Sword_04",                    build = BuildOutgoing },
+    { key = "incoming", label = "Incoming",      icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance", build = BuildIncoming },
+    { key = "healing",  label = "Healing",       icon = "Interface\\Icons\\Spell_Holy_Heal",                 build = BuildHealing },
+    { key = "notify",   label = "Notifications", icon = "Interface\\Icons\\INV_Misc_Bag_08",                 build = BuildNotifications },
+}
+BT.CONFIG_TABS = TABS
+
+function BT:BuildConfig()
+    local refs = {}
+    local tabs = {}
+    for _, t in ipairs(TABS) do
+        tabs[#tabs + 1] = { key = t.key, label = t.label, icon = t.icon, build = function(body) t.build(body, refs) end }
+    end
+    local win = T.Window({
+        name = "BattleTextForeverOptions",
+        tabs = tabs,
+        hint = "/btf to open  -  /btf test for sample text",
+        version = function()
+            local get = C_AddOns and C_AddOns.GetAddOnMetadata
+            local v = get and get(ADDON, "Version")
+            if type(v) == "string" and not v:find("@", 1, true) then return (v:gsub("^v", "")) end
+        end,
+        -- Closing the window is the end of moving things about: the text areas lock
+        -- again (and "Move the text areas" is off the next time it opens)
+        onHide = function()
+            if not BT.db.locked then BT:SetLocked(true) end
+        end,
+    })
+    for k, v in pairs(refs) do win[k] = v end
+    self.config = win
 end
 
 function BT:OpenConfig()
@@ -375,50 +232,68 @@ end
 -- /btf copy: the lines recorded by /btf debug, in a box they can be copied
 -- from (chat can't be copied)
 ---------------------------------------------------------------------------
+local COPY_W, COPY_H, COPY_HEADER = 640, 380, 40
+
 function BT:OpenCopyWindow()
     local f = self.copyWindow
     if not f then
         f = CreateFrame("Frame", "BattleTextForeverCopy", UIParent)
-        f:SetSize(640, 380)
+        f:SetSize(COPY_W, COPY_H)
         f:SetPoint("CENTER")
-        self:SkinFrame(f, self.COLORS.dark, self.COLORS.goldDark, 0.97, 2)
         f:SetFrameStrata("DIALOG")
+        f:SetToplevel(true)
         f:EnableMouse(true)
         f:Hide()
         table.insert(UISpecialFrames, "BattleTextForeverCopy")   -- Escape closes it
+        T.Fill(f, C.win)
+        T.Border(f, C.edge)
 
-        local banner = CreateFrame("Frame", nil, f)
-        banner:SetPoint("TOPLEFT", 2, -2)
-        banner:SetPoint("TOPRIGHT", -2, -2)
-        banner:SetHeight(28)
-        self:SkinFrame(banner, self.COLORS.crimson, self.COLORS.goldDark, 1, 1)
-        local title = banner:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        title:SetPoint("CENTER")
-        title:SetText("Combat lines: press Ctrl+C to copy, then paste into your report")
-        title:SetTextColor(unpack(self.COLORS.gold))
-        local close = CreateFrame("Button", nil, banner, "UIPanelCloseButton")
-        close:SetPoint("RIGHT", 2, 0)
+        local header = CreateFrame("Frame", nil, f)
+        header:SetPoint("TOPLEFT", 1, -1)
+        header:SetPoint("TOPRIGHT", -1, -1)
+        header:SetHeight(COPY_HEADER)
+        local hbg = header:CreateTexture(nil, "BACKGROUND")
+        hbg:SetAllPoints()
+        T.HeaderGradient(hbg)
+        local logo = header:CreateTexture(nil, "ARTWORK")
+        logo:SetSize(26, 26)
+        logo:SetPoint("LEFT", 10, 0)
+        logo:SetTexture(T.LOGO)
+        local title = Text(header, "Combat lines: press Ctrl+C to copy, then paste into your report",
+            "GameFontNormal", C.title)
+        title:SetPoint("LEFT", logo, "RIGHT", 8, 0)
+        local close = FlatButton(header, "X", 24, 24)
+        close:SetPoint("RIGHT", -8, 0)
         close:SetScript("OnClick", function() f:Hide() end)
 
-        local scroll = CreateFrame("ScrollFrame", nil, f, "UIPanelScrollFrameTemplate")
-        scroll:SetPoint("TOPLEFT", 12, -40)
-        scroll:SetPoint("BOTTOMRIGHT", -32, 12)
-        local edit = CreateFrame("EditBox", nil, scroll)
+        local box = CreateFrame("Frame", nil, f)
+        box:SetPoint("TOPLEFT", 12, -(COPY_HEADER + 10))
+        box:SetPoint("BOTTOMRIGHT", -12, 12)
+        T.Fill(box, C.field)
+        T.Border(box, C.fieldEdge)
+        local scroll = T.ScrollArea(box, COPY_H - COPY_HEADER - 22)
+        local edit = CreateFrame("EditBox", nil, scroll.child)
+        edit:SetPoint("TOPLEFT", 6, -6)
         edit:SetMultiLine(true)
         edit:SetAutoFocus(false)
         edit:SetFontObject("ChatFontNormal")
-        edit:SetWidth(590)
+        edit:SetWidth(COPY_W - 60)
         edit:SetScript("OnEscapePressed", function() f:Hide() end)
-        scroll:SetScrollChild(edit)
-        f.edit = edit
+        f.edit, f.scroll = edit, scroll
         self.copyWindow = f
     end
     local text = "Nothing recorded yet. Type /btf debug, fight for a moment, then /btf copy."
+    local count = 1
     if self.recorded and #self.recorded > 0 then
         -- "|" doubled, so the links show as text instead of turning into links
         text = (table.concat(self.recorded, "\n"):gsub("|", "||"))
+        count = #self.recorded
     end
     f.edit:SetText(text)
+    -- Long lines wrap, so leave room for about two rows each
+    local height = count * 28 + 12
+    f.edit:SetHeight(height)
+    f.scroll:SetContent(COPY_W - 48, height)
     f:Show()
     f.edit:SetFocus()
     f.edit:HighlightText()
