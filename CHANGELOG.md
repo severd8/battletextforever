@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0
+
+- **Scroll upward.** A new option makes the lines start at the bottom of their area and move up, instead of down.
+- **Outline thickness**, for normal lines and crits separately: None, Thin or Thick. Picking one shows a sample line in it straight away.
+
 ## 1.2.4
 
 - **A reminder to click Start.** Ten seconds after you log in or reload, if you haven't clicked **Start BattleText** yet, a line in chat reminds you (and names the key, if you've bound one). Turn it off with **Remind me to click Start** in the options.

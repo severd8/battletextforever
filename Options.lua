@@ -110,6 +110,42 @@ local function Button(parent, text, width, x, y, onClick)
     return b
 end
 
+-- A dropdown of outlines for one setting (outline or critOutline). A client
+-- without the game's dropdown gets a button that steps through them.
+local function OutlineChoice(parent, text, x, y, key)
+    Label(parent, text, x + 4, y)
+    local function nameOf(flags)
+        for _, o in ipairs(BT.OUTLINES) do
+            if o.flags == flags then return o.name end
+        end
+        return BT.OUTLINES[2].name
+    end
+    local made, dropdown = pcall(CreateFrame, "DropdownButton", nil, parent, "WowStyle1DropdownTemplate")
+    if made and dropdown and dropdown.SetupMenu then
+        dropdown:SetPoint("TOPLEFT", x + 110, y + 6)
+        dropdown:SetWidth(115)
+        dropdown:SetupMenu(function(_, root)
+            for _, o in ipairs(BT.OUTLINES) do
+                root:CreateRadio(o.name, function() return BT:OutlineFlags(key == "critOutline") == o.flags end,
+                    function() BT:SetOutline(key, o.flags) end)
+            end
+        end)
+        AddRefresher(function() dropdown:GenerateMenu() end)
+    else
+        dropdown = Button(parent, "", 115, x + 110, y + 4, function(self)
+            local current = BT:OutlineFlags(key == "critOutline")
+            local nextIndex = 1
+            for i, o in ipairs(BT.OUTLINES) do
+                if o.flags == current then nextIndex = (i % #BT.OUTLINES) + 1 break end
+            end
+            BT:SetOutline(key, BT.OUTLINES[nextIndex].flags)
+            self:SetText(nameOf(BT.db[key]))
+        end)
+        AddRefresher(function() dropdown:SetText(nameOf(BT.db[key])) end)
+    end
+    return dropdown
+end
+
 function BT:RefreshConfig()
     if not self.config then return end
     for _, fn in ipairs(refreshers) do fn() end
@@ -117,7 +153,7 @@ end
 
 function BT:BuildConfig()
     local f = CreateFrame("Frame", "BattleTextForeverOptions", UIParent)
-    f:SetSize(560, 606)
+    f:SetSize(560, 672)
     f:SetPoint("CENTER")
     self:SkinFrame(f, self.COLORS.dark, self.COLORS.goldDark, 0.97, 2)
     f:SetFrameStrata("DIALOG")
@@ -176,6 +212,8 @@ function BT:BuildConfig()
     y = y - 24
     Check(f, "Curved scrolling", x, y, "curved", "Lines bow outward as they scroll. Untick for straight lines.")
     y = y - 24
+    Check(f, "Scroll upward", x, y, "scrollUp", "Lines start at the bottom of their area and move up. Untick to scroll down.")
+    y = y - 24
     Check(f, "Add up rapid hits", x, y, "merge",
         "Hits from the same spell that land together are shown as one total, like \"Swipe 150 (x3)\".")
     y = y - 24
@@ -225,6 +263,10 @@ function BT:BuildConfig()
         AddRefresher(function() dropdown:SetText(BT.db.font) end)
     end
     f.fontDropdown = dropdown
+    y = y - 30
+    f.outlineDropdown = OutlineChoice(f, "Outline", x, y, "outline")
+    y = y - 30
+    f.critOutlineDropdown = OutlineChoice(f, "Crit outline", x, y, "critOutline")
     y = y - 32
     Slider(f, "Text size", x + 4, y, "fontSize", 10, 40)
     y = y - 44
@@ -234,8 +276,8 @@ function BT:BuildConfig()
     y = y - 44
     Slider(f, "Scroll distance", x + 4, y, "height", 100, 500, "", 10)
 
-    Button(f, "Show sample text", 130, x, -568, function() BT:Test() end)
-    Button(f, "Reset positions", 110, x + 136, -568, function() BT:ResetPositions() end)
+    Button(f, "Show sample text", 130, x, -634, function() BT:Test() end)
+    Button(f, "Reset positions", 110, x + 136, -634, function() BT:ResetPositions() end)
 
     -- Right column: what gets shown
     x, y = 300, -48

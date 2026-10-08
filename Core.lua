@@ -59,6 +59,9 @@ local DEFAULTS = {
     scrollTime = 3,           -- seconds a line takes to cross its area
     height = 240,             -- how far a line travels
     curved = true,            -- lines bow outward as they scroll
+    scrollUp = false,         -- lines scroll up instead of down
+    outline = "OUTLINE",      -- the outline round normal lines (one of BT.OUTLINES)
+    critOutline = "OUTLINE",  -- and round crits
     sticky = true,            -- crits pop and hold in place
     spellNames = true,
     icons = true,
@@ -107,6 +110,13 @@ BT.FONTS = {
     { name = "Rajdhani", path = FONT_DIR .. "Rajdhani-Bold.ttf" },
     { name = "Russo One", path = FONT_DIR .. "RussoOne-Regular.ttf" },
     { name = "Ubuntu", path = FONT_DIR .. "Ubuntu-Bold.ttf" },
+}
+
+-- How thick the outline round the letters is: the game's font flags
+BT.OUTLINES = {
+    { name = "None", flags = "" },
+    { name = "Thin", flags = "OUTLINE" },
+    { name = "Thick", flags = "THICKOUTLINE" },
 }
 
 -- Scroll areas. dir: which way a curved line bows (-1 left, 1 right, 0 none).
@@ -181,6 +191,15 @@ function BT:FontPath()
         if f.name == self.db.font and f.path then return f.path end
     end
     return Str(STANDARD_TEXT_FONT) or "Fonts\\FRIZQT__.TTF"
+end
+
+-- The font flags for a line: crits have their own outline
+function BT:OutlineFlags(crit)
+    local flags = crit and self.db.critOutline or self.db.outline
+    for _, o in ipairs(self.OUTLINES) do
+        if o.flags == flags then return flags end
+    end
+    return "OUTLINE"
 end
 
 function BT:BuildAreas()
@@ -301,8 +320,9 @@ function BT:Emit(areaKey, text, color, opts)
     local o = AcquireLine(a)
     local size = self.db.fontSize
     if opts.crit then size = math.floor(size * self.db.critScale / 100 + 0.5) end
-    if not o.text:SetFont(self:FontPath(), size, "OUTLINE") and STANDARD_TEXT_FONT then
-        o.text:SetFont(STANDARD_TEXT_FONT, size, "OUTLINE")
+    local flags = self:OutlineFlags(opts.crit)
+    if not o.text:SetFont(self:FontPath(), size, flags) and STANDARD_TEXT_FONT then
+        o.text:SetFont(STANDARD_TEXT_FONT, size, flags)
     end
     if IsSecret(opts.secret) then   -- (never compare a secret, even with nil: that throws)
         o.text:SetFormattedText("%s%s%s", text, opts.secret, opts.after or "")
@@ -389,7 +409,7 @@ function BT:Animate(now)
                     if t < 0.15 then scale = 1 + 0.7 * (1 - t / 0.15) end
                     if t > o.duration - 0.4 then alpha = (o.duration - t) / 0.4 end
                 else
-                    y = -p * h
+                    y = self.db.scrollUp and -(1 - p) * h or -p * h
                     if self.db.curved and a.def.dir ~= 0 then
                         x = a.def.dir * AREA_WIDTH * (1 - (2 * p - 1) ^ 2)
                     end
@@ -1507,6 +1527,15 @@ function BT:SetFont(name)
     self.testing = false
 end
 
+-- Picking an outline shows a line with it straight away (a crit for the crits' one)
+function BT:SetOutline(key, flags)
+    self.db[key] = flags
+    self.testing = true
+    self:Emit("notify", key == "critOutline" and "Crit" or "Normal", self.TEXT_COLORS.notify,
+        { crit = key == "critOutline" })
+    self.testing = false
+end
+
 function BT:SetLocked(locked)
     self.db.locked = locked
     self:ApplyAreas()
@@ -1554,7 +1583,7 @@ function BT:Test()
         function() self:Notify("Killing blow!", C.combat, { crit = true }) end,
     }
     -- Shown even while BattleText is turned off, and whatever is ticked in the options
-    local LOOKS = { sticky = true, curved = true, icons = true, spellNames = true, merge = true }
+    local LOOKS = { sticky = true, curved = true, scrollUp = true, icons = true, spellNames = true, merge = true }
     local function show(fn)
         local saved = self.db
         self.db = setmetatable({}, { __index = function(_, k)

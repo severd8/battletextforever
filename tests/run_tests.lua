@@ -1486,6 +1486,15 @@ BT.db.curved = false
 Advance(0.1)
 assertEq(act[1].__pos[1], 0, "straight when curves are off")
 BT.db.curved = true
+local downY = act[1].__pos[2]
+BT.db.scrollUp = true
+BT:Animate(GetTime())
+local upY = act[1].__pos[2]
+assert(upY < downY, "scrolling up: the line starts low in its area")
+Advance(0.5)
+assert(act[1].__pos[2] > upY, "and moves up")
+assert(act[1].__pos[1] > 0, "still bowing outward")
+BT.db.scrollUp = false
 Advance(5)
 assertEq(#BT.areas.outgoing.active, 0, "gone after their time")
 -- A burst of different things at once: nothing waits long, and no two lines
@@ -1857,6 +1866,39 @@ BT.db.font = "Default"
 BT:RefreshConfig()
 clear()
 
+-- The outlines: normal lines and crits each have their own
+assertEq(BT.DEFAULTS.outline, "OUTLINE", "a thin outline by default")
+assertEq(BT.DEFAULTS.critOutline, "OUTLINE", "for crits too")
+assertEq(BT.DEFAULTS.scrollUp, false, "lines scroll down by default")
+local outlineDropdown, critDropdown = BT.config.outlineDropdown, BT.config.critOutlineDropdown
+assertEq(outlineDropdown.__kind, "DropdownButton", "the game's dropdown for the outline")
+assertEq(outlineDropdown:GetText(), "Thin", "it shows the outline in use")
+assertEq(#outlineDropdown.__menu, 3, "none, thin, thick")
+clear()
+critDropdown.__menu[3].pick()
+assertEq(BT.db.critOutline, "THICKOUTLINE", "picking Thick sets the crits' outline")
+assertEq(BT.db.outline, "OUTLINE", "and leaves the normal one")
+assertEq(last("notify"), "Crit", "a sample crit shows straight away")
+assertEq(BT.areas.notify.active[1].text.__font[3], "THICKOUTLINE", "with the thick outline")
+assertEq(critDropdown.__menu[3].isSelected(), true, "it's the ticked one now")
+clear()
+outlineDropdown.__menu[1].pick()
+assertEq(BT.db.outline, "", "picking None takes the outline away")
+assertEq(last("notify"), "Normal", "a sample line shows straight away")
+assertEq(BT.areas.notify.active[1].text.__font[3], "", "with no outline")
+clear()
+BT:Emit("outgoing", "12", { 1, 1, 1 })
+BT:Emit("outgoing", "34", { 1, 1, 1 }, { crit = true })
+local fonts = {}
+for _, o in ipairs(BT.areas.outgoing.active) do fonts[o.text:GetText()] = o.text.__font[3] end
+assertEq(fonts["12"], "", "a normal line uses the normal outline")
+assertEq(fonts["34"], "THICKOUTLINE", "a crit uses the crits' outline")
+BT.db.outline = "SOMETHING ODD"
+assertEq(BT:OutlineFlags(false), "OUTLINE", "an unknown outline falls back to thin")
+BT.db.outline, BT.db.critOutline = "OUTLINE", "OUTLINE"
+BT:RefreshConfig()
+clear()
+
 -- Closing the window locks the text areas again
 local moveBox
 for _, f in ipairs(ALL_FRAMES) do
@@ -1902,6 +1944,16 @@ WithoutMenus(function()
     assertEq(BT.db.font, "Default", "round to the start")
     assertEq(plain:GetText(), "Default", "shown on the button")
 end)
+-- ...and the outline is a button that steps through None, Thin, Thick
+local plainOutline = BT.config.critOutlineDropdown
+assertEq(plainOutline.__kind, "Button", "a plain button for the outline too")
+assertEq(plainOutline:GetText(), "Thin", "showing the outline in use")
+plainOutline.__scripts.OnClick(plainOutline)
+assertEq(BT.db.critOutline, "THICKOUTLINE", "the next outline")
+plainOutline.__scripts.OnClick(plainOutline)
+assertEq(BT.db.critOutline, "", "round to the start")
+assertEq(plainOutline:GetText(), "None", "shown on the button")
+BT.db.critOutline = "OUTLINE"
 STATE.noDropdown = false
 BT.config:Hide()
 BT.config = realConfig
