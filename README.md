@@ -4,14 +4,15 @@
 
 **Scrolling combat text for World of Warcraft: Forever.**
 
-BattleText Forever puts the fight on your screen: your hits and heals scroll on one side, the damage you take on the other, and loot and experience in the middle. It's built for Forever's addon rules, in the spirit of the classic scrolling combat text addons.
+BattleText Forever puts the fight on your screen: your hits scroll on one side, the damage you take on the other, heals under your character, and loot and experience in the middle. It's built for Forever's addon rules, in the spirit of the classic scrolling combat text addons.
 
 ---
 
 ## Features
 
-- **Your hits and heals**, tinted by school, with the spell's name and icon when the game lets BattleText tell which spell it was. Crits are bigger and hold in place for a moment, and rapid hits of one spell add up ("Swipe 135 (x3)").
-- **What happens to you**, in its own area: damage and heals you take, and the attacks you dodge, parry, block or resist.
+- **Your hits**, tinted by school, with the spell's name and icon when the game lets BattleText tell which spell it was. Crits are bigger and hold in place for a moment, and rapid hits of one spell add up ("Swipe 135 (x3)").
+- **What happens to you**, in its own area: the damage you take, and the attacks you dodge, parry, block or resist.
+- **Heals**, the ones you get and the ones you do, in their own Healing area under your character (or with the damage, if you prefer).
 - **Notifications**: combat, experience, reputation, honor, loot, money and skill ups.
 - **Three text areas** you can drag anywhere on screen.
 - **Your look**: 20 fonts to pick from, text and crit size, scroll speed and distance, straight or curved scrolling.
@@ -36,8 +37,9 @@ BattleText Forever puts the fight on your screen: your hits and heals scroll on 
 | Side | What's there |
 |---|---|
 | **Text** (left) | Show BattleText, move the text areas, spell names, spell icons, crits pop and hold, curved scrolling, scroll upward, add up rapid hits, hide the game's own numbers, minimap button, remind me to click Start, font (a dropdown of 20), outline and crit outline (none, thin or thick), text size, crit size, scroll time, scroll distance |
-| **What you do** | Damage, heals, misses, pet, damage shields, hide hits below a number |
-| **What happens to you** | Damage, heals, avoids, power gains |
+| **What you do** | Damage, misses, pet, damage shields, hide hits below a number |
+| **What happens to you** | Damage, avoids, power gains |
+| **Healing** | Own area for heals, heals you get, heals you do, show overhealing, hide heals below a number |
 | **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups |
 
 ### Keybindings

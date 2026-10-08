@@ -237,6 +237,11 @@ for _, name in ipairs(bindingNames) do
     if button then assert(_G[button] and _G[button].__protected, "the keybinding's button exists and is secure: " .. button) end
 end
 assertClean("after logging in")
+assert(BT.areas.heal, "and a fourth for heals")
+assertEq(BT.db.healArea, true, "heals have their own area by default")
+-- The older checks read heals where they were before the Healing area: on the
+-- left (on you) and on the right (yours). The Healing area has its own steps.
+BT.db.healArea = false
 
 -- A combat log line reaches addons only when the game is writing them: its
 -- filter is loaded and the lines are turned on
@@ -540,6 +545,39 @@ log(real("heal on myself, all overheal"))
 assertEq(#lines("incoming"), 0, "a heal that was all overhealing isn't shown")
 Advance(1)
 
+step("the Healing area")
+BT.db.healArea = true
+log(real("heal on a friend"))
+assertEq(last("heal"), "Rejuvenation +61", "a heal you do")
+assertEq(#lines("outgoing"), 0, "isn't with your hits")
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 8)
+Advance(0.3)
+assertEq(last("heal"), "+120", "a heal you get")
+assertEq(#lines("incoming"), 0, "isn't with the damage you take")
+log(real("heal on a friend, overheal, crit"))
+assertEq(last("heal"), "Flash Heal +1,034 |cffb0b0b0(200 over)|r", "overhealing is noted")
+BT.db.healOver = false
+log(real("heal on a friend, overheal, crit"))
+assertEq(last("heal"), "Flash Heal +1,034", "unless it's turned off")
+BT.db.healOver = true
+local before = #lines("heal")
+BT.db.minHeal = 100
+log(real("heal on a friend"))
+fire("UNIT_COMBAT", "player", "HEAL", "", 50, 8)
+Advance(0.3)
+assertEq(#lines("heal"), before, "heals below \"Hide heals below\" are hidden, given or got")
+BT.db.minHeal = 0
+BT.db.inHeals = false
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 8)
+Advance(0.3)
+assertEq(#lines("heal"), before, "heals you get can be turned off")
+BT.db.inHeals = true
+local area = BT.areas.heal
+assertEq(BT:AreaHeight(area), math.floor(BT.db.height * 0.6), "a shorter area than the damage ones")
+assertEq(BT:ScrollTime(area), BT.db.scrollTime, "scrolling at the usual pace")
+BT.db.healArea = false
+clear()
+
 step("a friend's heal isn't shown twice when the log starts covering heals")
 fire("UNIT_COMBAT", "player", "HEAL", "", 300, 2)
 log(real("a friend's heal on me"))
@@ -710,6 +748,16 @@ assertEq(#lines("outgoing"), 2, "heals turned off")
 BT.db.outHeals = true
 fire("UNIT_COMBAT", "target", "HEAL", "", 0, 2)
 assertEq(#lines("outgoing"), 2, "a heal for nothing isn't shown")
+BT.db.healArea = true
+fire("UNIT_COMBAT", "target", "HEAL", "", 130, 2)
+assertEq(last("heal"), "+130", "with the Healing area on, a heal on a friend goes there")
+assertEq(#lines("outgoing"), 2, "and not with your hits")
+BT.db.minHeal = 200
+fire("UNIT_COMBAT", "target", "HEAL", "", 150, 2)
+assertEq(#lines("heal"), 1, "heals below \"Hide heals below\" are hidden")
+fire("UNIT_COMBAT", "target", "HEAL", "", Secret(90), 2)
+assertEq(last("heal"), "<secret fmt>", "a hidden amount can't be compared, so it shows")
+BT.db.minHeal, BT.db.healArea = 0, false
 STATE.who.target = "mobA"
 Advance(0.1)
 fire("UNIT_COMBAT", "mouseover", "HEAL", "", 120, 2)
@@ -1793,13 +1841,13 @@ for _, f in ipairs(ALL_FRAMES) do
         do
             assertEq(BT.db[moved[1]], f.__max, "slider set " .. moved[1])
             assert(f.label and f.label:lower():find(({ fontSize = "text size", critScale = "crit size",
-                scrollTime = "scroll time", height = "scroll distance", minDamage = "hide hits below" })[moved[1]], 1, true),
+                scrollTime = "scroll time", height = "scroll distance", minDamage = "hide hits below", minHeal = "hide heals below" })[moved[1]], 1, true),
                 "slider label matches its setting: " .. tostring(f.label) .. " -> " .. moved[1])
             f.__scripts.OnValueChanged(f, snapshot[moved[1]])
         end
     end
 end
-assertEq(sliders, 5, "five sliders")
+assertEq(sliders, 6, "six sliders")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged after the sliders: " .. k) end
 end

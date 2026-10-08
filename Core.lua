@@ -67,6 +67,9 @@ local DEFAULTS = {
     icons = true,
     merge = true,             -- rapid hits of one spell add up on one line
     minDamage = 0,            -- hide your hits below this
+    healArea = true,          -- heals (yours and on you) scroll in their own area
+    healOver = true,          -- show overhealing after a heal, when the game says
+    minHeal = 0,              -- hide heals below this
     outDamage = true, outHeals = true, outMisses = true, outPet = true, outShields = true,
     shieldAmounts = {},       -- learned: what each damage shield of yours hits for (by its name)
     inDamage = true, inHeals = true, inMisses = true, inPower = false,
@@ -81,6 +84,7 @@ local DEFAULTS = {
         incoming = { x = -230, y = 20 },
         outgoing = { x = 230, y = 20 },
         notify = { x = 0, y = 170 },
+        heal = { x = 0, y = -190 },
     },
 }
 BT.DEFAULTS = DEFAULTS
@@ -124,6 +128,7 @@ BT.AREAS = {
     incoming = { label = "Incoming", dir = -1, justify = "RIGHT" },
     outgoing = { label = "Outgoing", dir = 1, justify = "LEFT" },
     notify   = { label = "Notifications", dir = 0, justify = "CENTER", short = true },
+    heal     = { label = "Healing", dir = 0, justify = "CENTER", heightScale = 0.6 },
 }
 local AREA_WIDTH = 60        -- how far a curved line bows out
 local MAX_DELAY = 1.2        -- a line never waits longer than this for room
@@ -239,7 +244,9 @@ function BT:BuildAreas()
 end
 
 function BT:AreaHeight(a)
-    return a.def.short and math.floor(self.db.height * 0.45) or self.db.height
+    if a.def.short then return math.floor(self.db.height * 0.45) end
+    if a.def.heightScale then return math.floor(self.db.height * a.def.heightScale) end
+    return self.db.height
 end
 
 -- Seconds a line takes to cross an area
@@ -292,6 +299,16 @@ local function ReleaseLine(a, o)
     o:Hide()
     o.key = nil
     a.pool[#a.pool + 1] = o
+end
+
+-- Where a heal goes: the Healing area when it's turned on, else the area given
+function BT:HealArea(areaKey)
+    return self.db.healArea and "heal" or areaKey
+end
+
+-- Whether a heal of n is big enough to show (a hidden amount always is)
+function BT:HealShown(n)
+    return type(n) ~= "number" or n >= (self.db.minHeal or 0)
 end
 
 -- Puts a line of text into an area.
@@ -550,22 +567,24 @@ function BT:ShowCombat(info)
         end
     elseif info.kind == "heal" then
         if not info.amount then return false end
-        local over = info.overheal and (" |cffb0b0b0(" .. Commas(info.overheal) .. " over)|r") or ""
+        local over = (db.healOver and info.overheal) and (" |cffb0b0b0(" .. Commas(info.overheal) .. " over)|r") or ""
         local nothing = info.amount == 0 and info.overheal   -- all of it was overhealing
         if info.toMe then
             if mine then self.lastSelfHeal = GetTime() else self:NoteLogIncoming("heal") end
-            if nothing then return true end
+            if nothing or not self:HealShown(info.amount) then return true end
             if db.inHeals then
-                self:Emit("incoming", "+" .. Commas(info.amount) .. (name and (" " .. name) or "") .. over, C.heal,
-                    { crit = info.crit })
+                self:Emit(self:HealArea("incoming"), "+" .. Commas(info.amount) .. (name and (" " .. name) or "") .. over,
+                    C.heal, { crit = info.crit })
             elseif mine and db.outHeals then
-                self:Emit("outgoing", outLabel .. "+" .. Commas(info.amount) .. over, C.heal, { crit = info.crit })
+                self:Emit(self:HealArea("outgoing"), outLabel .. "+" .. Commas(info.amount) .. over, C.heal,
+                    { crit = info.crit })
             end
             return true
         elseif mine or pet then
             if pet and not db.outPet then return true end
-            if db.outHeals and not nothing then
-                self:Emit("outgoing", outLabel .. "+" .. Commas(info.amount) .. over, C.heal, { crit = info.crit })
+            if db.outHeals and not nothing and self:HealShown(info.amount) then
+                self:Emit(self:HealArea("outgoing"), outLabel .. "+" .. Commas(info.amount) .. over, C.heal,
+                    { crit = info.crit })
             end
             return true
         end
@@ -653,9 +672,9 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
             if BT.lastSelfHeal and GetTime() - BT.lastSelfHeal < 0.6 then return end
             if BT:LogDelivers("heal") then return end   -- the log's line for it arrived meanwhile
             if secret then
-                BT:Emit("incoming", "+", C.heal, { crit = crit, secret = amount })
-            elseif n and n > 0 then
-                BT:Emit("incoming", "+" .. Commas(n), C.heal, { crit = crit })
+                BT:Emit(BT:HealArea("incoming"), "+", C.heal, { crit = crit, secret = amount })
+            elseif n and n > 0 and BT:HealShown(n) then
+                BT:Emit(BT:HealArea("incoming"), "+" .. Commas(n), C.heal, { crit = crit })
             end
         end
         if C_Timer and C_Timer.After then C_Timer.After(0.25, show) else show() end
@@ -1198,9 +1217,10 @@ function BT:ShowUnitHit(h, what, spell)
     elseif h.kind == "heal" then
         if not db.outHeals then return "heals are turned off" end
         if h.secret then
-            self:Emit("outgoing", label .. "+", C.heal, { crit = h.crit, secret = h.amount })
+            self:Emit(self:HealArea("outgoing"), label .. "+", C.heal, { crit = h.crit, secret = h.amount })
         else
-            self:Emit("outgoing", label .. "+" .. Commas(h.n), C.heal, { crit = h.crit })
+            if not self:HealShown(h.n) then return "below \"Hide heals below\"" end
+            self:Emit(self:HealArea("outgoing"), label .. "+" .. Commas(h.n), C.heal, { crit = h.crit })
         end
     else
         if not db.outMisses then return "misses are turned off" end
@@ -1574,7 +1594,8 @@ function BT:Test()
         function() self:ShowCombat({ kind = "damage", fromMe = true, spell = "Claw", amount = 50, unit = "Physical" }) end,
         function() self:Emit("incoming", "-34", C.inDamage) end,
         function() self:ShowCombat({ kind = "damage", fromMe = true, spell = "Moonfire", amount = 112, unit = "Arcane", crit = true }) end,
-        function() self:Emit("incoming", "+120 Rejuvenation", C.heal) end,
+        function() self:Emit(self:HealArea("incoming"), "+120 Rejuvenation", C.heal) end,
+        function() self:ShowCombat({ kind = "heal", fromMe = true, spell = "Healing Touch", amount = 214 }) end,
         function() self:ShowCombat({ kind = "miss", fromMe = true, melee = true, missType = "DODGE" }) end,
         function() self:Emit("incoming", "-58", C.inDamage, { crit = true }) end,
         function() self:Notify("+103 XP", C.xp) end,
@@ -1583,11 +1604,11 @@ function BT:Test()
         function() self:Notify("Killing blow!", C.combat, { crit = true }) end,
     }
     -- Shown even while BattleText is turned off, and whatever is ticked in the options
-    local LOOKS = { sticky = true, curved = true, scrollUp = true, icons = true, spellNames = true, merge = true }
+    local LOOKS = { sticky = true, curved = true, scrollUp = true, healArea = true, healOver = true, icons = true, spellNames = true, merge = true }
     local function show(fn)
         local saved = self.db
         self.db = setmetatable({}, { __index = function(_, k)
-            if k == "minDamage" then return 0 end
+            if k == "minDamage" or k == "minHeal" then return 0 end
             local v = saved[k]
             if type(v) == "boolean" and not LOOKS[k] then return true end
             return v

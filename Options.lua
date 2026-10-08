@@ -153,7 +153,7 @@ end
 
 function BT:BuildConfig()
     local f = CreateFrame("Frame", "BattleTextForeverOptions", UIParent)
-    f:SetSize(560, 672)
+    f:SetSize(560, 700)
     f:SetPoint("CENTER")
     self:SkinFrame(f, self.COLORS.dark, self.COLORS.goldDark, 0.97, 2)
     f:SetFrameStrata("DIALOG")
@@ -276,36 +276,48 @@ function BT:BuildConfig()
     y = y - 44
     Slider(f, "Scroll distance", x + 4, y, "height", 100, 500, "", 10)
 
-    Button(f, "Show sample text", 130, x, -634, function() BT:Test() end)
-    Button(f, "Reset positions", 110, x + 136, -634, function() BT:ResetPositions() end)
+    Button(f, "Show sample text", 130, x, -662, function() BT:Test() end)
+    Button(f, "Reset positions", 110, x + 136, -662, function() BT:ResetPositions() end)
 
     -- Right column: what gets shown
     x, y = 300, -48
     Heading(f, "What you do", x, y, W)
     y = y - 24
     Check(f, "Damage", x, y, "outDamage")
-    Check(f, "Heals", x + 120, y, "outHeals")
+    Check(f, "Misses", x + 120, y, "outMisses", "Your attacks that miss or are dodged, parried, blocked or resisted.")
     y = y - 24
-    Check(f, "Misses", x, y, "outMisses", "Your attacks that miss or are dodged, parried, blocked or resisted.")
-    Check(f, "Pet", x + 120, y, "outPet",
+    Check(f, "Pet", x, y, "outPet",
         "Your pet's hits, marked (Pet). This only works when the game lets BattleText read its combat lines; "
         .. "when it doesn't, your pet's hits can't be told from yours and show with them.")
-    y = y - 24
-    Check(f, "Damage shields", x, y, "outShields",
+    Check(f, "Damage shields", x + 120, y, "outShields",
         "What your damage shields do to whoever hits you: buffs like Thorns, Lightning Shield and Retribution Aura "
         .. "(learned from their first two hits), and gear that stings back.")
     y = y - 32
     Slider(f, "Hide hits below", x + 4, y, "minDamage", 0, 500, "", 5)
-    y = y - 50
+    y = y - 46
 
     Heading(f, "What happens to you", x, y, W)
     y = y - 24
     Check(f, "Damage", x, y, "inDamage")
-    Check(f, "Heals", x + 120, y, "inHeals")
+    Check(f, "Avoids", x + 120, y, "inMisses", "Attacks you dodge, parry, block or resist.")
     y = y - 24
-    Check(f, "Avoids", x, y, "inMisses", "Attacks you dodge, parry, block or resist.")
-    Check(f, "Power gains", x + 120, y, "inPower", "Mana, rage and energy you gain.")
+    Check(f, "Power gains", x, y, "inPower", "Mana, rage and energy you gain.")
     y = y - 36
+
+    Heading(f, "Healing", x, y, W)
+    y = y - 24
+    Check(f, "Own area for heals", x, y, "healArea",
+        "Heals scroll in their own area, under your character. Untick to show them with damage: "
+        .. "heals you get on the left, heals you do on the right.")
+    y = y - 24
+    Check(f, "Heals you get", x, y, "inHeals")
+    Check(f, "Heals you do", x + 120, y, "outHeals")
+    y = y - 24
+    Check(f, "Show overhealing", x, y, "healOver",
+        "The grey \"(40 over)\" after a heal. Only when the game lets BattleText read its combat lines.")
+    y = y - 32
+    Slider(f, "Hide heals below", x + 4, y, "minHeal", 0, 500, "", 5)
+    y = y - 46
 
     Heading(f, "Notifications", x, y, W)
     y = y - 24
@@ -321,7 +333,7 @@ function BT:BuildConfig()
     y = y - 24
     Check(f, "Money", x, y, "nMoney")
     Check(f, "Skill ups", x + 120, y, "nSkill")
-    y = y - 40
+    y = y - 34
 
     Heading(f, "Good to know", x, y, W)
     y = y - 24

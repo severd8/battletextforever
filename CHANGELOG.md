@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.0
+
+- **Heals have their own area**, under your character: the heals you get and the heals you do. The damage areas now show only damage. Drag the new area where you like with **Move the text areas**, or untick **Own area for heals** to put heals back with the damage.
+- **A Healing section in the options**: heals you get, heals you do (your choices carry over), **Show overhealing**, and **Hide heals below** a number.
+
 ## 1.3.0
 
 - **Scroll upward.** A new option makes the lines start at the bottom of their area and move up, instead of down.
