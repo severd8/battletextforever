@@ -25,6 +25,7 @@ Scrolling combat text for **World of Warcraft: Forever** (interface 16001, clien
 - Icons and spell names are set per section: `outIcons`/`outNames` (your hits and misses), `inIcons`/`inNames` (what happens to you), `healIcons`/`healNames` (every heal), `nIcons` (loot and skill ups). `SpellParts(section, icon, name)` applies them; `IconText` itself no longer looks at a setting. The old `icons` and `spellNames` are split into these on load (`MoveOldSettings`). A skill up's icon is its spell, found by the skill's name (`SKILL_SPELLS` for the ones named differently, like Herbalism).
 - Heals: with `db.healArea` (on by default) every heal goes to the `heal` area (`HealArea`), else to `incoming` (on you) or `outgoing` (yours) as before. The area is 0.6 of the scroll distance (`heightScale`) and scrolls at the usual pace. `db.healOver` shows overhealing, `db.minHeal` hides small heals (`HealShown`; a hidden amount always shows). The older tests turn `healArea` off and read heals where they were; "the Healing area" step covers it.
 - `Fonts/` — 15 open fonts, unmodified, as static `.ttf` files (from the google/fonts repository), with each one's licence in `Fonts/Licenses/` (`<Family>-OFL.txt`, `-UFL.txt` or `-Apache.txt`; the licences require the text to ship with the font). `BT.FONTS` in `Core.lua` lists them after "Default" and the game's four. A test checks every listed file and its licence exist.
+- `CURSEFORGE.md` — the CurseForge project description, pasted by hand (not shipped).
 - `Bindings.xml` — keybindings (loaded automatically): `CLICK BattleTextForeverStart:LeftButton` and `BATTLETEXTFOREVER_OPTIONS`.
 - `Media/Icon.tga` — the logo mark (64×64 TGA). `art/` — logo sources (not shipped): `logo.svg`, `logo.png` (CurseForge and README), `icon.svg`.
 - `tests/` — offline tests and the layout renderer (not shipped).
@@ -166,6 +167,7 @@ Only testable in game:
 ## Releasing
 
 1. Make the change, run the tests, and add a new section at the top of `CHANGELOG.md` (e.g. `## 1.0.1`).
+   If the change shows on the CurseForge project page (features, options, commands), update `CURSEFORGE.md` too (the README, adjusted: no logo, a short install note, full links) and give the whole file to paste into the project's description. The packager only uploads `CHANGELOG.md` with each file; the description never changes on its own.
 2. Commit and push to `main`. The **Tests** workflow must be green.
 3. Create the tag in GitHub Desktop (History tab → right-click the commit → Create Tag → e.g. `v1.0.1` → Push origin). Tags containing `beta` or `alpha` upload as Beta/Alpha files.
 4. The **Package and release** workflow runs the tests again, then uploads to CurseForge. Check the Actions tab for a green check and the CurseForge Files page (new files go through CurseForge review).
