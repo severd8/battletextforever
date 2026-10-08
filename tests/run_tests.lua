@@ -1876,7 +1876,7 @@ for _, t in ipairs(BT.CONFIG_TABS) do
     tabNames[#tabNames + 1] = t.label
     assert(win.pages[t.key] and win.tabButtons[t.key], "a tab and its page: " .. t.label)
 end
-assertEq(table.concat(tabNames, ", "), "General, Text, Scrolling, Outgoing, Incoming, Healing, Notifications", "the tabs")
+assertEq(table.concat(tabNames, ", "), "General, Text, Scrolling, Outgoing, Incoming, Healing, Notifications, Colors", "the tabs")
 assertEq(win.currentTab, "general", "it opens on General")
 win:ShowTab("healing")
 assertEq(win.pages.healing:IsShown(), true, "a tab shows its page")
@@ -1908,7 +1908,7 @@ for _, f in ipairs(ALL_FRAMES) do
         f.__scripts.OnClick(f)
     end
 end
-assertEq(switches, 35, "the switches are there")
+assertEq(switches, 37, "the switches are there")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged: " .. k) end
 end
@@ -1919,22 +1919,25 @@ for _, f in ipairs(ALL_FRAMES) do
         sliders = sliders + 1
         local snapshot = {}
         for k, v in pairs(BT.db) do snapshot[k] = v end
-        f.__scripts.OnValueChanged(f, f.__max)
+        local target = BT.db[f.key] == f.__max and f.__min or f.__max
+        f.__scripts.OnValueChanged(f, target)
         local moved = {}
         for k, v in pairs(snapshot) do
             if type(v) == "number" and BT.db[k] ~= v then moved[#moved + 1] = k end
         end
         assertEq(#moved, 1, "a slider changes exactly one setting")
         do
-            assertEq(BT.db[moved[1]], f.__max, "slider set " .. moved[1])
+            assertEq(BT.db[moved[1]], target, "slider set " .. moved[1])
             assert(f.label and f.label:lower():find(({ fontSize = "text size", critScale = "crit size",
-                scrollTime = "scroll time", height = "scroll distance", minDamage = "hide hits below", minHeal = "hide heals below" })[moved[1]], 1, true),
+                scrollTime = "scroll time", height = "scroll distance", minDamage = "hide hits below", minHeal = "hide heals below",
+                outSize = "text size", inSize = "text size", healSize = "text size", nSize = "text size",
+                outAlpha = "opacity", inAlpha = "opacity", healAlpha = "opacity", nAlpha = "opacity" })[moved[1]], 1, true),
                 "slider label matches its setting: " .. tostring(f.label) .. " -> " .. moved[1])
             f.__scripts.OnValueChanged(f, snapshot[moved[1]])
         end
     end
 end
-assertEq(sliders, 6, "six sliders")
+assertEq(sliders, 14, "fourteen sliders: six, and each area's size and opacity")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged after the sliders: " .. k) end
 end
@@ -2085,6 +2088,111 @@ SlashCmdList.BATTLETEXTFOREVER("unlock")
 assertEq(BT.db.locked, false, "/btf unlock still works with the window closed")
 SlashCmdList.BATTLETEXTFOREVER("lock")
 clear()
+
+step("colors, each area's look, short numbers")
+BT.db.healArea = true
+-- Colors: a change shows on the next line, and Reset puts them back
+local colorSwatch
+for _, f in ipairs(ALL_FRAMES) do if f.key == "heal" and f.fill then colorSwatch = f end end
+assert(colorSwatch, "a swatch for heals")
+STATE.picked = { 0.1, 0.2, 0.9 }
+colorSwatch.__scripts.OnClick(colorSwatch)
+assert(ColorPickerFrame.shown, "clicking it opens the game's color picker")
+ColorPickerFrame.info.swatchFunc()
+assertEq(BT.db.colors.heal[3], 0.9, "the pick is saved")
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 8)
+Advance(0.3)
+local healed = BT.areas.heal.active[#BT.areas.heal.active]
+assert(isColor(healed, { 0.1, 0.2, 0.9 }), "and a heal shows in it")
+ColorPickerFrame.info.cancelFunc()
+assertEq(BT.db.colors.heal, nil, "cancel puts back what it was")
+assertEq(BT.TEXT_COLORS.heal[2], BT.DEFAULT_COLORS.heal[2], "the starting color")
+BT:SetColor("inDamage", 0.5, 0.5, 0.5)
+assertEq(BT.TEXT_COLORS.inDamage[1], 0.5, "any color can change")
+for _, f in ipairs(ALL_FRAMES) do
+    if f.__kind == "Button" and f:GetText() == "Reset colors" then f.__scripts.OnClick(f) end
+end
+assertEq(next(BT.db.colors), nil, "Reset colors forgets them all")
+assertEq(BT.TEXT_COLORS.inDamage[1], BT.DEFAULT_COLORS.inDamage[1], "back to how they started")
+clear()
+-- Each area's own size and opacity
+BT.db.healSize, BT.db.healAlpha = 50, 40
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 8)
+Advance(1)
+local healLine = BT.areas.heal.active[#BT.areas.heal.active]
+assertEq(healLine.size, math.floor(BT.db.fontSize * 0.5 + 0.5), "the Healing area's text at half size")
+assert(healLine.__alpha <= 0.4 + 1e-9, "and at its opacity (got " .. tostring(healLine.__alpha) .. ")")
+fire("UNIT_COMBAT", "player", "WOUND", "", 30, 1)
+Advance(1)
+assertEq(BT.areas.incoming.active[#BT.areas.incoming.active].size, BT.db.fontSize, "other areas keep theirs")
+BT.db.healSize, BT.db.healAlpha = 100, 100
+clear()
+-- Short numbers
+BT.db.shortNumbers = true
+fire("UNIT_COMBAT", "player", "WOUND", "", 12345, 1)
+assertEq(last("incoming"), "-12.3k", "12,345 in short")
+fire("UNIT_COMBAT", "player", "WOUND", "", 2000000, 1)
+assertEq(last("incoming"), "-2m", "a round million without the .0")
+fire("UNIT_COMBAT", "player", "WOUND", "", 9999, 1)
+assertEq(last("incoming"), "-9,999", "under ten thousand stays as it is")
+BT.db.shortNumbers = false
+clear()
+
+step("who you healed")
+STATE.who.target = "friend"
+STATE.unit.friend.name = "Mage"
+fire("UNIT_COMBAT", "target", "HEAL", "", 120, 2)
+assertEq(last("heal"), "+120 |cffc9f7ccMage|r", "the name after a heal you do")
+STATE.unit.friend.secretName = true
+fire("UNIT_COMBAT", "target", "HEAL", "", 121, 2)
+assertEq(last("heal"), "+121", "a hidden name is left out")
+STATE.unit.friend.secretName = nil
+BT.db.healWho = false
+fire("UNIT_COMBAT", "target", "HEAL", "", 122, 2)
+assertEq(last("heal"), "+122", "and none when it's turned off")
+BT.db.healWho = true
+STATE.unit.friend.name = nil
+STATE.who.target = nil
+BT.db.healArea = false
+clear()
+
+step("settings for this character only")
+assertEq(BT:OwnSettings(), false, "shared settings to begin with")
+local shared = BattleTextForeverDB
+BT.db.fontSize = 22
+BT:SetOwnSettings(true)
+assertEq(BattleTextForeverCharDB.own, true, "this character has its own now")
+assert(BT.db ~= shared, "in a table of its own")
+assertEq(BT.db.fontSize, 22, "starting from a copy of the shared ones")
+BT.db.fontSize = 30
+assertEq(shared.fontSize, 22, "changing them leaves the shared ones alone")
+BT.db.areas.heal.x = 99
+assertEq(shared.areas.heal.x, 0, "even inside tables")
+BT:SetOwnSettings(false)
+assert(BT.db == shared, "turned off: back to the shared ones")
+assertEq(BT.db.fontSize, 22, "as they were")
+BT:SetOwnSettings(true)
+assertEq(BT.db.fontSize, 22, "turning it on again starts from a fresh copy")
+BT:SetOwnSettings(false)
+shared.fontSize = 20
+BT:ApplySettings()
+assertClean("after switching settings")
+
+step("/btf check")
+LOG = {}
+local problems, report = BT:CheckGameData()
+assert(#report > 20, "it checks every spell, skill, text and icon (" .. #report .. ")")
+local missing = 0
+for _, l in ipairs(report) do if l:find("^PROBLEM") then missing = missing + 1 end end
+assertEq(problems, missing, "the count matches the report")
+assert(table.concat(LOG, "\n"):find("/btf copy", 1, true) or problems == 0, "it says where the full report is")
+STATE.missingFiles = { ["Interface\\Icons\\Spell_Holy_Heal"] = true }
+local before2 = problems
+problems, report = BT:CheckGameData()
+assertEq(problems, before2 + 1, "a missing icon is a problem")
+assert(table.concat(report, "\n"):find("PROBLEM icon Interface\\Icons\\Spell_Holy_Heal", 1, true), "named in the report")
+STATE.missingFiles = nil
+assert(BT.recorded and #BT.recorded == #report, "/btf copy shows the report")
 
 assertClean("by the end")
 print("ALL TESTS PASSED")

@@ -58,6 +58,50 @@ local function IconsAndNames(card, y, section, what)
     Setting(card, "Names", COL2, y, section .. "Names", "Show the spell's name beside " .. what .. ".")
 end
 
+-- Each area's own text size and opacity
+local function AreaLook(p, y, prefix)
+    local card = Card(p, "This area", 0, y, PAGE_W, 84)
+    Slider(card, "Text size", 12, -30, prefix .. "Size", 50, 200, "%", 5)
+    Slider(card, "Opacity", COL2, -30, prefix .. "Alpha", 10, 100, "%", 5)
+end
+
+-- A color square that opens the game's color picker
+local function Swatch(parent, text, x, y, key)
+    local b = CreateFrame("Button", nil, parent)
+    b:SetSize(30, 16)
+    b:SetPoint("TOPLEFT", x, y)
+    b.fill = T.Fill(b, { 1, 1, 1, 1 }, "ARTWORK")
+    T.Border(b, C.edge)
+    b.label = Text(parent, text, "GameFontHighlight")
+    b.label:SetPoint("TOPLEFT", b, "TOPRIGHT", 8, 1)
+    b.key = key
+    local function paint()
+        local c = BT.TEXT_COLORS[key]
+        b.fill:SetColorTexture(c[1], c[2], c[3], 1)
+    end
+    b:SetScript("OnClick", function()
+        local picker = ColorPickerFrame
+        if not (picker and picker.SetupColorPickerAndShow) then return end
+        local c = BT.TEXT_COLORS[key]
+        local before = BT.db.colors[key]
+        picker:SetupColorPickerAndShow({
+            r = c[1], g = c[2], b = c[3], hasOpacity = false,
+            swatchFunc = function()
+                local r, g, bl = picker:GetColorRGB()
+                BT:SetColor(key, r, g, bl)
+                paint()
+            end,
+            cancelFunc = function()
+                if before then BT:SetColor(key, before[1], before[2], before[3]) else BT:SetColor(key) end
+                paint()
+            end,
+        })
+    end)
+    T.Tooltip(b, text, "Click to pick a color.")
+    AddRefresher(paint)
+    return b
+end
+
 function BT:RefreshConfig()
     if not self.config then return end
     for _, fn in ipairs(refreshers) do fn() end
@@ -77,6 +121,16 @@ local function BuildGeneral(p, refs)
     Setting(card, "Minimap button", COL2, -56, "minimap")
     Setting(card, "Remind me to click Start", 12, -82, "startReminder",
         "Ten seconds after you log in, a line in chat reminds you to click Start BattleText if you haven't yet.")
+    local own = T.LabeledSwitch(card, "Settings for this character only", COL2, -82)
+    own:SetScript("OnClick", function(self)
+        self:SetOn(not self:IsOn())
+        BT:SetOwnSettings(self:IsOn())
+    end)
+    T.Tooltip(own, "Settings for this character only",
+        "On: this character keeps its own settings, starting from a copy of the shared ones. "
+        .. "Off: it uses the settings every character shares.")
+    AddRefresher(function() own:SetOn(BT:OwnSettings()) end)
+    refs.ownSwitch = own
     local sample = FlatButton(card, "Show sample text", 140)
     sample:SetPoint("TOPLEFT", 12, -114)
     sample:SetScript("OnClick", function() BT:Test() end)
@@ -90,7 +144,7 @@ local function BuildGeneral(p, refs)
         .. "Turn on enemy nameplates for the ones you aren't targeting.\n\n"
         .. "The game doesn't say whose hit it was: alone, your pet's hits show as yours.\n\n"
         .. "Click \"Start BattleText\" once after you log in. It lets BattleText name the ticks of your bleeds, "
-        .. "and in a group it leaves other people's hits out.", 12, -30, PAGE_W - 24)
+        .. "and in a group it leaves other people's hits out.", 12, -34, PAGE_W - 24)
 end
 
 local function BuildText(p, refs)
@@ -114,9 +168,10 @@ local function BuildText(p, refs)
     refs.critOutlineDropdown = Dropdown(card, 140, -90, 220, outlineKeys, outlineName, "critOutline",
         function(flags) BT:SetOutline("critOutline", flags) end)
 
-    local size = Card(p, "Size", 0, -140, PAGE_W, 84)
+    local size = Card(p, "Size", 0, -140, PAGE_W, 112)
     Slider(size, "Text size", 12, -30, "fontSize", 10, 40)
     Slider(size, "Crit size", COL2, -30, "critScale", 100, 250, "%", 10)
+    Setting(size, "Short numbers", 12, -82, "shortNumbers", "Big numbers in short: 12,345 shows as 12.3k, 1,234,567 as 1.2m.")
 end
 
 local function BuildScrolling(p)
@@ -144,6 +199,7 @@ local function BuildOutgoing(p)
         .. "(learned from their first two hits), and gear that stings back.")
     IconsAndNames(card, -82, "out", "your hits and misses")
     Slider(card, "Hide hits below", 12, -116, "minDamage", 0, 500, "", 5)
+    AreaLook(p, -180, "out")
 end
 
 local function BuildIncoming(p)
@@ -152,10 +208,11 @@ local function BuildIncoming(p)
     Setting(card, "Avoids", COL2, -30, "inMisses", "Attacks you dodge, parry, block or resist.")
     Setting(card, "Power gains", 12, -56, "inPower", "Mana, rage and energy you gain.")
     IconsAndNames(card, -82, "in", "spells that hit you or that you avoid (when the game says which)")
+    AreaLook(p, -126, "in")
 end
 
 local function BuildHealing(p)
-    local card = Card(p, "Heals", 0, 0, PAGE_W, 170)
+    local card = Card(p, "Heals", 0, 0, PAGE_W, 196)
     Setting(card, "Own area for heals", 12, -30, "healArea",
         "Heals scroll in their own area, under your character. Turn off to show them with damage: "
         .. "heals you get on the left, heals you do on the right.")
@@ -164,7 +221,10 @@ local function BuildHealing(p)
     Setting(card, "Heals you get", 12, -56, "inHeals")
     Setting(card, "Heals you do", COL2, -56, "outHeals")
     IconsAndNames(card, -82, "heal", "heals")
-    Slider(card, "Hide heals below", 12, -116, "minHeal", 0, 500, "", 5)
+    Setting(card, "Show who you healed", 12, -108, "healWho",
+        "The name of the player you healed, after the number. Only when the game lets BattleText read it.")
+    Slider(card, "Hide heals below", 12, -142, "minHeal", 0, 500, "", 5)
+    AreaLook(p, -206, "heal")
 end
 
 local function BuildNotifications(p)
@@ -179,6 +239,25 @@ local function BuildNotifications(p)
     Setting(card, "Money", 12, -108, "nMoney")
     Setting(card, "Skill ups", COL2, -108, "nSkill")
     Setting(card, "Icons", 12, -134, "nIcons", "Show the icon beside loot and skill ups (professions like First Aid).")
+    AreaLook(p, -178, "n")
+end
+
+local function BuildColors(p)
+    local rows = math.ceil(#BT.COLOR_CHOICES / 2)
+    local card = Card(p, "Colors", 0, 0, PAGE_W, 40 + rows * 26 + 34)
+    for i, choice in ipairs(BT.COLOR_CHOICES) do
+        local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
+        Swatch(card, choice[2], col == 0 and 12 or COL2, -30 - row * 26, choice[1])
+    end
+    local reset = FlatButton(card, "Reset colors", 120)
+    reset:SetPoint("TOPLEFT", 12, -36 - rows * 26)
+    reset:SetScript("OnClick", function()
+        wipe(BT.db.colors)
+        BT:ApplyColors()
+        BT:RefreshConfig()
+    end)
+    T.Note(p, "Spells that do Holy, Fire, Nature, Frost, Shadow or Arcane damage keep their school's color.",
+        0, -(40 + rows * 26 + 44), PAGE_W)
 end
 
 -- Tab icons are the game's own icon files
@@ -190,6 +269,7 @@ local TABS = {
     { key = "incoming", label = "Incoming",      icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance", build = BuildIncoming },
     { key = "healing",  label = "Healing",       icon = "Interface\\Icons\\Spell_Holy_Heal",                 build = BuildHealing },
     { key = "notify",   label = "Notifications", icon = "Interface\\Icons\\INV_Misc_Bag_08",                 build = BuildNotifications },
+    { key = "colors",   label = "Colors",       icon = "Interface\\Icons\\INV_Misc_Gem_Variety_01",         build = BuildColors },
 }
 BT.CONFIG_TABS = TABS
 

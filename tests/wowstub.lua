@@ -266,6 +266,15 @@ function UnitCanAttack(a, b)
     local id = who(b)
     return a == "player" and id ~= nil and STATE.unit[id] ~= nil and STATE.unit[id].enemy == true
 end
+-- A unit's name: STATE.unit[id].name, or hidden when .secretName is set
+function UnitName(unit)
+    if unit == "player" then return "Me" end
+    local id = who(unit)
+    local u = id and STATE.unit[id]
+    if not u then return nil end
+    if u.secretName then return Secret(u.name or "Hidden") end
+    return u.name
+end
 function IsInGroup() return STATE.group end
 function IsInRaid() return false end
 function UnitPowerType() return 1, "RAGE" end
@@ -336,6 +345,18 @@ C_UnitAuras = {
     end,
 }
 function GetLocale() return STATE.locale or "enUS" end
+function wipe(t) for k in pairs(t) do t[k] = nil end return t end
+-- The game's files: every path is there unless STATE.missingFiles names it
+function GetFileIDFromPath(path)
+    if STATE.missingFiles and STATE.missingFiles[path] then return nil end
+    return 12345
+end
+-- The game's colour picker: remembers what it was opened with; a test "picks" by
+-- setting STATE.picked and calling swatchFunc, or cancels with cancelFunc
+ColorPickerFrame = {
+    SetupColorPickerAndShow = function(self, info) self.info = info self.shown = true end,
+    GetColorRGB = function() return STATE.picked[1], STATE.picked[2], STATE.picked[3] end,
+}
 -- An equipped item's tooltip: its name, then its lines
 C_TooltipInfo = {
     GetInventoryItem = function(unit, slot)

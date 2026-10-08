@@ -29,6 +29,16 @@ BT.TEXT_COLORS = {
     xp        = { 0.75, 0.50, 1.00 },
     loot      = { 1.00, 1.00, 1.00 },
 }
+-- What they start as; db.colors holds the ones you've changed (ApplyColors)
+BT.DEFAULT_COLORS = {}
+for k, c in pairs(BT.TEXT_COLORS) do BT.DEFAULT_COLORS[k] = { c[1], c[2], c[3] } end
+-- The colors you can change, in the order the options list them
+BT.COLOR_CHOICES = {
+    { "melee", "Your hits" }, { "spell", "Your spells" }, { "miss", "Your misses" },
+    { "inDamage", "Damage you take" }, { "inAvoid", "Attacks you avoid" }, { "heal", "Heals" },
+    { "power", "Power gains" }, { "notify", "Notifications" }, { "combat", "Entering combat" },
+    { "xp", "Experience" },
+}
 -- Spell damage is tinted by its school (the game's own words for them)
 local SCHOOL_KEYS = {
     { "STRING_SCHOOL_HOLY", "Holy", { 1.00, 0.92, 0.55 } },
@@ -66,6 +76,12 @@ local DEFAULTS = {
     healArea = true,          -- heals (yours and on you) scroll in their own area
     healOver = true,          -- show overhealing after a heal, when the game says
     minHeal = 0,              -- hide heals below this
+    healWho = true,           -- "on <name>" after a heal you do, when the game says who
+    shortNumbers = false,     -- 12,345 as 12.3k
+    colors = {},              -- text colors you've changed, by BT.TEXT_COLORS key
+    -- Each area's text size (percent of the text size) and opacity (percent)
+    outSize = 100, outAlpha = 100, inSize = 100, inAlpha = 100,
+    healSize = 100, healAlpha = 100, nSize = 100, nAlpha = 100,
     outDamage = true, outHeals = true, outMisses = true, outPet = true, outShields = true,
     shieldAmounts = {},       -- learned: what each damage shield of yours hits for (by its name)
     inDamage = true, inHeals = true, inMisses = true, inPower = false,
@@ -121,10 +137,10 @@ BT.OUTLINES = {
 
 -- Scroll areas. dir: which way a curved line bows (-1 left, 1 right, 0 none).
 BT.AREAS = {
-    incoming = { label = "Incoming", dir = -1, justify = "RIGHT" },
-    outgoing = { label = "Outgoing", dir = 1, justify = "LEFT" },
-    notify   = { label = "Notifications", dir = 0, justify = "CENTER", short = true },
-    heal     = { label = "Healing", dir = 0, justify = "CENTER", heightScale = 0.6 },
+    incoming = { label = "Incoming", dir = -1, justify = "RIGHT", prefix = "in" },
+    outgoing = { label = "Outgoing", dir = 1, justify = "LEFT", prefix = "out" },
+    notify   = { label = "Notifications", dir = 0, justify = "CENTER", short = true, prefix = "n" },
+    heal     = { label = "Healing", dir = 0, justify = "CENTER", heightScale = 0.6, prefix = "heal" },
 }
 local AREA_WIDTH = 60        -- how far a curved line bows out
 local MAX_DELAY = 1.2        -- a line never waits longer than this for room
@@ -174,6 +190,12 @@ function BT:MoveOldSettings(db)
 end
 
 local function Commas(n)
+    -- "Short numbers": 12.3k, 1.2m
+    if BT.db and BT.db.shortNumbers and type(n) == "number" and n >= 10000 then
+        local v, unit = n / 1000, "k"
+        if n >= 1000000 then v, unit = n / 1000000, "m" end
+        return (("%.1f"):format(v):gsub("%.0$", "")) .. unit
+    end
     if BreakUpLargeNumbers then
         local ok, s = pcall(BreakUpLargeNumbers, n)
         if ok and Str(s) then return s end
@@ -239,6 +261,11 @@ function BT:BuildAreas()
     self.driver = driver
 end
 
+-- An area's own setting: "Size" or "Alpha" (db.outSize, db.healAlpha...)
+function BT:AreaSetting(a, what)
+    return self.db[a.def.prefix .. what]
+end
+
 function BT:AreaHeight(a)
     if a.def.short then return math.floor(self.db.height * 0.45) end
     if a.def.heightScale then return math.floor(self.db.height * a.def.heightScale) end
@@ -302,6 +329,17 @@ function BT:HealArea(areaKey)
     return self.db.healArea and "heal" or areaKey
 end
 
+-- " on Name" for a heal of yours on someone else, when the game lets the name
+-- be read (it can hide it). Never for your pet or yourself.
+function BT:HealedName(unit)
+    if not self.db.healWho or not unit or unit == "pet" then return "" end
+    if Flag(UnitIsUnit, unit, "player") or Flag(UnitIsUnit, unit, "pet") then return "" end
+    local ok, name = pcall(UnitName, unit)
+    name = ok and Str(name)
+    if not name or name == "" then return "" end
+    return " |cffc9f7cc" .. name .. "|r"
+end
+
 -- Whether a heal of n is big enough to show (a hidden amount always is)
 function BT:HealShown(n)
     return type(n) ~= "number" or n >= (self.db.minHeal or 0)
@@ -331,8 +369,9 @@ function BT:Emit(areaKey, text, color, opts)
     end
 
     local o = AcquireLine(a)
-    local size = self.db.fontSize
-    if opts.crit then size = math.floor(size * self.db.critScale / 100 + 0.5) end
+    local size = self.db.fontSize * (self:AreaSetting(a, "Size") or 100) / 100
+    if opts.crit then size = size * self.db.critScale / 100 end
+    size = math.floor(size + 0.5)
     local flags = self:OutlineFlags(opts.crit)
     if not o.text:SetFont(self:FontPath(), size, flags) and STANDARD_TEXT_FONT then
         o.text:SetFont(STANDARD_TEXT_FONT, size, flags)
@@ -431,7 +470,7 @@ function BT:Animate(now)
                 o:SetScale(scale)
                 o:ClearAllPoints()
                 o:SetPoint(o.anchor, a, "TOP", x / scale, y / scale)
-                o:SetAlpha(alpha)
+                o:SetAlpha(alpha * (self:AreaSetting(a, "Alpha") or 100) / 100)
             end
         end
     end
@@ -1225,11 +1264,12 @@ function BT:ShowUnitHit(h, what, spell)
         end
     elseif h.kind == "heal" then
         if not db.outHeals then return "heals are turned off" end
+        local who = self:HealedName(h.unit)
         if h.secret then
-            self:Emit(self:HealArea("outgoing"), label .. "+", C.heal, { crit = h.crit, secret = h.amount })
+            self:Emit(self:HealArea("outgoing"), label .. "+", C.heal, { crit = h.crit, secret = h.amount, after = who })
         else
             if not self:HealShown(h.n) then return "below \"Hide heals below\"" end
-            self:Emit(self:HealArea("outgoing"), label .. "+" .. Commas(h.n), C.heal, { crit = h.crit })
+            self:Emit(self:HealArea("outgoing"), label .. "+" .. Commas(h.n) .. who, C.heal, { crit = h.crit })
         end
     else
         if not db.outMisses then return "misses are turned off" end
@@ -1398,6 +1438,55 @@ function BT:SkillIcon(message)
     return self:IconText(SKILL_SPELLS[skill] or skill)
 end
 
+-- /btf check: asks the game about every spell, skill, text and icon BattleText
+-- relies on, on any character (the game knows every spell, not only your class's).
+-- Prints what's missing or named differently, and keeps the report for /btf copy.
+function BT:CheckGameData()
+    local report, problems = {}, 0
+    local function line(ok, text)
+        if not ok then problems = problems + 1 end
+        report[#report + 1] = (ok and "ok      " or "PROBLEM ") .. text
+    end
+    local english = (GetLocale and (GetLocale() == "enUS" or GetLocale() == "enGB")) or false
+    local function spell(id, expected, what)
+        local ok, name = pcall(C_Spell.GetSpellName, id)
+        name = ok and Str(name) or nil
+        if not name then
+            line(false, ("%s %d (%s): not in this game"):format(what, id, expected))
+        elseif english and name ~= expected then
+            line(false, ("%s %d: the game calls it %s, BattleText expects %s"):format(what, id, name, expected))
+        else
+            line(true, ("%s %d: %s"):format(what, id, name))
+        end
+    end
+    for _, e in ipairs(PERIODIC_SPELLS) do spell(e[1], e[2], "tick") end
+    for _, e in ipairs(SHIELD_SPELLS) do spell(e[1], e[2], "shield") end
+    local skillNames = { [2366] = "Herb Gathering", [2575] = "Mining", [7620] = "Fishing" }
+    for skill, id in pairs(SKILL_SPELLS) do spell(id, skillNames[id] or skill, "skill " .. skill) end
+    line(Str(SKILL_RANK_UP) ~= nil, "text SKILL_RANK_UP: " .. tostring(Str(SKILL_RANK_UP)))
+    local getFile = GetFileIDFromPath
+    if getFile then
+        local icons = { T.LOGO }
+        for _, t in ipairs(self.CONFIG_TABS or {}) do icons[#icons + 1] = t.icon end
+        for _, path in ipairs(icons) do
+            local ok, id = pcall(getFile, path)
+            line(ok and Num(id) ~= nil, "icon " .. path)
+        end
+    end
+    self.recorded = {}
+    for _, text in ipairs(report) do self:Record(text) end
+    if problems == 0 then
+        Print(("all %d checks passed."):format(#report))
+    else
+        Print(("%d of %d checks found a problem:"):format(problems, #report))
+        for _, text in ipairs(report) do
+            if text:find("^PROBLEM") then print("  " .. text:gsub("^PROBLEM ", "")) end
+        end
+        Print("type /btf copy to copy the full report.")
+    end
+    return problems, report
+end
+
 -- Chat lines shown as they are, minus the trailing period
 function BT:OnChatNotice(setting, message, color)
     message = Str(message)
@@ -1550,13 +1639,61 @@ end
 ---------------------------------------------------------------------------
 -- Settings
 ---------------------------------------------------------------------------
+-- Your colors over the starting ones, in place (code reads BT.TEXT_COLORS when it shows a line)
+function BT:ApplyColors()
+    local mine = self.db and self.db.colors or {}
+    for k, def in pairs(self.DEFAULT_COLORS) do
+        local c = mine[k]
+        if type(c) == "table" and type(c[1]) == "number" and type(c[2]) == "number" and type(c[3]) == "number" then
+            self.TEXT_COLORS[k] = { c[1], c[2], c[3] }
+        else
+            self.TEXT_COLORS[k] = { def[1], def[2], def[3] }
+        end
+    end
+end
+
+function BT:SetColor(key, r, g, b)
+    if r then self.db.colors[key] = { r, g, b } else self.db.colors[key] = nil end
+    self:ApplyColors()
+end
+
 function BT:ApplySettings()
+    self:ApplyColors()
     if not self.built then return end
     self:ApplyAreas()
     self:UpdateStartButton()
     self:UpdateMinimapButton()
     self:ApplyBlizzardText()
     if self.db.enabled then self:KeepLogFlowing() else self:StopLogFlowing() end
+end
+
+-- Settings for this character only, or the ones every character shares. Turning
+-- it on starts this character from a copy of the shared ones.
+local function Copy(t)
+    local c = {}
+    for k, v in pairs(t) do c[k] = type(v) == "table" and Copy(v) or v end
+    return c
+end
+
+function BT:OwnSettings()
+    return BattleTextForeverCharDB ~= nil and BattleTextForeverCharDB.own == true
+end
+
+function BT:SetOwnSettings(on)
+    if on == self:OwnSettings() then return end
+    self:ApplyBlizzardText(true)   -- put the game's numbers back while the settings change hands
+    local char = BattleTextForeverCharDB
+    if on then
+        local mine = Copy(BattleTextForeverDB)
+        mine.savedCVars = nil
+        char.settings, char.own = mine, true
+        self.db = mine
+    else
+        char.own = nil
+        self.db = BattleTextForeverDB
+    end
+    self:ApplySettings()
+    self:RefreshConfig()
 end
 
 -- Picking a font shows a line in it straight away
@@ -1625,6 +1762,7 @@ function BT:Test()
     }
     -- Shown even while BattleText is turned off, and whatever is ticked in the options
     local LOOKS = { sticky = true, curved = true, scrollUp = true, healArea = true, healOver = true, merge = true,
+        shortNumbers = true, healWho = true,
         outIcons = true, outNames = true, inIcons = true, inNames = true, healIcons = true, healNames = true, nIcons = true }
     local function show(fn)
         local saved = self.db
@@ -1716,6 +1854,7 @@ local function Help()
     print("  |cffffd100/btf reset|r  put the text areas back where they started")
     print("  |cffffd100/btf on|r, |cffffd100/btf off|r  turn the text on or off")
     print("  |cffffd100/btf debug|r  record the combat lines the game sends; |cffffd100/btf copy|r shows them (for bug reports)")
+    print("  |cffffd100/btf check|r  check the spells, texts and icons BattleText uses against this game")
 end
 
 -- Keybinding names (Options > Keybindings > BattleText Forever)
@@ -1747,6 +1886,8 @@ SlashCmdList.BATTLETEXTFOREVER = function(msg)
         Print("debug " .. (BT.db.debug and "on. Fight for a moment, then type /btf copy to see what the game sent." or "off."))
     elseif cmd == "copy" then
         BT:OpenCopyWindow()
+    elseif cmd == "check" then
+        BT:CheckGameData()
     else
         Help()
     end
@@ -1777,7 +1918,17 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         BattleTextForeverDB = BattleTextForeverDB or {}
         BT:MoveOldSettings(BattleTextForeverDB)
         FillDefaults(BattleTextForeverDB, DEFAULTS)
-        BT.db = BattleTextForeverDB
+        BattleTextForeverCharDB = BattleTextForeverCharDB or {}
+        local char = BattleTextForeverCharDB
+        if char.own and type(char.settings) == "table" then
+            BT:MoveOldSettings(char.settings)
+            FillDefaults(char.settings, DEFAULTS)
+            BT.db = char.settings
+        else
+            char.own = nil
+            BT.db = BattleTextForeverDB
+        end
+        BT:ApplyColors()
         return
     elseif event == "PLAYER_LOGIN" then
         Parser:Init()

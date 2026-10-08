@@ -5,6 +5,7 @@
 ## Version: @project-version@
 ## IconTexture: Interface\AddOns\BattleTextForever\Media\Icon
 ## SavedVariables: BattleTextForeverDB
+## SavedVariablesPerCharacter: BattleTextForeverCharDB
 ## X-Curse-Project-ID: 1722502
 ## X-License: MIT
 ## X-Category: Combat

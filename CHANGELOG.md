@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.0
+
+- **Colors**: a new Colors tab to pick the color of your hits, spells, misses, the damage you take, avoids, heals, power gains, notifications, combat and experience. **Reset colors** puts them back.
+- **Each text area has its own text size and opacity**, at the bottom of its tab (Outgoing, Incoming, Healing, Notifications).
+- **Settings for this character only** (General tab): a character can keep its own settings, starting from a copy of the shared ones.
+- **Short numbers** (Text tab): 12,345 shows as 12.3k.
+- **Show who you healed** (Healing tab): the name of the player after a heal you do, when the game lets BattleText read it.
+- **`/btf check`**: checks every spell, text and icon BattleText relies on against your game, on any character, and lists anything missing.
+
 ## 1.5.0
 
 - **A new look**, the same as TauntMaster Forever, ToppedOff Forever and Outfitter Forever: the options are a window with tabs down the left (General, Text, Scrolling, Outgoing, Incoming, Healing, Notifications) and a switch for each setting. Your settings are kept.
