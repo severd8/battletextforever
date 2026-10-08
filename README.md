@@ -15,8 +15,9 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 - **Heals**, the ones you get and the ones you do, in their own Healing area under your character (or with the damage, if you prefer).
 - **Notifications**: combat, experience, reputation, honor, loot, money and skill ups.
 - **Four text areas** you can drag anywhere on screen.
-- **Your look**: 20 fonts to pick from, text and crit size, scroll speed and distance, straight or curved scrolling.
-- **Your choice of what's shown.** Turn any kind of text off, hide small hits, and hide the game's own numbers so nothing shows twice.
+- **Your look**: 20 fonts, outline thickness, text and crit size, short numbers (12.3k), scroll speed and distance, straight or curved, up or down, your own colors, and each area's own size and opacity.
+- **Your choice of what's shown.** Turn any kind of text off, icons and spell names per area, hide small hits and heals, and hide the game's own numbers so nothing shows twice.
+- **Settings per character** if you want them, starting from a copy of your shared ones.
 
 ## Installation
 
@@ -82,7 +83,7 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
 - **Spell names and icons** show for:
   - hits that land the instant you cast (instant attacks and spells with no travel time);
   - the ticks of your damage-over-time spells (Rake, Rip, Rend, Moonfire, Corruption, Shadow Word: Pain and the like). Bleeds need Start BattleText clicked;
-  - your **damage shields**: buffs (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen one answer two blows, and gear that hurts whoever strikes you (named after the item). Untick **Damage shields** in the options to hide these.
+  - your **damage shields**: buffs (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen one answer two blows, and gear that hurts whoever strikes you (named after the item). Turn off **Damage shields** in the options to hide these.
 
   Other hits show as a plain number in their school's color.
 - **The last swing on a mob may not show**: the game stops reporting a unit the moment it dies.
@@ -94,8 +95,9 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
 - **No numbers for your hits.** Target what you're hitting, or turn on enemy nameplates. In a group, click **Start BattleText**.
 - **A bleed's ticks have no name.** Click **Start BattleText**.
 - **Other people's hits show as mine.** In a group, click **Start BattleText** and keep the Combat Log's filter on **My actions**.
-- **Numbers show twice.** Tick **Hide the game's own numbers** in the options.
+- **Numbers show twice.** Turn on **Hide the game's own numbers** in the options.
 - **Something isn't shown.** Type `/btf debug`, fight for a moment, then type `/btf copy` and copy the lines into a bug report. Type `/btf debug` again to stop.
+- **A spell or icon looks wrong.** Type `/btf check`, then `/btf copy`, and add the report to a bug report.
 - **The text is in the wrong place.** Type `/btf unlock` and drag the boxes, or `/btf reset`.
 
 ## Feedback and bug reports
