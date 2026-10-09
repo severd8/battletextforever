@@ -2171,18 +2171,18 @@ STATE.who.target = nil
 clear()
 
 step("buffs gained and lost")
-local AI = { name = "Arcane Intellect", spellId = 1459, icon = 135932, duration = 1800 }
+local INTELLECT = { name = "Arcane Intellect", spellId = 1459, icon = 135932, duration = 1800 }
 local MOTW = { name = "Mark of the Wild", spellId = 1126, icon = 136078, duration = 1800 }
 SetIcons(true)
 STATE.buffs = {}
 fire("UNIT_AURA", "player")
 clear()
 assertEq(BT.db.nBuffs, false, "off to begin with")
-STATE.buffs = { AI }
+STATE.buffs = { INTELLECT }
 fire("UNIT_AURA", "player")
 assertEq(last("notify"), nil, "nothing while it's off")
 BT.db.nBuffs = true
-STATE.buffs = { AI, MOTW }
+STATE.buffs = { INTELLECT, MOTW }
 fire("UNIT_AURA", "player")
 assertEq(last("notify"), "|T136078:0|t +Mark of the Wild", "a buff gained, with its icon")
 assert(isColor(BT.areas.notify.active[#BT.areas.notify.active], BT.TEXT_COLORS.buff), "in the buffs' color")
@@ -2203,7 +2203,7 @@ clear()
 -- In a fight the buffs are hidden; what changed shows when it ends
 fire("PLAYER_REGEN_DISABLED")
 STATE.buffsHidden = true
-STATE.buffs = { MOTW, AI }
+STATE.buffs = { MOTW, INTELLECT }
 fire("UNIT_AURA", "player")
 assertEq(#lines("notify"), 1, "nothing in the fight (only +Combat)")
 STATE.buffsHidden = false
@@ -2216,7 +2216,7 @@ STATE.buffs = {}
 fire("UNIT_AURA", "player")
 assertEq(#lines("notify"), 0, "nothing when you die")
 STATE.dead = false
-STATE.buffs = { AI }
+STATE.buffs = { INTELLECT }
 fire("UNIT_AURA", "player")
 assertEq(last("notify"), "|T135932:0|t +Arcane Intellect", "buffs after you're back are new again")
 STATE.buffs = {}
