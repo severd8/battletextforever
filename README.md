@@ -43,7 +43,7 @@ The options have the same look as TauntMaster Forever, ToppedOff Forever and Out
 | **General** | Show BattleText, move the text areas, hide the game's own numbers, minimap button, remind me to click Start, settings for this character only, show sample text, reset positions |
 | **Text** | Font (a list of 20), outline and crit outline (none, thin or thick), text size, crit size, short numbers (12.3k) |
 | **Scrolling** | Curved scrolling, scroll upward, crits pop and hold, add up rapid hits, scroll time, scroll distance |
-| **Outgoing** | Damage, misses, pet, damage shields, icons, names, hide hits below a number, this area's text size and opacity |
+| **Outgoing** | Damage, misses, pet, damage shields, icons, names, seal damage, hide hits below a number, this area's text size and opacity |
 | **Incoming** | Damage, avoids, power gains, icons, names, this area's text size and opacity |
 | **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number, this area's text size and opacity |
 | **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, buffs, this area's text size and opacity |
@@ -84,7 +84,7 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
   - hits that land the instant you cast (instant attacks and spells with no travel time);
   - the ticks of your damage-over-time spells (Rake, Rip, Rend, Moonfire, Corruption, Shadow Word: Pain and the like). Bleeds need Start BattleText clicked;
   - your **damage shields**: buffs (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen one answer two blows, and gear that hurts whoever strikes you (named after the item). Turn off **Damage shields** in the options to hide these;
-  - a paladin's **seal** (Righteousness, Command): its Holy damage landing with your swing.
+  - a paladin's **seal** (Righteousness, Command): its Holy damage landing with your swing. Turn off **Seal damage** in the options to show it as a plain number.
 
   Other hits show as a plain number in their school's color.
 - **Seals in a fight.** The game hides your buffs during a fight, so a seal coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.

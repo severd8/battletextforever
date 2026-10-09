@@ -1908,7 +1908,7 @@ for _, f in ipairs(ALL_FRAMES) do
         f.__scripts.OnClick(f)
     end
 end
-assertEq(switches, 39, "the switches are there")
+assertEq(switches, 40, "the switches are there")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged: " .. k) end
 end
@@ -2110,6 +2110,12 @@ assertEq(table.concat(lines("outgoing"), " / "), "30 / Seal of Righteousness 12"
 Advance(1)
 wound(13, 2)
 assertEq(last("outgoing"), "13", "a Holy hit without a swing isn't taken for the seal")
+BT.db.outSeals = false
+Advance(1)
+wound(30, 1)
+wound(14, 2)
+assertEq(last("outgoing"), "14", "Seal damage turned off: a plain number")
+BT.db.outSeals = true
 -- Judgement uses it up
 cast(20271)
 assertEq(last("notify"), "-Seal of Righteousness", "Judgement takes the seal off")

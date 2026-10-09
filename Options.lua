@@ -188,7 +188,7 @@ local function BuildScrolling(p)
 end
 
 local function BuildOutgoing(p)
-    local card = Card(p, "What you do", 0, 0, PAGE_W, 170)
+    local card = Card(p, "What you do", 0, 0, PAGE_W, 196)
     Setting(card, "Damage", 12, -30, "outDamage")
     Setting(card, "Misses", COL2, -30, "outMisses", "Your attacks that miss or are dodged, parried, blocked or resisted.")
     Setting(card, "Pet", 12, -56, "outPet",
@@ -198,8 +198,11 @@ local function BuildOutgoing(p)
         "What your damage shields do to whoever hits you: buffs like Thorns, Lightning Shield and Retribution Aura "
         .. "(learned from their first two hits), and gear that stings back.")
     IconsAndNames(card, -82, "out", "your hits and misses")
-    Slider(card, "Hide hits below", 12, -116, "minDamage", 0, 500, "", 5)
-    AreaLook(p, -180, "out")
+    Setting(card, "Seal damage", 12, -108, "outSeals",
+        "Paladins: the Holy hit of Seal of Righteousness or Seal of Command that lands with your swing is named "
+        .. "after the seal. Turn off to show it as a plain number.")
+    Slider(card, "Hide hits below", 12, -142, "minDamage", 0, 500, "", 5)
+    AreaLook(p, -206, "out")
 end
 
 local function BuildIncoming(p)

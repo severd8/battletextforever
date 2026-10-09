@@ -85,6 +85,7 @@ local DEFAULTS = {
     outSize = 100, outAlpha = 100, inSize = 100, inAlpha = 100,
     healSize = 100, healAlpha = 100, nSize = 100, nAlpha = 100,
     outDamage = true, outHeals = true, outMisses = true, outPet = true, outShields = true,
+    outSeals = true,          -- name a seal's hit beside your swing
     shieldAmounts = {},       -- learned: what each damage shield of yours hits for (by its name)
     inDamage = true, inHeals = true, inMisses = true, inPower = false,
     nCombat = true, nKill = true, nXP = true, nRep = true, nHonor = true,
@@ -908,6 +909,7 @@ end
 -- damage is on you, is the seal's
 function BT:SealFor(h, seq, first, last, at)
     local seal = self.seal
+    if not self.db.outSeals then return nil end
     if not seal or not seal.school or h.kind ~= "damage" or GetTime() > seal.ends + 1 then return nil end
     if Num(h.school) ~= seal.school then return nil end
     for j = first, last do
