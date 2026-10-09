@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.0
+
+- **Seals** (Notifications tab): paladins get a line when a seal goes on or comes off ("+Seal of Righteousness"), with its icon and its own color. In a fight the game hides your buffs, so a seal coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.
+- **A seal's damage is named**: the Holy hit of Seal of Righteousness or Seal of Command that lands with your swing now shows the seal's name and icon instead of a bare number.
+- `/btf check` also checks the seals and Judgement.
+
 ## 1.6.0
 
 - **Colors**: a new Colors tab to pick the color of your hits, spells, misses, the damage you take, avoids, heals, power gains, notifications, combat and experience. **Reset colors** puts them back.

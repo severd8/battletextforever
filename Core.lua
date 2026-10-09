@@ -1565,6 +1565,8 @@ function BT:CheckGameData()
     end
     for _, e in ipairs(PERIODIC_SPELLS) do spell(e[1], e[2], "tick") end
     for _, e in ipairs(SHIELD_SPELLS) do spell(e[1], e[2], "shield") end
+    for _, e in ipairs(SEAL_SPELLS) do spell(e[1], e[2], "seal") end
+    spell(JUDGEMENT[1], JUDGEMENT[2], "seal")
     local skillNames = { [2366] = "Herb Gathering", [2575] = "Mining", [7620] = "Fishing" }
     for skill, id in pairs(SKILL_SPELLS) do spell(id, skillNames[id] or skill, "skill " .. skill) end
     line(Str(SKILL_RANK_UP) ~= nil, "text SKILL_RANK_UP: " .. tostring(Str(SKILL_RANK_UP)))
