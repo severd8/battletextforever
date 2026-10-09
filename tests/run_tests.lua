@@ -1908,7 +1908,7 @@ for _, f in ipairs(ALL_FRAMES) do
         f.__scripts.OnClick(f)
     end
 end
-assertEq(switches, 37, "the switches are there")
+assertEq(switches, 38, "the switches are there")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged: " .. k) end
 end
@@ -2087,6 +2087,87 @@ assertEq(BT.db.locked, true, "however it's closed")
 SlashCmdList.BATTLETEXTFOREVER("unlock")
 assertEq(BT.db.locked, false, "/btf unlock still works with the window closed")
 SlashCmdList.BATTLETEXTFOREVER("lock")
+clear()
+
+step("a paladin's seals")
+STATE.spellNames[21084], STATE.spellNames[20375], STATE.spellNames[20271] = "Seal of Righteousness", "Seal of Command", "Judgement"
+STATE.spellIcons[21084] = 132325
+STATE.group, STATE.who.target = false, "mobA"
+STATE.buffs = {}
+fire("UNIT_AURA", "player")
+BT.seal = nil
+freshFight()
+SetIcons(false)
+local function cast(id) fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-seal", id) end
+cast(21084)
+assertEq(last("notify"), "+Seal of Righteousness", "putting a seal on says so")
+assert(isColor(BT.areas.notify.active[#BT.areas.notify.active], BT.TEXT_COLORS.seal), "in the seals' color")
+Advance(1)
+-- Its damage, landing with your swing on the same mob, is named after it
+wound(30, 1)
+wound(12, 2)
+assertEq(table.concat(lines("outgoing"), " / "), "30 / Seal of Righteousness 12", "the seal's hit beside your swing")
+Advance(1)
+wound(13, 2)
+assertEq(last("outgoing"), "13", "a Holy hit without a swing isn't taken for the seal")
+-- Judgement uses it up
+cast(20271)
+assertEq(last("notify"), "-Seal of Righteousness", "Judgement takes the seal off")
+Advance(1)
+wound(30, 1)
+wound(12, 2)
+assertEq(last("outgoing"), "12", "and with no seal on, nothing is named after it")
+clear()
+-- A new seal replaces the old one; one that runs out goes after its 30 seconds
+cast(21084)
+Advance(1)
+cast(20375)
+local notices = lines("notify")
+assertEq(table.concat(notices, " / "), "+Seal of Righteousness / -Seal of Righteousness / +Seal of Command", "one seal for another")
+clear()                -- (8 seconds)
+Advance(21.5)
+assertEq(BT.seal and BT.seal.name, "Seal of Command", "still on just before its 30 seconds")
+Advance(1)
+assertEq(last("notify"), "-Seal of Command", "the seal runs out after 30 seconds")
+clear()
+cast(21084)
+Advance(20)
+cast(21084)
+assertEq(last("notify"), nil, "put on again: no line, it was only renewed")
+Advance(15)
+assertEq(BT.seal and BT.seal.name, "Seal of Righteousness", "it lasts 30 seconds from then")
+Advance(15.5)
+assertEq(last("notify"), "-Seal of Righteousness", "and runs out 30 seconds after that")
+clear()
+-- Out of a fight, your buffs say so directly
+STATE.buffs = { { name = "Seal of Righteousness", spellId = 21084 } }
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), "+Seal of Righteousness", "a seal seen among your buffs")
+fire("UNIT_AURA", "player")
+assertEq(#lines("notify"), 1, "only once")
+STATE.buffs = {}
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), "-Seal of Righteousness", "and gone when it's gone")
+clear()
+-- In a fight the buffs are hidden: nothing changes until a cast or the time says so
+cast(21084)
+STATE.buffsHidden = true
+fire("UNIT_AURA", "player")
+assertEq(#lines("notify"), 1, "hidden buffs don't take the seal off")
+STATE.buffsHidden = false
+-- Turned off
+clear()
+BT.db.nSeals = false
+cast(20271)
+assertEq(#lines("notify"), 0, "no lines with Seals turned off")
+assertEq(BT.seal, nil, "though the seal is still followed")
+BT.db.nSeals = true
+SetIcons(true)
+cast(21084)
+assertEq(last("notify"), "|T132325:0|t +Seal of Righteousness", "with its icon when icons are on")
+cast(20271)
+SetIcons(false)
+STATE.who.target = nil
 clear()
 
 step("colors, each area's look, short numbers")

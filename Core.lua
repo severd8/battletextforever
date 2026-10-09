@@ -28,6 +28,7 @@ BT.TEXT_COLORS = {
     combat    = { 1.00, 0.45, 0.20 },
     xp        = { 0.75, 0.50, 1.00 },
     loot      = { 1.00, 1.00, 1.00 },
+    seal      = { 1.00, 0.92, 0.55 },
 }
 -- What they start as; db.colors holds the ones you've changed (ApplyColors)
 BT.DEFAULT_COLORS = {}
@@ -37,7 +38,7 @@ BT.COLOR_CHOICES = {
     { "melee", "Your hits" }, { "spell", "Your spells" }, { "miss", "Your misses" },
     { "inDamage", "Damage you take" }, { "inAvoid", "Attacks you avoid" }, { "heal", "Heals" },
     { "power", "Power gains" }, { "notify", "Notifications" }, { "combat", "Entering combat" },
-    { "xp", "Experience" },
+    { "xp", "Experience" }, { "seal", "Seals" },
 }
 -- Spell damage is tinted by its school (the game's own words for them)
 local SCHOOL_KEYS = {
@@ -86,7 +87,7 @@ local DEFAULTS = {
     shieldAmounts = {},       -- learned: what each damage shield of yours hits for (by its name)
     inDamage = true, inHeals = true, inMisses = true, inPower = false,
     nCombat = true, nKill = true, nXP = true, nRep = true, nHonor = true,
-    nLoot = true, nMoney = false, nSkill = true,
+    nLoot = true, nMoney = false, nSkill = true, nSeals = true,
     hideBlizzard = false,
     minimap = true,
     startReminder = true,   -- a line in chat after logging in, while Start hasn't been clicked
@@ -777,6 +778,16 @@ local SHIELD_SPELLS = {
     { 467, "Thorns", 8 }, { 324, "Lightning Shield", 8 }, { 7294, "Retribution Aura", 2 }, { 2947, "Fire Shield", 4 },
 }
 
+-- A paladin's seals: { first rank's ID, English name, school of the damage it adds
+-- to your swings (none for the seals that don't hurt) }. Judgement uses up the seal.
+local SEAL_SPELLS = {
+    { 21084, "Seal of Righteousness", 2 }, { 20375, "Seal of Command", 2 },
+    { 21082, "Seal of the Crusader" }, { 20164, "Seal of Justice" }, { 20165, "Seal of Light" },
+    { 20166, "Seal of Wisdom" },
+}
+local JUDGEMENT = { 20271, "Judgement" }
+local SEAL_TIME = 30   -- how long a seal lasts, in seconds
+
 local function SpellName(id)
     if not (C_Spell and C_Spell.GetSpellName) then return nil end
     local ok, name = pcall(C_Spell.GetSpellName, id)
@@ -803,6 +814,84 @@ function BT:SpellLists()
         for _, name in ipairs(names(e)) do self.shields[name] = { school = e[3], id = e[1] } end
     end
     return self.periodic, self.shields
+end
+
+-- The seals by name (English, and the game's language), and Judgement's names
+function BT:SealLists()
+    if self.seals then return self.seals, self.judgement end
+    local english = not GetLocale or GetLocale() == "enUS" or GetLocale() == "enGB"
+    local function names(id, name)
+        local out = { name }
+        local own = SpellName(id)
+        if own and own ~= name and not english then out[2] = own end
+        return out
+    end
+    self.seals, self.judgement = {}, {}
+    for _, e in ipairs(SEAL_SPELLS) do
+        for _, name in ipairs(names(e[1], e[2])) do self.seals[name] = { id = e[1], name = e[2], school = e[3] } end
+    end
+    for _, name in ipairs(names(JUDGEMENT[1], JUDGEMENT[2])) do self.judgement[name] = true end
+    return self.seals, self.judgement
+end
+
+-- The seal you have on (self.seal), and a line when one goes on or comes off.
+-- Buffs can be read out of a fight only; in a fight a seal coming off is worked
+-- out: Judgement uses it up, a new seal replaces it, or its time runs out.
+function BT:SealNotice(seal, on)
+    if not self.db.nSeals then return end
+    local icon = self.db.nIcons and self:IconText(seal.id) or ""
+    self:Notify(icon .. (on and "+" or "-") .. seal.name, self.TEXT_COLORS.seal)
+end
+
+function BT:SetSeal(seal, quiet)
+    local old = self.seal
+    if old and old.name == seal.name then
+        old.ends = GetTime() + SEAL_TIME   -- put on again: it lasts from now
+    else
+        if old and not quiet then self:SealNotice(old, false) end
+        self.seal = { id = seal.id, name = seal.name, school = seal.school, ends = GetTime() + SEAL_TIME }
+        if not quiet then self:SealNotice(self.seal, true) end
+    end
+    local mine = self.seal
+    if C_Timer and C_Timer.After then
+        C_Timer.After(SEAL_TIME + 0.1, function()
+            if BT.seal == mine and GetTime() >= mine.ends then BT:LoseSeal() end
+        end)
+    end
+end
+
+function BT:LoseSeal(quiet)
+    local old = self.seal
+    if not old then return end
+    self.seal = nil
+    if not quiet then self:SealNotice(old, false) end
+end
+
+-- What a reading of your buffs found (out of a fight): the seal on you, or none
+function BT:SeenSeal(found)
+    local first = not self.sealRead
+    self.sealRead = true
+    if found then
+        if not self.seal or self.seal.name ~= found.name then self:SetSeal(found, first) end
+    elseif self.seal then
+        self:LoseSeal(first)
+    end
+end
+
+-- A Holy hit that lands with your swing on the same unit, while a seal that adds
+-- damage is on you, is the seal's
+function BT:SealFor(h, seq, first, last, at)
+    local seal = self.seal
+    if not seal or not seal.school or h.kind ~= "damage" or GetTime() > seal.ends + 1 then return nil end
+    if Num(h.school) ~= seal.school then return nil end
+    for j = first, last do
+        local o = seq[j]
+        if j ~= at and o.hit and o.kind == "damage" and Num(o.school) == 1
+            and ((h.key and o.key == h.key) or (not h.key and o.unit == h.unit)) then
+            return { id = seal.id, name = seal.name }
+        end
+    end
+    return nil
 end
 
 function BT:InGroup()
@@ -931,6 +1020,12 @@ function BT:OnSpellcast(spellId)
         self.buffShields = self.buffShields or {}
         self.buffShields[name] = { name = name, id = id, school = shields[name].school }
     end
+    local seals, judgement = self:SealLists()
+    if seals[name] then
+        self:SetSeal({ id = id, name = seals[name].name, school = seals[name].school })
+    elseif judgement[name] then
+        self:LoseSeal()
+    end
 end
 
 -- Damage shields: what hurts whoever strikes you. There can be several at
@@ -942,7 +1037,8 @@ end
 function BT:ScanShield()
     if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then return end
     local _, shields = self:SpellLists()
-    local found = {}
+    local seals = self:SealLists()
+    local found, seal = {}, nil
     for i = 1, 40 do
         local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
         if not ok or IsSecret(a) then return end
@@ -952,8 +1048,12 @@ function BT:ScanShield()
         if name and shields[name] then
             found[name] = { name = name, id = Num(a.spellId) or shields[name].id, school = shields[name].school }
         end
+        if name and seals[name] then
+            seal = { id = Num(a.spellId) or seals[name].id, name = seals[name].name, school = seals[name].school }
+        end
     end
     self.buffShields = found
+    self:SeenSeal(seal)
 end
 
 -- The ones on your gear (self.itemShields): an item says so in its tooltip,
@@ -1209,6 +1309,10 @@ function BT:ResolveFrame(seq, first, last)
                 local shield = self:ShieldFor(h, lineInFrame)
                 if shield then what, spell = "shield", shield end
             end
+            if not spell then
+                local seal = self:SealFor(h, seq, first, last, i)
+                if seal then what, spell = "seal", seal end
+            end
             local why
             if h.grouped and not self:ClaimHit(h.time) then
                 why = "no line of yours with it"
@@ -1228,7 +1332,7 @@ function BT:ResolveFrame(seq, first, last)
     end
 end
 
--- Puts a hit on screen. what: "cast", "tick", "shield" or "hit"; spell: { id, name } when it's known.
+-- Puts a hit on screen. what: "cast", "tick", "shield", "seal" or "hit"; spell: { id, name } when it's known.
 -- Returns why not, if a setting hides it.
 function BT:ShowUnitHit(h, what, spell)
     local db, C = self.db, self.TEXT_COLORS

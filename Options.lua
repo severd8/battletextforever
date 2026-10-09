@@ -238,7 +238,10 @@ local function BuildNotifications(p)
     Setting(card, "Loot", COL2, -82, "nLoot")
     Setting(card, "Money", 12, -108, "nMoney")
     Setting(card, "Skill ups", COL2, -108, "nSkill")
-    Setting(card, "Icons", 12, -134, "nIcons", "Show the icon beside loot and skill ups (professions like First Aid).")
+    Setting(card, "Icons", 12, -134, "nIcons", "Show the icon beside loot, skill ups (professions like First Aid) and seals.")
+    Setting(card, "Seals", COL2, -134, "nSeals",
+        "Paladins: a line when a seal goes on or comes off. In a fight the game hides your buffs, so a seal "
+        .. "coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.")
     AreaLook(p, -178, "n")
 end
 
