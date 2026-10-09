@@ -276,6 +276,7 @@ function UnitName(unit)
     return u.name
 end
 function IsInGroup() return STATE.group end
+function UnitIsDeadOrGhost(unit) return unit == "player" and STATE.dead == true end
 function IsInRaid() return false end
 function UnitPowerType() return 1, "RAGE" end
 function GetCVar(name) return STATE.cvars[name] end

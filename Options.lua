@@ -228,7 +228,7 @@ local function BuildHealing(p)
 end
 
 local function BuildNotifications(p)
-    local card = Card(p, "Notifications", 0, 0, PAGE_W, 168)
+    local card = Card(p, "Notifications", 0, 0, PAGE_W, 194)
     Setting(card, "Combat", 12, -30, "nCombat", "Entering and leaving combat.")
     Setting(card, "Killing blows", COL2, -30, "nKill",
         "Only when the game lets BattleText read its combat lines (it often hides them).")
@@ -242,7 +242,10 @@ local function BuildNotifications(p)
     Setting(card, "Seals", COL2, -134, "nSeals",
         "Paladins: a line when a seal goes on or comes off. In a fight the game hides your buffs, so a seal "
         .. "coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.")
-    AreaLook(p, -178, "n")
+    Setting(card, "Buffs", 12, -160, "nBuffs",
+        "A line when a buff goes on or comes off. The game hides your buffs during a fight, so what changed in "
+        .. "one shows when it ends. Not shown: food and drink, and buffs with no time limit (mounts, auras, stances).")
+    AreaLook(p, -204, "n")
 end
 
 local function BuildColors(p)

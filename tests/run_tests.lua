@@ -1908,7 +1908,7 @@ for _, f in ipairs(ALL_FRAMES) do
         f.__scripts.OnClick(f)
     end
 end
-assertEq(switches, 38, "the switches are there")
+assertEq(switches, 39, "the switches are there")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged: " .. k) end
 end
@@ -2168,6 +2168,61 @@ assertEq(last("notify"), "|T132325:0|t +Seal of Righteousness", "with its icon w
 cast(20271)
 SetIcons(false)
 STATE.who.target = nil
+clear()
+
+step("buffs gained and lost")
+local AI = { name = "Arcane Intellect", spellId = 1459, icon = 135932, duration = 1800 }
+local MOTW = { name = "Mark of the Wild", spellId = 1126, icon = 136078, duration = 1800 }
+SetIcons(true)
+STATE.buffs = {}
+fire("UNIT_AURA", "player")
+clear()
+assertEq(BT.db.nBuffs, false, "off to begin with")
+STATE.buffs = { AI }
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), nil, "nothing while it's off")
+BT.db.nBuffs = true
+STATE.buffs = { AI, MOTW }
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), "|T136078:0|t +Mark of the Wild", "a buff gained, with its icon")
+assert(isColor(BT.areas.notify.active[#BT.areas.notify.active], BT.TEXT_COLORS.buff), "in the buffs' color")
+STATE.buffs = { MOTW }
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), "|T135932:0|t -Arcane Intellect", "and one lost")
+fire("UNIT_AURA", "player")
+assertEq(#lines("notify"), 2, "nothing when nothing changed")
+clear()
+-- Left out: food and drink, buffs with no time limit, and seals (they have their own lines)
+STATE.buffs = { MOTW, { name = "Drink", spellId = 430, duration = 18 }, { name = "Brown Horse", spellId = 458, duration = 0 },
+    { name = "Seal of Righteousness", spellId = 21084, duration = 30 } }
+fire("UNIT_AURA", "player")
+assertEq(table.concat(lines("notify"), " / "), "|T132325:0|t +Seal of Righteousness", "only the seal's own line")
+STATE.buffs = { MOTW }
+fire("UNIT_AURA", "player")
+clear()
+-- In a fight the buffs are hidden; what changed shows when it ends
+fire("PLAYER_REGEN_DISABLED")
+STATE.buffsHidden = true
+STATE.buffs = { MOTW, AI }
+fire("UNIT_AURA", "player")
+assertEq(#lines("notify"), 1, "nothing in the fight (only +Combat)")
+STATE.buffsHidden = false
+fire("PLAYER_REGEN_ENABLED")
+assertEq(table.concat(lines("notify"), " / "), "+Combat / -Combat / |T135932:0|t +Arcane Intellect", "the fight's changes, once it's over")
+clear()
+-- Dying drops your buffs: no wall of lines
+STATE.dead = true
+STATE.buffs = {}
+fire("UNIT_AURA", "player")
+assertEq(#lines("notify"), 0, "nothing when you die")
+STATE.dead = false
+STATE.buffs = { AI }
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), "|T135932:0|t +Arcane Intellect", "buffs after you're back are new again")
+STATE.buffs = {}
+fire("UNIT_AURA", "player")
+BT.db.nBuffs = false
+SetIcons(false)
 clear()
 
 step("colors, each area's look, short numbers")

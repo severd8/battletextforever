@@ -29,6 +29,7 @@ BT.TEXT_COLORS = {
     xp        = { 0.75, 0.50, 1.00 },
     loot      = { 1.00, 1.00, 1.00 },
     seal      = { 1.00, 0.92, 0.55 },
+    buff      = { 0.55, 0.85, 1.00 },
 }
 -- What they start as; db.colors holds the ones you've changed (ApplyColors)
 BT.DEFAULT_COLORS = {}
@@ -38,7 +39,7 @@ BT.COLOR_CHOICES = {
     { "melee", "Your hits" }, { "spell", "Your spells" }, { "miss", "Your misses" },
     { "inDamage", "Damage you take" }, { "inAvoid", "Attacks you avoid" }, { "heal", "Heals" },
     { "power", "Power gains" }, { "notify", "Notifications" }, { "combat", "Entering combat" },
-    { "xp", "Experience" }, { "seal", "Seals" },
+    { "xp", "Experience" }, { "seal", "Seals" }, { "buff", "Buffs" },
 }
 -- Spell damage is tinted by its school (the game's own words for them)
 local SCHOOL_KEYS = {
@@ -88,6 +89,7 @@ local DEFAULTS = {
     inDamage = true, inHeals = true, inMisses = true, inPower = false,
     nCombat = true, nKill = true, nXP = true, nRep = true, nHonor = true,
     nLoot = true, nMoney = false, nSkill = true, nSeals = true,
+    nBuffs = false,           -- a line when a buff goes on or comes off (out of a fight only)
     hideBlizzard = false,
     minimap = true,
     startReminder = true,   -- a line in chat after logging in, while Start hasn't been clicked
@@ -878,6 +880,30 @@ function BT:SeenSeal(found)
     end
 end
 
+-- Buffs gained and lost. Your buffs can only be read out of a fight, so what
+-- changed during one shows when it ends. Left out: seals (they have their own
+-- lines), buffs with no time limit (mounts, auras, stances, tracking) and food
+-- and drink. Dying drops your buffs: that's not reported.
+local QUIET_BUFFS = { Food = true, Drink = true, ["Food & Drink"] = true, Refreshment = true }
+function BT:SeenBuffs(now)
+    local before = self.buffsSeen
+    self.buffsSeen = now
+    if not before or not self.db.nBuffs then return end
+    if Flag(UnitIsDeadOrGhost, "player") then return end
+    local function worth(b) return not QUIET_BUFFS[b.name] and b.duration ~= nil and b.duration > 0 end
+    local function line(b, on)
+        local icon = ""
+        if self.db.nIcons and b.icon then icon = "|T" .. b.icon .. ":0|t " end
+        self:Notify(icon .. (on and "+" or "-") .. b.name, self.TEXT_COLORS.buff)
+    end
+    for name, b in pairs(before) do
+        if not now[name] and worth(b) then line(b, false) end
+    end
+    for name, b in pairs(now) do
+        if not before[name] and worth(b) then line(b, true) end
+    end
+end
+
 -- A Holy hit that lands with your swing on the same unit, while a seal that adds
 -- damage is on you, is the seal's
 function BT:SealFor(h, seq, first, last, at)
@@ -1038,7 +1064,7 @@ function BT:ScanShield()
     if not (C_UnitAuras and C_UnitAuras.GetAuraDataByIndex) then return end
     local _, shields = self:SpellLists()
     local seals = self:SealLists()
-    local found, seal = {}, nil
+    local found, seal, buffs = {}, nil, {}
     for i = 1, 40 do
         local ok, a = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
         if not ok or IsSecret(a) then return end
@@ -1050,10 +1076,14 @@ function BT:ScanShield()
         end
         if name and seals[name] then
             seal = { id = Num(a.spellId) or seals[name].id, name = seals[name].name, school = seals[name].school }
+        elseif name then
+            local icon = a.icon
+            buffs[name] = { name = name, icon = Num(icon) or Str(icon), duration = Num(a.duration) }
         end
     end
     self.buffShields = found
     self:SeenSeal(seal)
+    self:SeenBuffs(buffs)
 end
 
 -- The ones on your gear (self.itemShields): an item says so in its tooltip,
@@ -2074,6 +2104,7 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         if BT.db.nCombat then BT:Notify("+Combat", BT.TEXT_COLORS.combat) end
     elseif event == "PLAYER_REGEN_ENABLED" then
         if BT.db.nCombat then BT:Notify("-Combat", BT.TEXT_COLORS.notify) end
+        BT:ScanShield()   -- your buffs can be read again: what changed during the fight
         if BT.startPending then
             BT.startPending = nil
             BT:UpdateStartButton()

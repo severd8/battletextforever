@@ -13,7 +13,7 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 - **Your hits**, tinted by school, with the spell's name and icon when the game lets BattleText tell which spell it was. Crits are bigger and hold in place for a moment, and rapid hits of one spell add up ("Swipe 135 (x3)").
 - **What happens to you**, in its own area: the damage you take, and the attacks you dodge, parry, block or resist.
 - **Heals**, the ones you get and the ones you do, in their own Healing area under your character (or with the damage, if you prefer).
-- **Notifications**: combat, experience, reputation, honor, loot, money, skill ups, and a paladin's seals going on and coming off.
+- **Notifications**: combat, experience, reputation, honor, loot, money, skill ups, a paladin's seals going on and coming off, and (if you turn it on) your buffs.
 - **Four text areas** you can drag anywhere on screen.
 - **Your look**: 20 fonts, outline thickness, text and crit size, short numbers (12.3k), scroll speed and distance, straight or curved, up or down, your own colors, and each area's own size and opacity.
 - **Your choice of what's shown.** Turn any kind of text off, icons and spell names per area, hide small hits and heals, and hide the game's own numbers so nothing shows twice.
@@ -46,8 +46,8 @@ The options have the same look as TauntMaster Forever, ToppedOff Forever and Out
 | **Outgoing** | Damage, misses, pet, damage shields, icons, names, hide hits below a number, this area's text size and opacity |
 | **Incoming** | Damage, avoids, power gains, icons, names, this area's text size and opacity |
 | **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number, this area's text size and opacity |
-| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, this area's text size and opacity |
-| **Colors** | The color of your hits, spells, misses, damage you take, avoids, heals, power gains, notifications, combat, experience and seals; reset colors |
+| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, buffs, this area's text size and opacity |
+| **Colors** | The color of your hits, spells, misses, damage you take, avoids, heals, power gains, notifications, combat, experience, seals and buffs; reset colors |
 
 ### Keybindings
 
@@ -88,6 +88,7 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
 
   Other hits show as a plain number in their school's color.
 - **Seals in a fight.** The game hides your buffs during a fight, so a seal coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.
+- **Buffs** (off unless you turn them on) show when they go on or come off, outside a fight. The game hides your buffs during one, so what changed shows when it ends. Food, drink, and buffs with no time limit (mounts, auras, stances) aren't shown, and nothing is shown when you die.
 - **The last swing on a mob may not show**: the game stops reporting a unit the moment it dies.
 - **Damage you take has no spell names.**
 - When the game does let BattleText read the Combat Log's lines, they're used instead: every hit then has its spell, and your pet's hits are marked.
