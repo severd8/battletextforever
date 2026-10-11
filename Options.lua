@@ -246,8 +246,9 @@ local function BuildNotifications(p)
         "Paladins: a line when a seal goes on or comes off. In a fight the game hides your buffs, so a seal "
         .. "coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.")
     Setting(card, "Buffs", 12, -160, "nBuffs",
-        "A line when a buff goes on or comes off. The game hides your buffs during a fight, so what changed in "
-        .. "one shows when it ends. Not shown: food and drink, and buffs with no time limit (mounts, auras, stances).")
+        "A line when a buff goes on or comes off. The game hides your buffs during a fight: there, a buff you put on "
+        .. "yourself (Slice and Dice, Evasion...) shows as you cast it, and the rest of what changed shows when the fight "
+        .. "ends. Not shown: food and drink, and buffs with no time limit (mounts, auras, stances).")
     AreaLook(p, -204, "n")
 end
 

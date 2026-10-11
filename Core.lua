@@ -789,6 +789,15 @@ local SEAL_SPELLS = {
     { 20166, "Seal of Wisdom" },
 }
 local JUDGEMENT = { 20271, "Judgement" }
+-- Buffs you cast on yourself, for when the game doesn't say so (C_Spell.IsSelfBuff):
+-- { first rank's ID, English name }
+local SELF_BUFFS = {
+    { 5171, "Slice and Dice" }, { 5277, "Evasion" }, { 2983, "Sprint" }, { 13750, "Adrenaline Rush" },
+    { 13877, "Blade Flurry" }, { 1719, "Recklessness" }, { 12292, "Death Wish" }, { 18499, "Berserker Rage" },
+    { 871, "Shield Wall" }, { 5217, "Tiger's Fury" }, { 1850, "Dash" }, { 22812, "Barkskin" },
+    { 3045, "Rapid Fire" }, { 12042, "Arcane Power" }, { 12043, "Presence of Mind" }, { 11129, "Combustion" },
+    { 498, "Divine Protection" }, { 642, "Divine Shield" }, { 20216, "Divine Favor" }, { 16166, "Elemental Mastery" },
+}
 local SEAL_TIME = 30   -- how long a seal lasts, in seconds
 
 local function SpellName(id)
@@ -817,6 +826,29 @@ function BT:SpellLists()
         for _, name in ipairs(names(e)) do self.shields[name] = { school = e[3], id = e[1] } end
     end
     return self.periodic, self.shields
+end
+
+-- Buffs you cast on yourself, by name (English, and the game's language)
+function BT:SelfBuffList()
+    if self.selfBuffs then return self.selfBuffs end
+    local english = not GetLocale or GetLocale() == "enUS" or GetLocale() == "enGB"
+    self.selfBuffs = {}
+    for _, e in ipairs(SELF_BUFFS) do
+        self.selfBuffs[e[2]] = true
+        local own = SpellName(e[1])
+        if own and not english then self.selfBuffs[own] = true end
+    end
+    return self.selfBuffs
+end
+
+-- Whether a spell you cast puts a buff on you only: the game's answer, the list
+-- above, or what was seen before (a buff of that name showing up as you cast it)
+function BT:IsSelfBuffCast(id, name)
+    if C_Spell and C_Spell.IsSelfBuff and id then
+        local ok, yes = pcall(C_Spell.IsSelfBuff, id)
+        if ok and yes == true then return true end
+    end
+    return self:SelfBuffList()[name] == true or (self.db.learnedBuffs and self.db.learnedBuffs[name] == true) or false
 end
 
 -- The seals by name (English, and the game's language), and Judgement's names
@@ -889,6 +921,16 @@ local QUIET_BUFFS = { Food = true, Drink = true, ["Food & Drink"] = true, Refres
 function BT:SeenBuffs(now)
     local before = self.buffsSeen
     self.buffsSeen = now
+    -- Your buffs can be read again after a fight: the ones you cast during it
+    -- were already shown as they went on, and those that ran out go now
+    local fight = self.fightBuffs
+    self.fightBuffs = nil
+    -- A buff that turns up as you cast a spell of its name is one you put on yourself
+    local cast = self.lastCast
+    if before and cast and GetTime() - cast.at < 3 and now[cast.name] and not before[cast.name] then
+        self.db.learnedBuffs = self.db.learnedBuffs or {}
+        self.db.learnedBuffs[cast.name] = true
+    end
     if not before or not self.db.nBuffs then return end
     if Flag(UnitIsDeadOrGhost, "player") then return end
     local function worth(b) return not QUIET_BUFFS[b.name] and b.duration ~= nil and b.duration > 0 end
@@ -901,7 +943,13 @@ function BT:SeenBuffs(now)
         if not now[name] and worth(b) then line(b, false) end
     end
     for name, b in pairs(now) do
-        if not before[name] and worth(b) then line(b, true) end
+        if not before[name] and worth(b) and not (fight and fight[name]) then line(b, true) end
+    end
+    for name, b in pairs(fight or {}) do
+        if not now[name] and not before[name] then
+            local icon = self.db.nIcons and self:IconText(b.id) or ""
+            self:Notify(icon .. "-" .. name, self.TEXT_COLORS.buff)
+        end
     end
 end
 
@@ -1048,7 +1096,17 @@ function BT:OnSpellcast(spellId)
         self.buffShields = self.buffShields or {}
         self.buffShields[name] = { name = name, id = id, school = shields[name].school }
     end
+    self.lastCast = { name = name, at = GetTime() }
     local seals, judgement = self:SealLists()
+    -- In a fight your buffs are hidden: a buff you put on yourself shows as you cast it
+    if not seals[name] and InCombatLockdown() and self:IsSelfBuffCast(id, name) then
+        self.fightBuffs = self.fightBuffs or {}
+        self.fightBuffs[name] = { name = name, id = id }
+        if self.db.nBuffs then
+            local icon = self.db.nIcons and self:IconText(id) or ""
+            self:Notify(icon .. "+" .. name, self.TEXT_COLORS.buff)
+        end
+    end
     if seals[name] then
         self:SetSeal({ id = id, name = seals[name].name, school = seals[name].school })
     elseif judgement[name] then
@@ -1598,6 +1656,7 @@ function BT:CheckGameData()
     for _, e in ipairs(PERIODIC_SPELLS) do spell(e[1], e[2], "tick") end
     for _, e in ipairs(SHIELD_SPELLS) do spell(e[1], e[2], "shield") end
     for _, e in ipairs(SEAL_SPELLS) do spell(e[1], e[2], "seal") end
+    for _, e in ipairs(SELF_BUFFS) do spell(e[1], e[2], "buff") end
     spell(JUDGEMENT[1], JUDGEMENT[2], "seal")
     local skillNames = { [2366] = "Herb Gathering", [2575] = "Mining", [7620] = "Fishing" }
     for skill, id in pairs(SKILL_SPELLS) do spell(id, skillNames[id] or skill, "skill " .. skill) end

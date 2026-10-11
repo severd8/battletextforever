@@ -2216,6 +2216,61 @@ STATE.buffsHidden = false
 fire("PLAYER_REGEN_ENABLED")
 assertEq(table.concat(lines("notify"), " / "), "+Combat / -Combat / |T135932:0|t +Arcane Intellect", "the fight's changes, once it's over")
 clear()
+-- A buff you put on yourself in a fight shows as you cast it (the game says it's one);
+-- when it ran out shows after the fight
+STATE.spellNames[5171], STATE.spellIcons[5171] = "Slice and Dice", 132306
+STATE.spellNames[16827] = "Claw"
+STATE.buffs = { MOTW, INTELLECT }
+fire("UNIT_AURA", "player")
+clear()
+fire("PLAYER_REGEN_DISABLED")
+COMBAT, STATE.buffsHidden = true, true
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-snd", 5171)
+assertEq(last("notify"), "|T132306:0|t +Slice and Dice", "Slice and Dice shows in the fight, as it's cast")
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-claw", 16827)
+assertEq(last("notify"), "|T132306:0|t +Slice and Dice", "an attack isn't a buff")
+STATE.spellNames[4321], STATE.selfBuffs = "Ice Barrier", { [4321] = true }
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-ib", 4321)
+assertEq(last("notify"), "+Ice Barrier", "a spell the game calls a buff on you only")
+STATE.selfBuffs = nil
+COMBAT, STATE.buffsHidden = false, false
+fire("PLAYER_REGEN_ENABLED")   -- it ran out during the fight
+local ended = table.concat(lines("notify"), " / ")
+assert(ended:find("-Slice and Dice", 1, true) and ended:find("-Ice Barrier", 1, true), "and their end shows once the fight is over: " .. ended)
+clear()
+fire("PLAYER_REGEN_DISABLED")
+COMBAT, STATE.buffsHidden = true, true
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-snd2", 5171)
+COMBAT, STATE.buffsHidden = false, false
+STATE.buffs = { MOTW, INTELLECT, { name = "Slice and Dice", spellId = 5171, icon = 132306, duration = 21 } }
+fire("PLAYER_REGEN_ENABLED")   -- still on after the fight
+assertEq(table.concat(lines("notify"), " / "), "+Combat / |T132306:0|t +Slice and Dice / -Combat", "no second line for it")
+STATE.buffs = { MOTW, INTELLECT }
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), "|T132306:0|t -Slice and Dice", "and when it runs out out of the fight, that shows")
+clear()
+-- Without the game's word for it, a buff seen turning up as you cast its spell is learned
+STATE.spellNames[1234] = "Battle Trance"
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-bt", 1234)
+STATE.buffs = { MOTW, INTELLECT, { name = "Battle Trance", spellId = 1234, duration = 10 } }
+fire("UNIT_AURA", "player")
+assertEq(BT.db.learnedBuffs["Battle Trance"], true, "learned out of a fight")
+STATE.buffs = { MOTW, INTELLECT }
+fire("UNIT_AURA", "player")
+clear()
+fire("PLAYER_REGEN_DISABLED")
+COMBAT, STATE.buffsHidden = true, true
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-bt2", 1234)
+assertEq(last("notify"), "+Battle Trance", "and shown as it's cast in the next fight")
+COMBAT, STATE.buffsHidden = false, false
+fire("PLAYER_REGEN_ENABLED")
+clear()
+STATE.buffs = { INTELLECT }
+fire("UNIT_AURA", "player")
+STATE.buffs = {}
+fire("UNIT_AURA", "player")
+clear()
+
 -- Dying drops your buffs: no wall of lines
 STATE.dead = true
 STATE.buffs = {}

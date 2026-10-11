@@ -337,6 +337,7 @@ C_Spell = {
     GetSpellTexture = function(spell) return STATE.spellIcons[spell] end,
     GetSpellName = function(id) return STATE.spellNames[id] end,
     GetSpellDescription = function(id) return STATE.spellDescriptions[id] end,
+    IsSelfBuff = function(id) return (STATE.selfBuffs or {})[id] == true end,
 }
 C_UnitAuras = {
     GetAuraDataByIndex = function(unit, i, filter)

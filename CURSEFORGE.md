@@ -84,7 +84,7 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
 
   Other hits show as a plain number in their school's color.
 - **Seals in a fight.** The game hides your buffs during a fight, so a seal coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.
-- **Buffs** (off unless you turn them on) show when they go on or come off, outside a fight. The game hides your buffs during one, so what changed shows when it ends. Food, drink, and buffs with no time limit (mounts, auras, stances) aren't shown, and nothing is shown when you die.
+- **Buffs** (off unless you turn them on) show when they go on or come off. The game hides your buffs during a fight: there, a buff you put on yourself (Slice and Dice, Evasion, Sprint...) shows as you cast it, and the rest of what changed, including when those ran out, shows when the fight ends. Food, drink, and buffs with no time limit (mounts, auras, stances) aren't shown, and nothing is shown when you die.
 - **The last swing on a mob may not show**: the game stops reporting a unit the moment it dies.
 - **Damage you take has no spell names.**
 - When the game does let BattleText read the Combat Log's lines, they're used instead: every hit then has its spell, and your pet's hits are marked.
