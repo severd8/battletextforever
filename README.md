@@ -77,7 +77,7 @@ Go to **Options → Keybindings → BattleText Forever**:
 
 WoW: Forever doesn't let addons read the combat log. The game tells an addon **what happened to a unit** (it took 27 damage, it dodged), but not **who did it** or **with which spell**. BattleText works from that:
 
-- **Your hits are read from the unit you hit**: your target, and the mobs attacking you or your pet. Turn on **enemy nameplates** to see your hits on the ones you aren't targeting.
+- **Your hits are read from the unit you hit**: your target, and the mobs attacking you or your pet. An area spell (Fire Nova, Arcane Explosion, Swipe...) also shows on every other mob it hits at the same moment. Turn on **enemy nameplates** to see your hits on the ones you aren't targeting.
 - **Alone, every hit on those units is shown as yours**, your pet's hits included (they can't be told apart, so they aren't marked).
 - **Click Start BattleText once per login.** It opens the Combat Log tab and switches back for you. From then on the game tells BattleText *when* you did something. In a group, only that many hits are shown, so other people's are left out (now and then a number may still be a groupmate's hit that landed at the same moment as yours). Keep the Combat Log's filter on **My actions** (the default).
 - **Spell names and icons** show for:

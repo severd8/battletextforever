@@ -962,7 +962,7 @@ function BT:SealFor(h, seq, first, last, at)
     if Num(h.school) ~= seal.school then return nil end
     for j = first, last do
         local o = seq[j]
-        if j ~= at and o.hit and o.kind == "damage" and Num(o.school) == 1
+        if j ~= at and o.hit and not o.splash and o.kind == "damage" and Num(o.school) == 1
             and ((h.key and o.key == h.key) or (not h.key and o.unit == h.unit)) then
             return { id = seal.id, name = seal.name }
         end
@@ -1321,7 +1321,7 @@ function BT:ResolveFrame(seq, first, last)
         local taken, school = {}, nil
         for i = first, last do
             local h = seq[i]
-            if h.hit then
+            if h.hit and not h.splash then
                 local mask = Num(h.school)
                 local can = true
                 if h.kind == "damage" then
@@ -1355,7 +1355,7 @@ function BT:ResolveFrame(seq, first, last)
         if h.nothing and not blowInFrame then
             self:Emit("incoming", MissText("MISS"), self.TEXT_COLORS.inAvoid)   -- a hit on you for nothing
         end
-        if h.hit then
+        if h.hit and not h.splash then
             local mask = Num(h.school)
             local what, spell = "hit", nil
             -- Without a line to go by, the cast's hit comes after the cast (a hit ahead of it in
@@ -1408,10 +1408,35 @@ function BT:ResolveFrame(seq, first, last)
                 why = "no line of yours with it"
             else
                 why = self:ShowUnitHit(h, what, spell)
+                if not why and h.kind == "damage" then h.mine = { what = what, spell = spell } end
             end
             if self.db.debug then
                 self:Record(("  %s %s: %s"):format(h.unit, h.secret and "(hidden amount)" or tostring(h.amount),
                     why or (spell and (what .. " of " .. tostring(spell.name)) or "shown")), h.time)
+            end
+        end
+    end
+    -- Damage on mobs that aren't after you: yours if a hit of yours of the same school
+    -- landed in this frame on one that is. It's named as that hit was.
+    for i = first, last do
+        local h = seq[i]
+        if h.hit and h.splash then
+            local mask, mine = Num(h.school), nil
+            for j = first, last do
+                local o = seq[j]
+                if o.mine and mask ~= nil and Num(o.school) == mask then mine = o.mine break end
+            end
+            local why
+            if not mine then
+                why = "not your fight"
+            elseif h.grouped and not self:ClaimHit(h.time) then
+                why = "no line of yours with it"
+            else
+                why = self:ShowUnitHit(h, mine.what, mine.spell)
+            end
+            if self.db.debug then
+                self:Record(("  %s %s: %s"):format(h.unit, h.secret and "(hidden amount)" or tostring(h.amount),
+                    why or ("with your hit" .. (mine.spell and (" of " .. tostring(mine.spell.name)) or ""))), h.time)
             end
         end
     end
@@ -1498,7 +1523,7 @@ function BT:OnUnitHit(unit, action, flag, amount, school)
     -- In a group, once the combat log lines are arriving, they say which hits are yours
     local grouped = self.hiddenSeen and self:InGroup()
 
-    local why
+    local why, splash
     if not kind then
         why = "not a hit"
     elseif self.readAt and now - self.readAt < CREDIT_TIME then
@@ -1509,19 +1534,24 @@ function BT:OnUnitHit(unit, action, flag, amount, school)
         why = "not an enemy"
     elseif healing and not grouped and not myPet and not Flag(UnitIsUnit, unit, "target") then
         why = "not your target"
-    elseif not healing and not Fighting(unit) then
+    elseif not healing and not Fighting(unit) and kind ~= "damage" then
         why = "not your fight"
     elseif not self:FirstSight(unit, now) then
         why = "same hit, under another name"
+    elseif not healing and not Fighting(unit) then
+        -- Damage on a mob that isn't after you or your pet: yours only if it lands with a
+        -- hit of yours on one that is, of the same school (an area spell hits them all at once)
+        splash = true
     end
     if self.db.debug then
         self:Record(("UNIT_COMBAT %s %s %s %s school %s%s"):format(unit, tostring(action), tostring(flag),
             secret and "(hidden amount)" or tostring(amount), IsSecret(school) and "(hidden)" or tostring(school),
-            why and (": " .. why) or ""))
+            why and (": " .. why) or (splash and ": not your fight, unless a hit of yours lands with it" or "")))
     end
     if why then return end
     self:Queue({ hit = true, unit = unit, key = UnitKey(unit), kind = kind, action = action, flag = flag,
-        amount = amount, secret = secret, n = n, school = school, crit = flag == "CRITICAL", grouped = grouped })
+        amount = amount, secret = secret, n = n, school = school, crit = flag == "CRITICAL", grouped = grouped,
+        splash = splash })
 end
 
 -- A finished combat log line from the game

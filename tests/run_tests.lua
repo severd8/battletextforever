@@ -2102,6 +2102,48 @@ assertEq(BT.db.locked, false, "/btf unlock still works with the window closed")
 SlashCmdList.BATTLETEXTFOREVER("lock")
 clear()
 
+step("area damage on mobs that aren't after you")
+STATE.group = false
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.unit.mobB = { enemy = true, guid = "Creature-0-1-2-3-100-00000B", target = "friend" }
+STATE.unit.mobC = { enemy = true, guid = "Creature-0-1-2-3-100-00000C" }
+STATE.who.target, STATE.who.nameplate1, STATE.who.nameplate2, STATE.who.nameplate3 = "mobA", "mobA", "mobB", "mobC"
+freshFight()
+-- Fire Nova: every mob around you is hit in the same instant, with the same school
+fire("UNIT_COMBAT", "target", "WOUND", "", 40, 4)
+fire("UNIT_COMBAT", "nameplate1", "WOUND", "", 40, 4)   -- (your target again, under its nameplate)
+fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 41, 4)   -- after someone else
+fire("UNIT_COMBAT", "nameplate3", "WOUND", "", 42, 4)   -- not after anyone yet
+assertEq(table.concat(lines("outgoing"), " / "), "40 / 41 / 42", "every mob your area spell hit")
+clear()
+fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 41, 4)
+assertEq(#lines("outgoing"), 0, "a hit on someone else's mob, on its own, isn't yours")
+Advance(1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 40, 1)
+fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 41, 4)
+assertEq(table.concat(lines("outgoing"), " / "), "40", "nor one of another school in the same instant")
+clear()
+-- With a cast in the frame, they're all named after it, and add up
+STATE.spellNames[1449] = "Arcane Explosion"
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-ae", 1449)
+fire("UNIT_COMBAT", "target", "WOUND", "", 30, 64)
+fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 31, 64)
+fire("UNIT_COMBAT", "nameplate3", "WOUND", "", 32, 64)
+assertEq(last("outgoing"), "Arcane Explosion 93 |cffb0b0b0(x3)|r", "named after the spell, added up")
+clear()
+-- In a group, each still needs a line of yours
+STATE.group, STATE.who.party1 = true, "friend"
+BT.hiddenSeen, BT.hiddenAt, BT.credits = true, GetTime(), {}
+BT:NoteHiddenLine(GetTime())
+BT:NoteHiddenLine(GetTime())
+fire("UNIT_COMBAT", "target", "WOUND", "", 40, 4)
+fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 41, 4)
+fire("UNIT_COMBAT", "nameplate3", "WOUND", "", 42, 4)
+assertEq(table.concat(lines("outgoing"), " / "), "40 / 41", "two lines: two hits")
+STATE.group, STATE.who.party1 = false, nil
+STATE.who.nameplate1, STATE.who.nameplate2, STATE.who.nameplate3 = nil, nil, nil
+freshFight()
+
 step("a paladin's seals")
 STATE.spellNames[21084], STATE.spellNames[20375], STATE.spellNames[20271] = "Seal of Righteousness", "Seal of Command", "Judgement"
 STATE.spellIcons[21084] = 132325

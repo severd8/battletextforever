@@ -2,6 +2,7 @@
 
 ## 1.7.1
 
+- **Area spells show on every mob they hit.** Fire Nova, Arcane Explosion and the like only showed on your target and the mobs attacking you; mobs on someone else, or just pulled, were left out. Now a hit on any mob counts as yours when it lands in the same instant, and with the same school, as one of yours on a mob you're fighting. Enemy nameplates still need to be on.
 - **"Hide the game's own numbers" works on Forever.** The numbers the game puts over the mobs you hit kept showing: Forever renamed that setting (it's `floatingCombatTextCombatDamage_v2` now), and BattleText only knew the old name. It now turns off the damage, healing and pet numbers by their new names too, and puts them back as they were when you turn the option off. (Thanks to the players who reported it, and to the one who found the setting's name.)
 - **Buffs you put on yourself now show during a fight.** Slice and Dice (and Evasion, Sprint, Adrenaline Rush and the like) showed nothing in combat, because the game hides your buffs there. Now its line shows as you cast it, and when it ran out shows as soon as the fight ends.
 
