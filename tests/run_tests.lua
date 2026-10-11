@@ -1801,7 +1801,12 @@ step("the game's own numbers")
 BT.db.hideBlizzard = true
 BT:ApplySettings()
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "0", "turned off")
+assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "0", "Forever's numbers over the mobs you hit too")
+assertEq(STATE.cvars.floatingCombatTextCombatHealing_v2, "0", "and over the units you heal")
+assertEq(STATE.cvars.floatingCombatTextPetMeleeDamage_v2, "0", "and your pet's")
+assertEq(STATE.cvars.floatingCombatTextCombatLogPeriodicSpells_v2, nil, "a setting the game doesn't have is left alone")
 SlashCmdList.BATTLETEXTFOREVER("off")
+assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "1", "BattleText off: Forever's come back too")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "1", "BattleText off: the game's numbers come back")
 SlashCmdList.BATTLETEXTFOREVER("on")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "0", "and go again")
@@ -1815,6 +1820,14 @@ BT.db.hideBlizzard = false
 BT:ApplySettings()
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "1", "option off: put back as it was")
 assertEq(BT.db.savedCVars, nil, "nothing left over")
+assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "1", "Forever's put back too")
+STATE.cvars.floatingCombatTextCombatDamage_v2 = "0"   -- someone who had already turned it off by hand
+BT.db.hideBlizzard = true
+BT:ApplySettings()
+BT.db.hideBlizzard = false
+BT:ApplySettings()
+assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "0", "keeps it off when the option goes off again")
+STATE.cvars.floatingCombatTextCombatDamage_v2 = "1"
 STATE.cvars.enableFloatingCombatText = "0"   -- one of them was off already
 BT.db.hideBlizzard = true
 BT:ApplySettings()

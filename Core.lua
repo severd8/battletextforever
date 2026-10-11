@@ -1919,7 +1919,16 @@ end
 -- set to is remembered, and put back when the option or BattleText is turned
 -- off, and whenever you log out (so nothing is left changed if BattleText is
 -- removed).
-local BLIZZARD_CVARS = { "enableFloatingCombatText", "floatingCombatTextCombatDamage", "floatingCombatTextCombatHealing" }
+-- Forever names them with "_v2" (the numbers over the mobs you hit and the units
+-- you heal); the older names are kept for a client that still has them. One the
+-- game doesn't have reads as nothing and is skipped.
+local BLIZZARD_CVARS = {
+    "enableFloatingCombatText",
+    "floatingCombatTextCombatDamage_v2", "floatingCombatTextCombatHealing_v2",
+    "floatingCombatTextCombatLogPeriodicSpells_v2", "floatingCombatTextPetMeleeDamage_v2",
+    "floatingCombatTextPetSpellDamage_v2",
+    "floatingCombatTextCombatDamage", "floatingCombatTextCombatHealing",
+}
 function BT:ApplyBlizzardText(restore)
     if not (GetCVar and SetCVar) then return end
     if InCombatLockdown() and not restore then return end

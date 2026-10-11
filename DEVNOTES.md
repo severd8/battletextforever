@@ -163,7 +163,7 @@ Only testable in game:
 - everything in `OnUnitHit`: that the event arrives for `target` and nameplate units, how far a hit trails its hidden line, whether a cast and its hit share a frame
 - the options window's dropdowns (`MenuUtil.CreateContextMenu`; with no menus a click steps to the next choice) and its tab icons
 - whether `order` is readable (if it's secret, replayed history can't be told from new lines)
-- whether `floatingCombatTextCombatDamage` and `floatingCombatTextCombatHealing` exist on this client (they aren't in the game's Lua; a missing one is skipped)
+- which of the game's floating number settings exist (`BLIZZARD_CVARS`; none are in the game's Lua, and a missing one is skipped). Confirmed by players: Forever's is `floatingCombatTextCombatDamage_v2` (the old `floatingCombatTextCombatDamage` doesn't hide the numbers over mobs); the healing and pet ones are the same pattern, unconfirmed
 - fonts, and how the text looks in motion
 
 ## Releasing

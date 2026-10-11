@@ -220,7 +220,10 @@ STATE = {
     filterApplied = false,        -- the Combat Log window has loaded its filter (lines can flow)
     logBroken = false,            -- an addon tried to load the filter: the game's combat log is broken until /reload
     useKeyDown = false,           -- the "act on key down" game setting
-    cvars = { enableFloatingCombatText = "1", floatingCombatTextCombatDamage = "1", floatingCombatTextCombatHealing = "1" },
+    -- Forever's: the numbers over the mobs you hit are the "_v2" ones
+    cvars = { enableFloatingCombatText = "1", floatingCombatTextCombatDamage_v2 = "1", floatingCombatTextCombatHealing_v2 = "1",
+        floatingCombatTextPetMeleeDamage_v2 = "1", floatingCombatTextPetSpellDamage_v2 = "1",
+        floatingCombatTextCombatDamage = "1", floatingCombatTextCombatHealing = "1" },
     filteredEvents = false,       -- C_CombatLog.SetFilteredEventsEnabled
     spellIcons = { [16827] = 132140, [8921] = 136096 },   -- by spell ID
     spellNames = { [16827] = "Claw", [8921] = "Moonfire", [1082] = "Claw", [1822] = "Rake", [1079] = "Rip", [5221] = "Shred",
