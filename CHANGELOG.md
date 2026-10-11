@@ -1,10 +1,14 @@
 # Changelog
 
+## 1.7.1
+
+- **Buffs you put on yourself now show during a fight.** Slice and Dice (and Evasion, Sprint, Adrenaline Rush and the like) showed nothing in combat, because the game hides your buffs there. Now its line shows as you cast it, and when it ran out shows as soon as the fight ends.
+
 ## 1.7.0
 
 - **Seals** (Notifications tab): paladins get a line when a seal goes on or comes off ("+Seal of Righteousness"), with its icon and its own color. In a fight the game hides your buffs, so a seal coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.
 - **A seal's damage is named**: the Holy hit of Seal of Righteousness or Seal of Command that lands with your swing now shows the seal's name and icon instead of a bare number. Turn off **Seal damage** (Outgoing tab) to keep the plain number.
-- **Buffs** (Notifications tab, off unless you turn it on): a line when a buff goes on or comes off ("+Arcane Intellect"). The game hides your buffs during a fight: there, a buff you put on yourself (Slice and Dice, Evasion, Sprint...) shows as you cast it, and the rest of what changed, including when those ran out, shows when the fight ends. Food, drink, and buffs with no time limit (mounts, auras, stances) are left out, and dying doesn't fill the screen.
+- **Buffs** (Notifications tab, off unless you turn it on): a line when a buff goes on or comes off ("+Arcane Intellect"). The game hides your buffs during a fight, so what changed in one shows when it ends. Food, drink, and buffs with no time limit (mounts, auras, stances) are left out, and dying doesn't fill the screen.
 - `/btf check` also checks the seals and Judgement.
 
 ## 1.6.0
