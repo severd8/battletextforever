@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.2
+
+- **A heal on you could go missing.** When one of your own heals on yourself and someone else's heal landed at the same moment, only yours was shown. Now both are.
+- Behind the scenes: the text animation rests while nothing is on screen, and BattleText no longer keeps old damage-over-time and merge records for the whole session. Nothing changes in what you see.
+
 ## 1.7.1
 
 - **Area spells show on every mob they hit.** Fire Nova, Arcane Explosion and the like only showed on your target and the mobs attacking you; mobs on someone else, or just pulled, were left out. Now a hit on any mob counts as yours when it lands in the same instant, and with the same school, as one of yours on a mob you're fighting. Enemy nameplates still need to be on.

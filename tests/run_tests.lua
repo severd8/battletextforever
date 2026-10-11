@@ -547,6 +547,21 @@ clear()
 log(real("heal on myself, all overheal"))
 assertEq(#lines("incoming"), 0, "a heal that was all overhealing isn't shown")
 Advance(1)
+-- Someone else's heal landing at the same moment as yours still shows (only your
+-- heal's own amount is taken for the log's line)
+fire("UNIT_COMBAT", "player", "HEAL", "", 380, 8)
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 8)
+log(healMe("Healing Touch", 5185, 380))
+Advance(0.3)
+local healed = table.concat(lines("incoming"), " / ")
+assertEq(healed, "+380 Healing Touch / +120", "yours once, with its name, and the other heal too")
+clear()
+-- An amount the game hides can't be compared: a heal of yours just then is taken for it
+fire("UNIT_COMBAT", "player", "HEAL", "", Secret(380), 8)
+log(healMe("Healing Touch", 5185, 380))
+Advance(0.3)
+assertEq(#lines("incoming"), 1, "a hidden amount isn't shown twice either")
+clear()
 
 step("the Healing area")
 BT.db.healArea = true
@@ -2445,6 +2460,53 @@ assertEq(problems, before2 + 1, "a missing icon is a problem")
 assert(table.concat(report, "\n"):find("PROBLEM icon Interface\\Icons\\Spell_Holy_Heal", 1, true), "named in the report")
 STATE.missingFiles = nil
 assert(BT.recorded and #BT.recorded == #report, "/btf copy shows the report")
+
+step("resting when idle, and nothing left behind")
+clear()
+Advance(0.1)
+assertEq(BT.driver:IsShown(), false, "with no text on screen, the animation rests")
+BT:Emit("outgoing", "12", { 1, 1, 1 })
+assertEq(BT.driver:IsShown(), true, "a new line wakes it")
+Advance(0.5)
+assert(BT.areas.outgoing.active[1].__pos[2] < 0, "and the line moves")
+clear()
+Advance(0.1)
+assertEq(BT.driver:IsShown(), false, "it rests again once the line is gone")
+-- A line that can be added to is forgotten once it's gone
+BT:Emit("outgoing", "Claw 50", { 1, 1, 1 }, { key = "cast:1", amount = 50, format = function(t) return "Claw " .. t end })
+assert(BT.areas.outgoing.recent["cast:1"], "remembered while it's showing")
+clear()
+assertEq(BT.areas.outgoing.recent["cast:1"], nil, "forgotten when it's gone")
+-- Damage-over-time spells are forgotten after a fight, mob and all
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.who.target = "mobA"
+BT:OnSpellcast(1822)   -- Rake
+assert(BT.dots and BT.dots["Creature-0-1-2-3-100-00000A"], "Rake remembered on the mob")
+Advance(50)
+fire("PLAYER_REGEN_ENABLED")
+assertEq(BT.dots["Creature-0-1-2-3-100-00000A"], nil, "forgotten once it's long over")
+STATE.who.target = nil
+clear()
+
+step("broken combat log lines")
+-- Lines cut short or garbled never cause an error, and plain words aren't hits
+local made = 0
+for _, entry in ipairs(REAL) do
+    local raw = entry.raw
+    for cut = 1, #raw, 7 do
+        local ok, info = pcall(Parser.Parse, Parser, raw:sub(1, cut))
+        assert(ok, "a line cut short doesn't break the parser: " .. tostring(info))
+        if info and info.amount ~= nil then assert(type(info.amount) == "number", "an amount is a number") end
+        made = made + 1
+    end
+end
+assert(made > 1000, "a good many tried (" .. made .. ")")
+for _, junk in ipairs({ "|H", "|Hunit:|h", "|Haction:SPELL_DAMAGE|hhit|h", "|Hspell:abc:0:X|h|h |h", "||||", "|c|r|T|t",
+    "You hit nothing for nothing.", string.rep("|Hunit:x|h", 50), "\0\1\2" }) do
+    local ok, info = pcall(Parser.Parse, Parser, junk)
+    assert(ok, "garbage doesn't break the parser: " .. junk)
+    assert(not (info and info.kind == "damage" and info.amount), "and isn't read as a hit: " .. junk)
+end
 
 assertClean("by the end")
 print("ALL TESTS PASSED")

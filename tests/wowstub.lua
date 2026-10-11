@@ -315,7 +315,8 @@ function Advance(seconds)
             end
         end
         for _, f in ipairs(ALL_FRAMES) do
-            if f.__scripts and f.__scripts.OnUpdate then f.__scripts.OnUpdate(f, step) end
+            -- (as in the game, only a frame that's showing gets OnUpdate)
+            if f.__scripts and f.__scripts.OnUpdate and f:IsVisible() then f.__scripts.OnUpdate(f, step) end
         end
     end
 end

@@ -324,6 +324,8 @@ end
 
 local function ReleaseLine(a, o)
     o:Hide()
+    local r = o.key and a.recent[o.key]
+    if r and r.line == o then a.recent[o.key] = nil end   -- nothing can be added to it any more
     o.key = nil
     a.pool[#a.pool + 1] = o
 end
@@ -432,6 +434,7 @@ function BT:Emit(areaKey, text, color, opts)
     o:SetAlpha(0)
     o:Show()
     a.active[#a.active + 1] = o
+    if self.driver then self.driver:Show() end   -- (it rests while nothing is moving)
     -- Only a plain scrolling line can be added to later (a crit keeps its own number)
     if opts.key and opts.amount and not opts.crit then
         o.key = opts.key
@@ -443,9 +446,11 @@ end
 -- Moves every line to where it belongs at time `now`
 function BT:Animate(now)
     if not self.areas then return end
+    local moving = false
     for _, a in pairs(self.areas) do
         local h = self:AreaHeight(a)
         local n = #a.active
+        if n > 0 then moving = true end
         for i = n, 1, -1 do
             local o = a.active[i]
             local t = now - o.start
@@ -478,6 +483,8 @@ function BT:Animate(now)
             end
         end
     end
+    -- Nothing on screen: rest until the next line (Emit wakes it)
+    if not moving and self.driver then self.driver:Hide() end
 end
 
 ---------------------------------------------------------------------------
@@ -620,7 +627,7 @@ function BT:ShowCombat(info)
         local over = (db.healOver and info.overheal) and (" |cffb0b0b0(" .. Commas(info.overheal) .. " over)|r") or ""
         local nothing = info.amount == 0 and info.overheal   -- all of it was overhealing
         if info.toMe then
-            if mine then self.lastSelfHeal = GetTime() else self:NoteLogIncoming("heal") end
+            if mine then self:NoteSelfHeal(info.amount, info.overheal) else self:NoteLogIncoming("heal") end
             if nothing or not self:HealShown(info.amount) then return true end
             if db.inHeals then
                 self:Emit(self:HealArea("incoming"), "+" .. Commas(info.amount) .. SpellAfter(icon, name) .. over,
@@ -663,6 +670,33 @@ function BT:ShowCombat(info)
     elseif info.kind == "kill" then
         if mine then
             if db.nKill then self:Emit("notify", "Killing blow!", C.combat, { crit = true }) end
+            return true
+        end
+    end
+    return false
+end
+
+-- Your own heals on yourself come both from the log (with the spell's name) and
+-- from UNIT_COMBAT. Each log heal is kept a moment, with its amount, so that the
+-- same heal from UNIT_COMBAT isn't shown again, and only that one: someone
+-- else's heal landing at the same moment still shows.
+function BT:NoteSelfHeal(amount, overheal)
+    local list = self.selfHeals or {}
+    self.selfHeals = list
+    local now = GetTime()
+    while list[1] and now - list[1].time > 0.6 do table.remove(list, 1) end
+    list[#list + 1] = { time = now, amount = Num(amount), total = (Num(amount) or 0) + (Num(overheal) or 0) }
+end
+
+function BT:TakeSelfHeal(n)
+    local list = self.selfHeals
+    if not list then return false end
+    local now = GetTime()
+    while list[1] and now - list[1].time > 0.6 do table.remove(list, 1) end
+    for i, heal in ipairs(list) do
+        -- (an amount the game hides can't be compared: then any of yours just now is it)
+        if n == nil or heal.amount == nil or heal.amount == n or heal.total == n then
+            table.remove(list, i)
             return true
         end
     end
@@ -719,7 +753,7 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
         -- Your own heals on yourself also come from the combat log, with the
         -- spell's name. Wait a moment to see whether this is one of those.
         local function show()
-            if BT.lastSelfHeal and GetTime() - BT.lastSelfHeal < 0.6 then return end
+            if BT:TakeSelfHeal(n) then return end   -- the log's line showed it, with the spell's name
             if BT:LogDelivers("heal") then return end   -- the log's line for it arrived meanwhile
             if secret then
                 BT:Emit(BT:HealArea("incoming"), "+", C.heal, { crit = crit, secret = amount })
@@ -1270,6 +1304,17 @@ function BT:LearnShield(p, count, answers)
     end
     if owner and (amounts[owner.name] == nil or count >= 3 or describedCount == 1) then
         amounts[owner.name] = p.amount
+    end
+end
+
+-- Damage-over-time spells long since ticked out, on mobs that may be long gone
+function BT:ForgetOldDots()
+    local now = GetTime()
+    for key, list in pairs(self.dots or {}) do
+        for name, dot in pairs(list) do
+            if now - dot.at > DOT_TIME then list[name] = nil end
+        end
+        if next(list) == nil then self.dots[key] = nil end
     end
 end
 
@@ -2205,6 +2250,7 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
     elseif event == "PLAYER_REGEN_ENABLED" then
         if BT.db.nCombat then BT:Notify("-Combat", BT.TEXT_COLORS.notify) end
         BT:ScanShield()   -- your buffs can be read again: what changed during the fight
+        BT:ForgetOldDots()
         if BT.startPending then
             BT.startPending = nil
             BT:UpdateStartButton()
