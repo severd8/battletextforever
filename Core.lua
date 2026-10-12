@@ -100,6 +100,8 @@ local DEFAULTS = {
     nSummary = true,          -- at the end of a fight: your damage, DPS and healing
     soundCrit = false,        -- a sound when you crit
     soundKill = false,        -- a sound on a killing blow
+    critSound = "UI_PROFESSION_CRAFTING_RESULT_CRIT",   -- which ones (keys of BT.SOUNDS)
+    killSound = "UI_RAID_BOSS_DEFEATED",
     hideBlizzard = false,
     minimap = true,
     startReminder = true,   -- a line in chat after logging in, while Start hasn't been clicked
@@ -700,16 +702,63 @@ function BT:FightSummary()
     self:Notify(table.concat(parts, ", ") .. " in " .. secs .. "s", self.TEXT_COLORS.notify)
 end
 
+-- The game's sounds you can pick for a crit or a killing blow, by their SOUNDKIT
+-- name. Forever may not have every one of them: a sound it lacks plays the
+-- fallback (FALLBACK_SOUNDS) instead.
+BT.SOUNDS = {
+    { key = "UI_PROFESSION_CRAFTING_RESULT_CRIT", name = "Crit" },
+    { key = "UI_73_ARTIFACT_OVERLOADED_ORB_IMPACT_MEDIUM", name = "Impact" },
+    { key = "UI_73_ARTIFACT_OVERLOADED_ORB_IMPACT_LOW", name = "Low impact" },
+    { key = "UI_REFORGING_REFORGE", name = "Anvil" },
+    { key = "UI_POWER_AURA_GENERIC", name = "Power up" },
+    { key = "UI_LOSS_OF_CONTROL_START", name = "Whoosh" },
+    { key = "MAP_PING", name = "Ping" },
+    { key = "LOOT_WINDOW_COIN_SOUND", name = "Coins" },
+    { key = "RAID_WARNING", name = "Raid warning" },
+    { key = "READY_CHECK", name = "Ready check" },
+    { key = "PVP_THROUGH_QUEUE", name = "Battle horn" },
+    { key = "UI_BATTLEGROUND_COUNTDOWN_FINISHED", name = "Countdown end" },
+    { key = "IG_QUEST_LIST_COMPLETE", name = "Quest complete" },
+    { key = "UI_RAID_BOSS_DEFEATED", name = "Boss defeated" },
+    { key = "UI_MISSION_SUCCESS_CHEERS", name = "Cheers" },
+    { key = "UI_CHALLENGES_NEW_RECORD", name = "New record" },
+    { key = "UI_EPICLOOT_TOAST", name = "Epic loot" },
+    { key = "UI_LEGENDARY_LOOT_TOAST", name = "Legendary loot" },
+}
+local FALLBACK_SOUNDS = { crit = "MAP_PING", kill = "IG_QUEST_LIST_COMPLETE" }
+
+function BT:SoundName(key)
+    for _, s in ipairs(self.SOUNDS) do
+        if s.key == key then return s.name end
+    end
+    return self.SOUNDS[1].name
+end
+
+-- Plays a sound by its SOUNDKIT name; true if the game has it
+local function PlayKit(key)
+    local kit = key and SOUNDKIT and SOUNDKIT[key]
+    if not PlaySound or type(kit) ~= "number" or kit == 0 then return false end
+    local ok, played = pcall(PlaySound, kit, "Master", true)
+    return ok and played ~= false and not IsSecret(played)
+end
+
 -- A sound for a crit or a killing blow (never more than one at a time)
-local ALERT_SOUNDS = { crit = "MAP_PING", kill = "IG_QUEST_LIST_COMPLETE" }
 function BT:PlayAlert(what)
-    if not PlaySound or not SOUNDKIT or self.testing then return end
+    if self.testing then return end
     local now = GetTime()
     self.alertAt = self.alertAt or {}
     if self.alertAt[what] and now - self.alertAt[what] < 0.3 then return end
     self.alertAt[what] = now
-    local kit = SOUNDKIT[ALERT_SOUNDS[what]]
-    if kit then pcall(PlaySound, kit, "Master") end
+    if not PlayKit(self.db[what .. "Sound"]) then PlayKit(FALLBACK_SOUNDS[what]) end
+end
+
+-- Picking a sound in the options plays it, and says if this game doesn't have it
+function BT:SetAlertSound(what, key)
+    self.db[what .. "Sound"] = key
+    if not PlayKit(key) then
+        Print(self:SoundName(key) .. " isn't in this game's sounds. Pick another: "
+            .. "until then, " .. self:SoundName(FALLBACK_SOUNDS[what]) .. " plays instead.")
+    end
 end
 
 -- One parsed combat log line (see Parser:Parse). Returns true if it's a kind

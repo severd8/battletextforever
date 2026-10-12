@@ -8,7 +8,7 @@
 - **Size by hit** (Text tab, off): a big hit shows bigger than the hits before it, a small one smaller.
 - **Ticks and area hits add up for longer** (Scrolling tab): set how many seconds the ticks of your DoTs and bleeds, and the hits of an area spell, keep adding up on one line. 0 keeps it as before.
 - **Auto attacks** (Outgoing tab, on): turn off to hide your white swings and their misses, and see only your spells and abilities.
-- **Sounds** (Notifications tab, off): a ping when you crit, and a chime on a killing blow.
+- **Sounds** (Notifications tab, off): a sound when you crit, and one on a killing blow. Pick each from 18 of the game's sounds (Crit, Impact, Anvil, Battle horn, Boss defeated, Cheers, Epic loot...); picking one plays it. If Forever doesn't have the one you picked, chat says so and a plain ping or chime plays instead.
 - **Share settings** (General tab): Export gives your settings as text to copy; Import takes someone else's. Also `/btf export` and `/btf import`.
 - The size and opacity card on each area's tab is now named after the area ("Outgoing text: size and movement") instead of "This area".
 - **Bane of Agony's ticks are named.** Forever calls the warlock spell Bane of Agony, not Curse of Agony, so its ticks showed as bare numbers.

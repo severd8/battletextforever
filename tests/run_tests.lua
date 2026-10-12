@@ -456,13 +456,29 @@ assertEq(#STATE.sounds, 0, "no sounds while they're off")
 clear()
 BT.db.soundCrit, BT.db.soundKill = true, true
 log(hit("Claw", 16827, 100, "Physical", "(Critical)"))
-assertEq(STATE.sounds[1], 3175, "a ping on a crit")
+assertEq(STATE.sounds[1], 208810, "the crit sound on a crit")
 log(hit("Claw", 16827, 100, "Physical", "(Critical)"))
 assertEq(#STATE.sounds, 1, "not twice at once")
 log(hit("Claw", 16827, 40))
 assertEq(#STATE.sounds, 1, "not on a normal hit")
 BT:ShowCombat({ kind = "kill", fromMe = true })
-assertEq(STATE.sounds[2], 878, "a chime on a killing blow")
+assertEq(STATE.sounds[2], 50111, "the kill sound on a killing blow")
+-- Picking one in the options plays it
+assertEq(#BT.SOUNDS >= 15, true, "plenty to pick from")
+BT:SetAlertSound("crit", "UI_EPICLOOT_TOAST")
+assertEq(BT.db.critSound, "UI_EPICLOOT_TOAST", "picked")
+assertEq(STATE.sounds[3], 31578, "and heard straight away")
+-- One this game doesn't have: said so, and the fallback plays in a fight
+STATE.missingSounds = { [31578] = true }
+local printed = #LOG
+BT:SetAlertSound("crit", "UI_EPICLOOT_TOAST")
+assert(LOG[#LOG] and #LOG > printed and LOG[#LOG]:find("Epic loot isn't in this game's sounds", 1, true),
+    "a sound the game lacks is named in chat")
+Advance(1)
+log(hit("Claw", 16827, 100, "Physical", "(Critical)"))
+assertEq(STATE.sounds[#STATE.sounds], 3175, "a crit then plays the ping instead")
+STATE.missingSounds = nil
+BT.db.critSound = BT.DEFAULTS.critSound
 BT.db.soundCrit, BT.db.soundKill = false, false
 clear()
 
@@ -2266,6 +2282,16 @@ assertEq(fonts["12"], "", "a normal line uses the normal outline")
 assertEq(fonts["34"], "THICKOUTLINE", "a crit uses the crits' outline")
 BT.db.outline = "SOMETHING ODD"
 assertEq(BT:OutlineFlags(false), "OUTLINE", "an unknown outline falls back to thin")
+-- The sound lists on the Notifications tab
+local critSounds = openMenu(BT.config.critSoundDropdown)
+assertEq(#critSounds, #BT.SOUNDS, "every sound in the list")
+assertEq(BT.config.critSoundDropdown:GetText(), "Crit", "the crit sound to start with")
+assertEq(BT.config.killSoundDropdown:GetText(), "Boss defeated", "and the kill sound")
+STATE.sounds = {}
+for _, item in ipairs(critSounds) do if item.text == "Cheers" then item.pick() end end
+assertEq(BT.db.critSound, "UI_MISSION_SUCCESS_CHEERS", "picking one sets it")
+assertEq(BT.config.critSoundDropdown:GetText(), "Cheers", "the list shows it")
+BT.db.critSound = BT.DEFAULTS.critSound
 clear()
 outlineMenu[4].pick()
 assertEq(BT.db.outline, "SHADOW", "picking Shadow")

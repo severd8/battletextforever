@@ -264,7 +264,7 @@ local function BuildHealing(p)
     AreaLook(p, -206, "heal", "Healing text")
 end
 
-local function BuildNotifications(p)
+local function BuildNotifications(p, refs)
     local card = Card(p, "Notifications", 0, 0, PAGE_W, 220)
     Setting(card, "Combat", 12, -30, "nCombat", "Entering and leaving combat.")
     Setting(card, "Killing blows", COL2, -30, "nKill",
@@ -286,9 +286,19 @@ local function BuildNotifications(p)
     Setting(card, "Fight summary", COL2, -160, "nSummary",
         "When a fight ends: your damage, damage per second and healing, like \"4,820 damage (127 DPS) in 38s\". "
         .. "Only counts numbers the game lets BattleText read.")
-    Setting(card, "Sound on crits", 12, -186, "soundCrit", "A short ping when you crit.")
-    Setting(card, "Sound on killing blows", COL2, -186, "soundKill",
-        "A chime on your killing blows. Only when the game lets BattleText read its combat lines.")
+    local soundKeys = {}
+    for _, s in ipairs(BT.SOUNDS) do soundKeys[#soundKeys + 1] = s.key end
+    local function soundName(k) return BT:SoundName(k) end
+    Setting(card, "Crit sound", 12, -186, "soundCrit",
+        "A sound when you crit. Pick it from the list beside it: picking one plays it.")
+    refs.critSoundDropdown = Dropdown(card, 128, -184, 130, soundKeys, soundName, "critSound",
+        function(k) BT:SetAlertSound("crit", k) end)
+    Setting(card, "Kill sound", COL2, -186, "soundKill",
+        "A sound on your killing blows. Only when the game lets BattleText read its combat lines. "
+        .. "Pick it from the list beside it: picking one plays it.")
+    refs.killSoundDropdown = Dropdown(card, COL2 + 116, -184, 130, soundKeys, soundName, "killSound",
+        function(k) BT:SetAlertSound("kill", k) end)
+    refs.critSoundDropdown.menuScroll, refs.killSoundDropdown.menuScroll = 20 * 12, 20 * 12
     AreaLook(p, -230, "n", "Notification text")
 end
 

@@ -458,8 +458,11 @@ function Methods:SetJustifyH(j) self.__justify = j end
 function Methods:SetShadowOffset(x, y) self.__shadow = { x, y } end
 
 -- Sounds the addon played, by sound kit number
-SOUNDKIT = { MAP_PING = 3175, IG_QUEST_LIST_COMPLETE = 878, RAID_WARNING = 8959, READY_CHECK = 8960 }
+-- (STATE.missingSounds[kit]: a sound this client doesn't have, which doesn't play)
+SOUNDKIT = { MAP_PING = 3175, IG_QUEST_LIST_COMPLETE = 878, RAID_WARNING = 8959, READY_CHECK = 8960,
+    UI_PROFESSION_CRAFTING_RESULT_CRIT = 208810, UI_RAID_BOSS_DEFEATED = 50111, UI_EPICLOOT_TOAST = 31578 }
 function PlaySound(kit, channel)
+    if STATE.missingSounds and STATE.missingSounds[kit] then return false end
     STATE.sounds = STATE.sounds or {}
     STATE.sounds[#STATE.sounds + 1] = kit
     return true

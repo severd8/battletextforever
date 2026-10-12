@@ -16,7 +16,7 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 - **Four text areas** you can drag anywhere on screen, each with its own movement: Scroll, Pop, Fountain or Horizontal.
 - **Your look**: 23 fonts, an outline (thin or thick) or a drop shadow, text and crit size, bigger text for bigger hits, short numbers (12.3k), scroll speed and distance, your own colors, and for each area its own size, opacity and direction (up or down, straight or curved).
 - **Your choice of what's shown.** Turn any kind of text off, hide your auto attacks, icons and spell names per area, hide small hits and heals, and hide the game's own numbers so nothing shows twice.
-- **Sounds** if you want them: a ping on your crits, a chime on a killing blow.
+- **Sounds** if you want them, on your crits and killing blows: pick from 18 of the game's sounds (Crit, Impact, Anvil, Battle horn, Boss defeated, Cheers, Epic loot...).
 - **Settings per character** if you want them, starting from a copy of your shared ones, and **share your settings** with a friend as a line of text.
 
 ## Installation
@@ -44,7 +44,7 @@ The options have the same look as TauntMaster Forever, ToppedOff Forever and Out
 | **Outgoing** | Damage, misses, pet, damage shields, icons, names, seal damage, auto attacks, hide hits below a number; the area's text size, opacity, movement, scroll upward and curved scrolling |
 | **Incoming** | Damage, avoids, power gains, icons, names; the area's text size, opacity, movement, scroll upward and curved scrolling |
 | **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number; the area's text size, opacity, movement and scroll upward |
-| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, buffs, fight summary, sound on crits, sound on killing blows; the area's text size, opacity, movement and scroll upward |
+| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, buffs, fight summary, crit sound and kill sound (each with its own pick of sound); the area's text size, opacity, movement and scroll upward |
 | **Colors** | The color of your hits, spells, misses, damage you take, avoids, heals, power gains, notifications, combat, experience, seals and buffs; reset colors |
 
 ### Keybindings
