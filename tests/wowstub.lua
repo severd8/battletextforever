@@ -455,6 +455,15 @@ function Methods:SetFont(path, size, flags) self.__font = { path, size, flags } 
 function Methods:SetTextColor(r, g, b) self.__color = { r, g, b } end
 function Methods:SetScale(s) self.__scale = s end
 function Methods:SetJustifyH(j) self.__justify = j end
+function Methods:SetShadowOffset(x, y) self.__shadow = { x, y } end
+
+-- Sounds the addon played, by sound kit number
+SOUNDKIT = { MAP_PING = 3175, IG_QUEST_LIST_COMPLETE = 878, RAID_WARNING = 8959, READY_CHECK = 8960 }
+function PlaySound(kit, channel)
+    STATE.sounds = STATE.sounds or {}
+    STATE.sounds[#STATE.sounds + 1] = kit
+    return true
+end
 
 -- The game's English text (the same words the real client uses)
 dofile((ADDON_DIR or ".") .. "/tests/strings_enus.lua")

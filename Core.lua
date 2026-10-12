@@ -66,12 +66,14 @@ local DEFAULTS = {
     outline = "OUTLINE",      -- the outline round normal lines (one of BT.OUTLINES)
     critOutline = "OUTLINE",  -- and round crits
     sticky = true,            -- crits pop and hold in place
+    sizeByHit = false,        -- a big hit shows bigger than the hits before it, a small one smaller
     -- Spell (and skill) icons and names, per section of the options
     outIcons = true, outNames = true,      -- your hits and misses
     inIcons = true, inNames = true,        -- what happens to you
     healIcons = true, healNames = true,    -- heals, yours and on you
     nIcons = true,                         -- notifications: loot and skill ups
     merge = true,             -- rapid hits of one spell add up on one line
+    tickMerge = 0,            -- seconds ticks and area hits keep adding up (0: as quick as other hits)
     minDamage = 0,            -- hide your hits below this
     healArea = true,          -- heals (yours and on you) scroll in their own area
     healOver = true,          -- show overhealing after a heal, when the game says
@@ -85,13 +87,19 @@ local DEFAULTS = {
     -- Each area's scrolling: up instead of down, and (the side areas) bowing outward
     outScrollUp = false, inScrollUp = false, healScrollUp = false, nScrollUp = false,
     outCurved = true, inCurved = true,
+    -- Each area's way of moving its lines (one of BT.STYLES)
+    outStyle = "scroll", inStyle = "scroll", healStyle = "scroll", nStyle = "scroll",
     outDamage = true, outHeals = true, outMisses = true, outPet = true, outShields = true,
     outSeals = true,          -- name a seal's hit beside your swing
+    outSwings = true,         -- your auto attacks (white swings)
     shieldAmounts = {},       -- learned: what each damage shield of yours hits for (by its name)
     inDamage = true, inHeals = true, inMisses = true, inPower = false,
     nCombat = true, nKill = true, nXP = true, nRep = true, nHonor = true,
     nLoot = true, nMoney = false, nSkill = true, nSeals = true,
     nBuffs = false,           -- a line when a buff goes on or comes off (out of a fight only)
+    nSummary = true,          -- at the end of a fight: your damage, DPS and healing
+    soundCrit = false,        -- a sound when you crit
+    soundKill = false,        -- a sound on a killing blow
     hideBlizzard = false,
     minimap = true,
     startReminder = true,   -- a line in chat after logging in, while Start hasn't been clicked
@@ -141,6 +149,15 @@ BT.OUTLINES = {
     { name = "None", flags = "" },
     { name = "Thin", flags = "OUTLINE" },
     { name = "Thick", flags = "THICKOUTLINE" },
+    { name = "Shadow", flags = "SHADOW" },   -- no outline: a drop shadow
+}
+
+-- How the lines in an area move
+BT.STYLES = {
+    { key = "scroll", name = "Scroll" },           -- up or down the area, one after another
+    { key = "pop", name = "Pop" },                 -- jump out somewhere in the area and fade
+    { key = "fountain", name = "Fountain" },       -- thrown up and falling to one side
+    { key = "horizontal", name = "Horizontal" },   -- slide sideways, away from the middle
 }
 
 -- Scroll areas. dir: which way a curved line bows (-1 left, 1 right, 0 none).
@@ -276,6 +293,22 @@ function BT:AreaSetting(a, what)
     return self.db[a.def.prefix .. what]
 end
 
+function BT:StyleName(key)
+    for _, s in ipairs(self.STYLES) do
+        if s.key == key then return s.name end
+    end
+    return self.STYLES[1].name
+end
+
+-- How an area's lines move: a key of BT.STYLES
+function BT:AreaStyle(a)
+    local style = self:AreaSetting(a, "Style")
+    for _, s in ipairs(self.STYLES) do
+        if s.key == style then return style end
+    end
+    return "scroll"
+end
+
 function BT:AreaHeight(a)
     if a.def.short then return math.floor(self.db.height * 0.45) end
     if a.def.heightScale then return math.floor(self.db.height * a.def.heightScale) end
@@ -362,6 +395,8 @@ end
 --   opts.crit    bigger, and sticky if that's turned on
 --   opts.key     lines with the same key that arrive together add up (needs opts.amount)
 --   opts.format  how to write a merged line: function(total, count) -> text
+--   opts.window  seconds a line of ticks or area hits keeps adding up (more than other hits)
+--   opts.amount  the number, read: with "Size by hit", a big one shows bigger
 --   opts.secret  a value the addon can't read; the game itself writes it after the
 --                text (and opts.after follows it)
 function BT:Emit(areaKey, text, color, opts)
@@ -373,7 +408,11 @@ function BT:Emit(areaKey, text, color, opts)
     -- Add to a line that just started, instead of a new one
     if opts.key and opts.amount and self.db.merge and not opts.crit then
         local r = a.recent[opts.key]
-        if r and r.line.key == opts.key and now - r.time <= MERGE_WINDOW and now - r.born < 1 then
+        local window = math.max(MERGE_WINDOW, opts.window or 0)
+        -- A longer window adds to a line until it's most of the way across
+        local young = r and (window > MERGE_WINDOW and now - r.line.start < r.line.duration * 0.6
+            or window <= MERGE_WINDOW and now - r.born < 1)
+        if young and r.line.key == opts.key and now - r.time <= window then
             r.total, r.count, r.time = r.total + opts.amount, r.count + 1, now
             r.line.text:SetText(opts.format(r.total, r.count))
             return r.line
@@ -383,10 +422,25 @@ function BT:Emit(areaKey, text, color, opts)
     local o = AcquireLine(a)
     local size = self.db.fontSize * (self:AreaSetting(a, "Size") or 100) / 100
     if opts.crit then size = size * self.db.critScale / 100 end
+    -- Size by hit: against the area's usual hit, a bigger one grows (up to half again), a smaller one shrinks
+    if self.db.sizeByHit and type(opts.amount) == "number" and opts.amount > 0 then
+        local usual = a.usualHit
+        if usual then size = size * math.min(1.5, math.max(0.75, (opts.amount / usual) ^ 0.3)) end
+        a.usualHit = usual and (usual * 0.9 + opts.amount * 0.1) or opts.amount
+    end
     size = math.floor(size + 0.5)
     local flags = self:OutlineFlags(opts.crit)
+    local shadow = flags == "SHADOW"
+    if shadow then flags = "" end
     if not o.text:SetFont(self:FontPath(), size, flags) and STANDARD_TEXT_FONT then
         o.text:SetFont(STANDARD_TEXT_FONT, size, flags)
+    end
+    if shadow then
+        local d = math.max(1, math.floor(size / 12 + 0.5))
+        o.text:SetShadowColor(0, 0, 0, 1)
+        o.text:SetShadowOffset(d, -d)
+    else
+        o.text:SetShadowOffset(0, 0)
     end
     if IsSecret(opts.secret) then   -- (never compare a secret, even with nil: that throws)
         o.text:SetFormattedText("%s%s%s", text, opts.secret, opts.after or "")
@@ -396,7 +450,7 @@ function BT:Emit(areaKey, text, color, opts)
     o.text:SetTextColor(color[1], color[2], color[3])
     o.size = size
     o.sticky = opts.crit and self.db.sticky or false
-    o.key = nil
+    o.key, o.style = nil, nil
     -- Scrolling lines grow away from the middle of the screen. A crit that holds
     -- grows the other way, so it never sits on top of them.
     local anchor = a.def.justify
@@ -418,6 +472,26 @@ function BT:Emit(areaKey, text, color, opts)
         local slot = 0
         while taken[slot] do slot = slot + 1 end
         o.slot = slot
+    elseif self:AreaStyle(a) ~= "scroll" then
+        -- Each line its own place, so none waits for room
+        local style, h = self:AreaStyle(a), self:AreaHeight(a)
+        local duration = self:ScrollTime(a)
+        local count = (a.styleCount or 0) + 1
+        a.styleCount = count
+        o.style = style
+        -- Center areas send lines both ways in turn; the side ones away from the middle
+        o.side = a.def.dir ~= 0 and a.def.dir or (count % 2 == 0 and 1 or -1)
+        if style == "pop" then
+            duration = math.max(1.2, duration * 0.6)
+            o.px = (math.random() - 0.5) * (a.def.dir == 0 and 120 or 50)
+            o.py = -h * (0.25 + math.random() * 0.45)
+        elseif style == "fountain" then
+            o.spread = 0.6 + math.random() * 0.6
+        else
+            local lanes = math.max(1, math.floor(h * 0.7 / (size + 4)))
+            o.lane = count % lanes
+        end
+        o.start, o.duration = now, duration
     else
         local duration = self:ScrollTime(a)
         local speed = self:AreaHeight(a) / duration
@@ -475,6 +549,21 @@ function BT:Animate(now)
                     end
                     if t < 0.15 then scale = 1 + 0.7 * (1 - t / 0.15) end
                     if t > o.duration - 0.4 then alpha = (o.duration - t) / 0.4 end
+                elseif o.style == "pop" then
+                    -- Jumps out where it landed, drifts up a little and fades
+                    if t < 0.12 then scale = 1 + 0.6 * (1 - t / 0.12) end
+                    x, y = o.px, o.py + 20 * p
+                    if p > 0.6 then alpha = (1 - p) / 0.4 end
+                elseif o.style == "fountain" then
+                    -- Thrown up from the middle of the area, falling away to its side
+                    x = o.side * (a.def.dir == 0 and 110 or 90) * o.spread * p
+                    y = -h * 0.55 + h * (1.6 * p - 2 * p * p)
+                    if p < 0.06 then alpha = p / 0.06 elseif p > 0.7 then alpha = (1 - p) / 0.3 end
+                elseif o.style == "horizontal" then
+                    -- Its own lane near the top, sliding away from the middle
+                    x = o.side * 140 * p
+                    y = -h * 0.15 - o.lane * (o.size + 4)
+                    if p < 0.08 then alpha = p / 0.08 elseif p > 0.75 then alpha = (1 - p) / 0.25 end
                 else
                     y = self:AreaSetting(a, "ScrollUp") and -(1 - p) * h or -p * h
                     if a.def.dir ~= 0 and self:AreaSetting(a, "Curved") then
@@ -592,6 +681,37 @@ function BT:LogDelivers(what)
     return self.fromLog ~= nil and self.fromLog[what] ~= nil
 end
 
+-- The fight's totals, for the summary when it ends (only numbers the game lets be read)
+function BT:CountFight(what, n)
+    local f = self.fight
+    if f and type(n) == "number" and n > 0 then f[what] = f[what] + n end
+end
+
+function BT:FightSummary()
+    local f = self.fight
+    self.fight = nil
+    if not f or not self.db.nSummary or (f.damage == 0 and f.heal == 0) then return end
+    local secs = math.max(1, math.floor(GetTime() - f.start + 0.5))
+    local parts = {}
+    if f.damage > 0 then
+        parts[#parts + 1] = Commas(f.damage) .. " damage (" .. Commas(math.floor(f.damage / secs + 0.5)) .. " DPS)"
+    end
+    if f.heal > 0 then parts[#parts + 1] = Commas(f.heal) .. " healed" end
+    self:Notify(table.concat(parts, ", ") .. " in " .. secs .. "s", self.TEXT_COLORS.notify)
+end
+
+-- A sound for a crit or a killing blow (never more than one at a time)
+local ALERT_SOUNDS = { crit = "MAP_PING", kill = "IG_QUEST_LIST_COMPLETE" }
+function BT:PlayAlert(what)
+    if not PlaySound or not SOUNDKIT or self.testing then return end
+    local now = GetTime()
+    self.alertAt = self.alertAt or {}
+    if self.alertAt[what] and now - self.alertAt[what] < 0.3 then return end
+    self.alertAt[what] = now
+    local kit = SOUNDKIT[ALERT_SOUNDS[what]]
+    if kit then pcall(PlaySound, kit, "Master") end
+end
+
 -- One parsed combat log line (see Parser:Parse). Returns true if it's a kind
 -- of line BattleText shows (even if a setting hides it), false if not.
 function BT:ShowCombat(info)
@@ -611,17 +731,21 @@ function BT:ShowCombat(info)
             if not mine then self:NoteLogIncoming("damage") end
             if db.inDamage then
                 local text = "-" .. Commas(info.amount) .. SpellAfter(icon, name) .. Partials(info)
-                self:Emit("incoming", text, C.inDamage, { crit = info.crit or info.crushing })
+                self:Emit("incoming", text, C.inDamage, { crit = info.crit or info.crushing, amount = info.amount })
             end
             return true
         elseif (mine or pet) and not info.split then
+            self:CountFight("damage", info.amount)
             if pet and not db.outPet then return true end
+            if mine and info.melee and not db.outSwings then return true end
             if not db.outDamage or info.amount < db.minDamage then return true end
+            if info.crit and db.soundCrit then self:PlayAlert("crit") end
             local color = (info.spell and (self:SchoolColor(info.unit) or C.spell)) or C.melee
             self:Emit("outgoing", outLabel .. Commas(info.amount) .. Partials(info), color, {
                 crit = info.crit,
-                key = (pet and "pet:" or "") .. (info.spellId or info.spell or "melee"),
+                key = (pet and "pet:" or "") .. (info.periodic and "tick:" or "") .. (info.spellId or info.spell or "melee"),
                 amount = info.amount,
+                window = info.periodic and db.tickMerge or nil,
                 format = function(total, count)
                     return outLabel .. Commas(total) .. " |cffb0b0b0(x" .. count .. ")|r"
                 end,
@@ -633,21 +757,27 @@ function BT:ShowCombat(info)
         local over = (db.healOver and info.overheal) and (" |cffb0b0b0(" .. Commas(info.overheal) .. " over)|r") or ""
         local nothing = info.amount == 0 and info.overheal   -- all of it was overhealing
         if info.toMe then
-            if mine then self:NoteSelfHeal(info.amount, info.overheal) else self:NoteLogIncoming("heal") end
+            if mine then
+                self:NoteSelfHeal(info.amount, info.overheal)
+                self:CountFight("heal", info.amount)
+            else
+                self:NoteLogIncoming("heal")
+            end
             if nothing or not self:HealShown(info.amount) then return true end
             if db.inHeals then
                 self:Emit(self:HealArea("incoming"), "+" .. Commas(info.amount) .. SpellAfter(icon, name) .. over,
-                    C.heal, { crit = info.crit })
+                    C.heal, { crit = info.crit, amount = info.amount })
             elseif mine and db.outHeals then
                 self:Emit(self:HealArea("outgoing"), outLabel .. "+" .. Commas(info.amount) .. over, C.heal,
-                    { crit = info.crit })
+                    { crit = info.crit, amount = info.amount })
             end
             return true
         elseif mine or pet then
+            self:CountFight("heal", info.amount)
             if pet and not db.outPet then return true end
             if db.outHeals and not nothing and self:HealShown(info.amount) then
                 self:Emit(self:HealArea("outgoing"), outLabel .. "+" .. Commas(info.amount) .. over, C.heal,
-                    { crit = info.crit })
+                    { crit = info.crit, amount = info.amount })
             end
             return true
         end
@@ -661,6 +791,7 @@ function BT:ShowCombat(info)
             return true
         elseif mine or pet then
             if pet and not db.outPet then return true end
+            if mine and info.melee and not db.outSwings then return true end
             if db.outMisses then self:Emit("outgoing", outLabel .. word, C.miss) end
             return true
         end
@@ -675,6 +806,7 @@ function BT:ShowCombat(info)
         end
     elseif info.kind == "kill" then
         if mine then
+            if db.soundKill then self:PlayAlert("kill") end
             if db.nKill then self:Emit("notify", "Killing blow!", C.combat, { crit = true }) end
             return true
         end
@@ -740,7 +872,7 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
             if secret then
                 self:Emit("incoming", "-", C.inDamage, { crit = crit, secret = amount })
             else
-                self:Emit("incoming", "-" .. Commas(n), C.inDamage, { crit = crit })
+                self:Emit("incoming", "-" .. Commas(n), C.inDamage, { crit = crit, amount = n })
             end
         else
             -- No damage: fully absorbed, blocked or resisted, or a plain miss
@@ -764,7 +896,7 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
             if secret then
                 BT:Emit(BT:HealArea("incoming"), "+", C.heal, { crit = crit, secret = amount })
             elseif n and n > 0 and BT:HealShown(n) then
-                BT:Emit(BT:HealArea("incoming"), "+" .. Commas(n), C.heal, { crit = crit })
+                BT:Emit(BT:HealArea("incoming"), "+" .. Commas(n), C.heal, { crit = crit, amount = n })
             end
         end
         if C_Timer and C_Timer.After then C_Timer.After(0.25, show) else show() end
@@ -1483,7 +1615,7 @@ function BT:ResolveFrame(seq, first, last)
             elseif h.grouped and not self:ClaimHit(h.time) then
                 why = "no line of yours with it"
             else
-                why = self:ShowUnitHit(h, mine.what, mine.spell)
+                why = self:ShowUnitHit(h, mine.what, mine.spell, true)
             end
             if self.db.debug then
                 self:Record(("  %s %s: %s"):format(h.unit, h.secret and "(hidden amount)" or tostring(h.amount),
@@ -1498,10 +1630,16 @@ function BT:ResolveFrame(seq, first, last)
     end
 end
 
--- Puts a hit on screen. what: "cast", "tick", "shield", "seal" or "hit"; spell: { id, name } when it's known.
--- Returns why not, if a setting hides it.
-function BT:ShowUnitHit(h, what, spell)
+-- Puts a hit on screen. what: "cast", "tick", "shield", "seal" or "hit"; spell: { id, name } when it's known;
+-- area: one of the hits of an area spell. Returns why not, if a setting hides it.
+function BT:ShowUnitHit(h, what, spell, area)
     local db, C = self.db, self.TEXT_COLORS
+    if h.kind == "damage" or h.kind == "heal" then self:CountFight(h.kind, h.n) end
+    -- Nothing to name it by: a swing (a physical hit, or a plain miss)
+    if what == "hit" and not spell and not db.outSwings
+            and (h.kind == "miss" or (h.kind == "damage" and Num(h.school) == 1)) then
+        return "auto attacks are turned off"
+    end
     local icon = ""
     if spell and spell.id then
         icon = self:IconText(spell.id)
@@ -1520,6 +1658,7 @@ function BT:ShowUnitHit(h, what, spell)
         local color = MASK_COLORS[mask or 1] or ((spellName or (mask and mask ~= 1)) and C.spell) or C.melee
         local note = FLAG_NOTES[h.flag or ""]
         note = note and (" |cffb0b0b0(" .. note .. ")|r") or ""
+        if h.crit and db.soundCrit then self:PlayAlert("crit") end
         if h.secret then
             self:Emit("outgoing", label, color, { crit = h.crit, secret = h.amount, after = note })
         else
@@ -1527,6 +1666,7 @@ function BT:ShowUnitHit(h, what, spell)
                 crit = h.crit,
                 key = spell and (what .. ":" .. tostring(spell.id or spellName)) or nil,
                 amount = h.n,
+                window = (what == "tick" or area) and db.tickMerge or nil,
                 format = function(total, count)
                     return label .. Commas(total) .. " |cffb0b0b0(x" .. count .. ")|r"
                 end,
@@ -1539,7 +1679,7 @@ function BT:ShowUnitHit(h, what, spell)
             self:Emit(self:HealArea("outgoing"), label .. "+", C.heal, { crit = h.crit, secret = h.amount, after = who })
         else
             if not self:HealShown(h.n) then return "below \"Hide heals below\"" end
-            self:Emit(self:HealArea("outgoing"), label .. "+" .. Commas(h.n) .. who, C.heal, { crit = h.crit })
+            self:Emit(self:HealArea("outgoing"), label .. "+" .. Commas(h.n) .. who, C.heal, { crit = h.crit, amount = h.n })
         end
     else
         if not db.outMisses then return "misses are turned off" end
@@ -1991,6 +2131,160 @@ function BT:SetOutline(key, flags)
     self.testing = false
 end
 
+---------------------------------------------------------------------------
+-- Share settings: the settings as one line of text ("BTF1:{...}") to copy, and
+-- read back. Only the settings the options window has go in, never what was
+-- learned in fights or where this character's areas are unlocked.
+---------------------------------------------------------------------------
+local SHARE_PREFIX = "BTF1:"
+local NOT_SHARED = { enabled = true, locked = true, debug = true, minimap = true, minimapAngle = true,
+    startReminder = true, shieldAmounts = true }
+
+local function Serialize(v)
+    local t = type(v)
+    if t == "number" then
+        if v == math.floor(v) then return tostring(v) end
+        return (("%.4f"):format(v):gsub("0+$", ""))
+    elseif t == "boolean" then
+        return v and "t" or "f"
+    elseif t == "string" then
+        return '"' .. v:gsub("[\\\"]", "\\%0") .. '"'
+    elseif t == "table" then
+        local keys = {}
+        for k in pairs(v) do
+            if type(k) == "string" and k:match("^[%a_][%w_]*$") or type(k) == "number" and k == math.floor(k) then
+                keys[#keys + 1] = k
+            end
+        end
+        table.sort(keys, function(a, b)
+            if type(a) == type(b) then return a < b end
+            return type(a) == "number"
+        end)
+        local parts = {}
+        for _, k in ipairs(keys) do
+            local item = Serialize(v[k])
+            if item then parts[#parts + 1] = tostring(k) .. "=" .. item end
+        end
+        return "{" .. table.concat(parts, ",") .. "}"
+    end
+    return nil
+end
+
+-- Reads what Serialize writes, and nothing else (no code is ever run)
+local function Deserialize(text)
+    local pos = 1
+    local function skip() pos = text:find("[^%s]", pos) or #text + 1 end
+    local value
+    function value(depth)
+        if depth > 4 then return nil end
+        skip()
+        local c = text:sub(pos, pos)
+        if c == "{" then
+            pos = pos + 1
+            local t = {}
+            skip()
+            if text:sub(pos, pos) == "}" then pos = pos + 1 return t end
+            while true do
+                skip()
+                local key = text:match("^[%a_][%w_]*", pos) or text:match("^%d+", pos)
+                if not key then return nil end
+                pos = pos + #key
+                skip()
+                if text:sub(pos, pos) ~= "=" then return nil end
+                pos = pos + 1
+                local v = value(depth + 1)
+                if v == nil then return nil end
+                t[tonumber(key) or key] = v
+                skip()
+                local sep = text:sub(pos, pos)
+                pos = pos + 1
+                if sep == "}" then return t end
+                if sep ~= "," then return nil end
+            end
+        elseif c == '"' then
+            local out, i = {}, pos + 1
+            while i <= #text do
+                local ch = text:sub(i, i)
+                if ch == "\\" then
+                    out[#out + 1] = text:sub(i + 1, i + 1)
+                    i = i + 2
+                elseif ch == '"' then
+                    pos = i + 1
+                    return table.concat(out)
+                else
+                    out[#out + 1] = ch
+                    i = i + 1
+                end
+            end
+            return nil
+        elseif c == "t" or c == "f" then
+            pos = pos + 1
+            return c == "t"
+        else
+            local num = text:match("^%-?%d+%.?%d*", pos)
+            if not num then return nil end
+            pos = pos + #num
+            return tonumber(num)
+        end
+    end
+    local v = value(0)
+    skip()
+    if pos <= #text then return nil end
+    return v
+end
+BT.Serialize, BT.Deserialize = Serialize, Deserialize
+
+function BT:ExportSettings()
+    local out = {}
+    for k in pairs(DEFAULTS) do
+        if not NOT_SHARED[k] and self.db[k] ~= nil then out[k] = self.db[k] end
+    end
+    return SHARE_PREFIX .. Serialize(out)
+end
+
+-- Takes only settings BattleText has, each of the right kind. Returns how many, or nil and why not.
+function BT:ImportSettings(text)
+    text = type(text) == "string" and text:match("^%s*(.-)%s*$") or ""
+    if text:sub(1, #SHARE_PREFIX) ~= SHARE_PREFIX then return nil, "that isn't BattleText settings text" end
+    local t = Deserialize(text:sub(#SHARE_PREFIX + 1))
+    if type(t) ~= "table" then return nil, "the text is cut short or changed" end
+    local db, count = self.db, 0
+    for k, v in pairs(t) do
+        local default = DEFAULTS[k]
+        if default ~= nil and not NOT_SHARED[k] and type(v) == type(default) then
+            local took = true
+            if k == "colors" then
+                -- (the colors they changed: the rest are the usual ones)
+                local colors = {}
+                for name, c in pairs(v) do
+                    if self.TEXT_COLORS[name] and type(c) == "table" and type(c[1]) == "number"
+                            and type(c[2]) == "number" and type(c[3]) == "number" then
+                        colors[name] = { c[1], c[2], c[3] }
+                    else
+                        took = false
+                    end
+                end
+                if took then db.colors = colors end
+            elseif k == "areas" then
+                took = false
+                for name, pos in pairs(v) do
+                    if db.areas[name] and type(pos) == "table" and type(pos.x) == "number" and type(pos.y) == "number" then
+                        db.areas[name].x, db.areas[name].y = pos.x, pos.y
+                        took = true
+                    end
+                end
+            else
+                db[k] = v
+            end
+            if took then count = count + 1 end
+        end
+    end
+    if count == 0 then return nil, "there were no settings in it" end
+    self:ApplySettings()
+    if self.RefreshConfig then self:RefreshConfig() end
+    return count
+end
+
 function BT:SetLocked(locked)
     self.db.locked = locked
     self:ApplyAreas()
@@ -2050,7 +2344,7 @@ function BT:Test()
     -- Shown even while BattleText is turned off, and whatever is ticked in the options
     local LOOKS = { sticky = true, outCurved = true, inCurved = true, outScrollUp = true, inScrollUp = true,
         healScrollUp = true, nScrollUp = true, healArea = true, healOver = true, merge = true,
-        shortNumbers = true, healWho = true,
+        shortNumbers = true, healWho = true, sizeByHit = true, outSwings = true,
         outIcons = true, outNames = true, inIcons = true, inNames = true, healIcons = true, healNames = true, nIcons = true }
     local function show(fn)
         local saved = self.db
@@ -2143,6 +2437,7 @@ local function Help()
     print("  |cffffd100/btf on|r, |cffffd100/btf off|r  turn the text on or off")
     print("  |cffffd100/btf debug|r  record the combat lines the game sends; |cffffd100/btf copy|r shows them (for bug reports)")
     print("  |cffffd100/btf check|r  check the spells, texts and icons BattleText uses against this game")
+    print("  |cffffd100/btf export|r, |cffffd100/btf import|r  share your settings as text, or take someone else's")
 end
 
 -- Keybinding names (Options > Keybindings > BattleText Forever)
@@ -2176,6 +2471,8 @@ SlashCmdList.BATTLETEXTFOREVER = function(msg)
         BT:OpenCopyWindow()
     elseif cmd == "check" then
         BT:CheckGameData()
+    elseif cmd == "export" or cmd == "import" then
+        BT:OpenShareWindow(cmd)
     else
         Help()
     end
@@ -2254,8 +2551,10 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         BT:ScanItemShields()
         BT:SetStartMacro()   -- last chance before the fight to note which chat tab you're on
         if BT.db.nCombat then BT:Notify("+Combat", BT.TEXT_COLORS.combat) end
+        BT.fight = { start = GetTime(), damage = 0, heal = 0 }
     elseif event == "PLAYER_REGEN_ENABLED" then
         if BT.db.nCombat then BT:Notify("-Combat", BT.TEXT_COLORS.notify) end
+        BT:FightSummary()
         BT:ScanShield()   -- your buffs can be read again: what changed during the fight
         BT:ForgetOldDots()
         if BT.startPending then

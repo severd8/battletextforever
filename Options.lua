@@ -35,10 +35,10 @@ local function Setting(parent, text, x, y, key, tip)
     return sw
 end
 
-local function Slider(parent, text, x, y, key, min, max, suffix, step)
+local function Slider(parent, text, x, y, key, min, max, suffix, step, fmt)
     local s = T.Slider(parent, text, x, y, 244,
         function() return BT.db[key] end,
-        function(v) BT.db[key] = v BT:ApplySettings() end, min, max, suffix, step)
+        function(v) BT.db[key] = v BT:ApplySettings() end, min, max, suffix, step, fmt)
     s.label, s.key = text, key
     AddRefresher(s.Refresh)
     return s
@@ -58,18 +58,27 @@ local function IconsAndNames(card, y, section, what)
     Setting(card, "Names", COL2, y, section .. "Names", "Show the spell's name beside " .. what .. ".")
 end
 
--- Each area's own text size and opacity
--- Each area's own text size, opacity and scrolling (curved: the side areas, whose lines bow outward)
-local function AreaLook(p, y, prefix, curved)
-    local card = Card(p, "This area", 0, y, PAGE_W, 110)
+-- Each area's own text size, opacity and movement (curved: the side areas, whose lines bow outward)
+local AREA_LOOK_H = 148
+local function AreaLook(p, y, prefix, title, curved)
+    local card = Card(p, title .. ": size and movement", 0, y, PAGE_W, AREA_LOOK_H)
     Slider(card, "Text size", 12, -30, prefix .. "Size", 50, 200, "%", 5)
     Slider(card, "Opacity", COL2, -30, prefix .. "Alpha", 10, 100, "%", 5)
-    Setting(card, "Scroll upward", 12, -82, prefix .. "ScrollUp",
-        "Lines in this area start at the bottom and move up. Turn off to scroll down.")
+    local keys = {}
+    for _, st in ipairs(BT.STYLES) do keys[#keys + 1] = st.key end
+    T.RowLabel(card, "Movement", 12, -82)
+    local d = Dropdown(card, 110, -82, 150, keys, function(k) return BT:StyleName(k) end, prefix .. "Style",
+        function(k) BT.db[prefix .. "Style"] = k BT:ApplySettings() end)
+    T.Tooltip(d, "Movement", "Scroll: lines move up or down the area, one after another. Pop: each one jumps out "
+        .. "somewhere in the area and fades. Fountain: thrown up and falling to the side. Horizontal: they slide "
+        .. "sideways, away from the middle.")
+    Setting(card, "Scroll upward", 12, -116, prefix .. "ScrollUp",
+        "With Scroll: lines start at the bottom and move up. Turn off to scroll down.")
     if curved then
-        Setting(card, "Curved scrolling", COL2, -82, prefix .. "Curved",
-            "Lines in this area bow outward as they scroll. Turn off for straight lines.")
+        Setting(card, "Curved scrolling", COL2, -116, prefix .. "Curved",
+            "With Scroll: lines bow outward as they scroll. Turn off for straight lines.")
     end
+    return d
 end
 
 -- A color square that opens the game's color picker
@@ -152,6 +161,17 @@ local function BuildGeneral(p, refs)
         .. "The game doesn't say whose hit it was: alone, your pet's hits show as yours.\n\n"
         .. "Click \"Start BattleText\" once after you log in. It lets BattleText name the ticks of your bleeds, "
         .. "and in a group it leaves other people's hits out.", 12, -34, PAGE_W - 24)
+
+    local share = Card(p, "Share settings", 0, -320, PAGE_W, 64)
+    local export = FlatButton(share, "Export", 90)
+    export:SetPoint("TOPLEFT", 12, -28)
+    export:SetScript("OnClick", function() BT:OpenShareWindow("export") end)
+    local import = FlatButton(share, "Import", 90)
+    import:SetPoint("LEFT", export, "RIGHT", 8, 0)
+    import:SetScript("OnClick", function() BT:OpenShareWindow("import") end)
+    local note = Text(share, "Your settings as text to copy, or paste someone else's.", "GameFontDisableSmall")
+    note:SetPoint("LEFT", import, "RIGHT", 12, 0)
+    refs.exportButton, refs.importButton = export, import
 end
 
 local function BuildText(p, refs)
@@ -179,18 +199,23 @@ local function BuildText(p, refs)
     Slider(size, "Text size", 12, -30, "fontSize", 10, 40)
     Slider(size, "Crit size", COL2, -30, "critScale", 100, 250, "%", 10)
     Setting(size, "Short numbers", 12, -82, "shortNumbers", "Big numbers in short: 12,345 shows as 12.3k, 1,234,567 as 1.2m.")
+    Setting(size, "Size by hit", COL2, -82, "sizeByHit",
+        "A hit bigger than that area's usual ones shows bigger (up to half again), a smaller one smaller.")
 end
 
 local function BuildScrolling(p)
-    local card = Card(p, "Scrolling", 0, 0, PAGE_W, 124)
+    local card = Card(p, "Scrolling", 0, 0, PAGE_W, 160)
     Setting(card, "Crits pop and hold", 12, -30, "sticky",
         "Critical hits jump out and stay in place for a moment instead of scrolling.")
     Setting(card, "Add up rapid hits", COL2, -30, "merge",
         "Hits from the same spell that land together are shown as one total, like \"Swipe 150 (x3)\".")
     Slider(card, "Scroll time", 12, -64, "scrollTime", 1, 6, " sec")
     Slider(card, "Scroll distance", COL2, -64, "height", 100, 500, "", 10)
-    T.Note(p, "Which way each area scrolls, and whether it curves, is on that area's own tab "
-        .. "(Outgoing, Incoming, Healing, Notifications).", 0, -134, PAGE_W)
+    Slider(card, "Ticks and area hits add up for", 12, -116, "tickMerge", 0, 3, " sec", 0.5, "%.1f")
+    T.Note(card, "Ticks of your bleeds and DoTs, and the hits of an area spell, keep adding up on one line for this "
+        .. "long. 0: as quick as other hits.", COL2, -112, PAGE_W - COL2 - 12)
+    T.Note(p, "How each area's lines move (Scroll, Pop, Fountain, Horizontal), which way and whether they curve, "
+        .. "is on that area's own tab (Outgoing, Incoming, Healing, Notifications).", 0, -170, PAGE_W)
 end
 
 local function BuildOutgoing(p)
@@ -207,8 +232,11 @@ local function BuildOutgoing(p)
     Setting(card, "Seal damage", 12, -108, "outSeals",
         "Paladins: the Holy hit of Seal of Righteousness or Seal of Command that lands with your swing is named "
         .. "after the seal. Turn off to show it as a plain number.")
+    Setting(card, "Auto attacks", COL2, -108, "outSwings",
+        "Your white swings and their misses. Turn off to show only your spells and abilities. Without the "
+        .. "game's combat lines, a physical hit BattleText can't name counts as a swing.")
     Slider(card, "Hide hits below", 12, -142, "minDamage", 0, 500, "", 5)
-    AreaLook(p, -206, "out", true)
+    AreaLook(p, -206, "out", "Outgoing text", true)
 end
 
 local function BuildIncoming(p)
@@ -217,7 +245,7 @@ local function BuildIncoming(p)
     Setting(card, "Avoids", COL2, -30, "inMisses", "Attacks you dodge, parry, block or resist.")
     Setting(card, "Power gains", 12, -56, "inPower", "Mana, rage and energy you gain.")
     IconsAndNames(card, -82, "in", "spells that hit you or that you avoid (when the game says which)")
-    AreaLook(p, -126, "in", true)
+    AreaLook(p, -126, "in", "Incoming text", true)
 end
 
 local function BuildHealing(p)
@@ -233,11 +261,11 @@ local function BuildHealing(p)
     Setting(card, "Show who you healed", 12, -108, "healWho",
         "The name of the player you healed, after the number. Only when the game lets BattleText read it.")
     Slider(card, "Hide heals below", 12, -142, "minHeal", 0, 500, "", 5)
-    AreaLook(p, -206, "heal")
+    AreaLook(p, -206, "heal", "Healing text")
 end
 
 local function BuildNotifications(p)
-    local card = Card(p, "Notifications", 0, 0, PAGE_W, 194)
+    local card = Card(p, "Notifications", 0, 0, PAGE_W, 220)
     Setting(card, "Combat", 12, -30, "nCombat", "Entering and leaving combat.")
     Setting(card, "Killing blows", COL2, -30, "nKill",
         "Only when the game lets BattleText read its combat lines (it often hides them).")
@@ -255,7 +283,13 @@ local function BuildNotifications(p)
         "A line when a buff goes on or comes off. The game hides your buffs during a fight: there, a buff you put on "
         .. "yourself (Slice and Dice, Evasion...) shows as you cast it, and the rest of what changed shows when the fight "
         .. "ends. Not shown: food and drink, and buffs with no time limit (mounts, auras, stances).")
-    AreaLook(p, -204, "n")
+    Setting(card, "Fight summary", COL2, -160, "nSummary",
+        "When a fight ends: your damage, damage per second and healing, like \"4,820 damage (127 DPS) in 38s\". "
+        .. "Only counts numbers the game lets BattleText read.")
+    Setting(card, "Sound on crits", 12, -186, "soundCrit", "A short ping when you crit.")
+    Setting(card, "Sound on killing blows", COL2, -186, "soundKill",
+        "A chime on your killing blows. Only when the game lets BattleText read its combat lines.")
+    AreaLook(p, -230, "n", "Notification text")
 end
 
 local function BuildColors(p)
@@ -325,59 +359,79 @@ function BT:OpenConfig()
 end
 
 ---------------------------------------------------------------------------
--- /btf copy: the lines recorded by /btf debug, in a box they can be copied
--- from (chat can't be copied)
+-- A window with a box of text: /btf copy (the lines recorded by /btf debug,
+-- since chat can't be copied) and Share settings
 ---------------------------------------------------------------------------
 local COPY_W, COPY_H, COPY_HEADER = 640, 380, 40
 
+local function TextWindow()
+    local f = CreateFrame("Frame", "BattleTextForeverCopy", UIParent)
+    f:SetSize(COPY_W, COPY_H)
+    f:SetPoint("CENTER")
+    f:SetFrameStrata("DIALOG")
+    f:SetToplevel(true)
+    f:EnableMouse(true)
+    f:Hide()
+    table.insert(UISpecialFrames, "BattleTextForeverCopy")   -- Escape closes it
+    T.Fill(f, C.win)
+    T.Border(f, C.edge)
+
+    local header = CreateFrame("Frame", nil, f)
+    header:SetPoint("TOPLEFT", 1, -1)
+    header:SetPoint("TOPRIGHT", -1, -1)
+    header:SetHeight(COPY_HEADER)
+    local hbg = header:CreateTexture(nil, "BACKGROUND")
+    hbg:SetAllPoints()
+    T.HeaderGradient(hbg)
+    local logo = header:CreateTexture(nil, "ARTWORK")
+    logo:SetSize(26, 26)
+    logo:SetPoint("LEFT", 10, 0)
+    logo:SetTexture(T.LOGO)
+    f.title = Text(header, "", "GameFontNormal", C.title)
+    f.title:SetPoint("LEFT", logo, "RIGHT", 8, 0)
+    local close = FlatButton(header, "X", 24, 24)
+    close:SetPoint("RIGHT", -8, 0)
+    close:SetScript("OnClick", function() f:Hide() end)
+    -- Share settings' Import: takes what's in the box
+    f.action = FlatButton(header, "Import", 80, 24)
+    f.action:SetPoint("RIGHT", close, "LEFT", -8, 0)
+    f.action:Hide()
+
+    local box = CreateFrame("Frame", nil, f)
+    box:SetPoint("TOPLEFT", 12, -(COPY_HEADER + 10))
+    box:SetPoint("BOTTOMRIGHT", -12, 12)
+    T.Fill(box, C.field)
+    T.Border(box, C.fieldEdge)
+    local scroll = T.ScrollArea(box, COPY_H - COPY_HEADER - 22)
+    local edit = CreateFrame("EditBox", nil, scroll.child)
+    edit:SetPoint("TOPLEFT", 6, -6)
+    edit:SetMultiLine(true)
+    edit:SetAutoFocus(false)
+    edit:SetFontObject("ChatFontNormal")
+    edit:SetWidth(COPY_W - 60)
+    edit:SetScript("OnEscapePressed", function() f:Hide() end)
+    f.edit, f.scroll = edit, scroll
+    return f
+end
+
+-- Shows the window with this title and text (rows: about how many lines it takes)
+function BT:ShowTextWindow(title, text, rows, action)
+    local f = self.copyWindow or TextWindow()
+    self.copyWindow = f
+    f.title:SetText(title)
+    f.edit:SetText(text)
+    local height = math.max(rows, 4) * 28 + 12
+    f.edit:SetHeight(height)
+    f.scroll:SetContent(COPY_W - 48, height)
+    f.action:SetShown(action ~= nil)
+    f.action:SetScript("OnClick", action)
+    f:Show()
+    f.edit:SetFocus()
+    f.edit:HighlightText()
+    return f
+end
+
 function BT:OpenCopyWindow()
-    local f = self.copyWindow
-    if not f then
-        f = CreateFrame("Frame", "BattleTextForeverCopy", UIParent)
-        f:SetSize(COPY_W, COPY_H)
-        f:SetPoint("CENTER")
-        f:SetFrameStrata("DIALOG")
-        f:SetToplevel(true)
-        f:EnableMouse(true)
-        f:Hide()
-        table.insert(UISpecialFrames, "BattleTextForeverCopy")   -- Escape closes it
-        T.Fill(f, C.win)
-        T.Border(f, C.edge)
-
-        local header = CreateFrame("Frame", nil, f)
-        header:SetPoint("TOPLEFT", 1, -1)
-        header:SetPoint("TOPRIGHT", -1, -1)
-        header:SetHeight(COPY_HEADER)
-        local hbg = header:CreateTexture(nil, "BACKGROUND")
-        hbg:SetAllPoints()
-        T.HeaderGradient(hbg)
-        local logo = header:CreateTexture(nil, "ARTWORK")
-        logo:SetSize(26, 26)
-        logo:SetPoint("LEFT", 10, 0)
-        logo:SetTexture(T.LOGO)
-        local title = Text(header, "Combat lines: press Ctrl+C to copy, then paste into your report",
-            "GameFontNormal", C.title)
-        title:SetPoint("LEFT", logo, "RIGHT", 8, 0)
-        local close = FlatButton(header, "X", 24, 24)
-        close:SetPoint("RIGHT", -8, 0)
-        close:SetScript("OnClick", function() f:Hide() end)
-
-        local box = CreateFrame("Frame", nil, f)
-        box:SetPoint("TOPLEFT", 12, -(COPY_HEADER + 10))
-        box:SetPoint("BOTTOMRIGHT", -12, 12)
-        T.Fill(box, C.field)
-        T.Border(box, C.fieldEdge)
-        local scroll = T.ScrollArea(box, COPY_H - COPY_HEADER - 22)
-        local edit = CreateFrame("EditBox", nil, scroll.child)
-        edit:SetPoint("TOPLEFT", 6, -6)
-        edit:SetMultiLine(true)
-        edit:SetAutoFocus(false)
-        edit:SetFontObject("ChatFontNormal")
-        edit:SetWidth(COPY_W - 60)
-        edit:SetScript("OnEscapePressed", function() f:Hide() end)
-        f.edit, f.scroll = edit, scroll
-        self.copyWindow = f
-    end
     local text = "Nothing recorded yet. Type /btf debug, fight for a moment, then /btf copy."
     local count = 1
     if self.recorded and #self.recorded > 0 then
@@ -385,12 +439,24 @@ function BT:OpenCopyWindow()
         text = (table.concat(self.recorded, "\n"):gsub("|", "||"))
         count = #self.recorded
     end
-    f.edit:SetText(text)
     -- Long lines wrap, so leave room for about two rows each
-    local height = count * 28 + 12
-    f.edit:SetHeight(height)
-    f.scroll:SetContent(COPY_W - 48, height)
-    f:Show()
-    f.edit:SetFocus()
-    f.edit:HighlightText()
+    self:ShowTextWindow("Combat lines: press Ctrl+C to copy, then paste into your report", text, count)
+end
+
+-- mode: "export" (your settings, to copy) or "import" (paste, then click Import)
+function BT:OpenShareWindow(mode)
+    if mode == "export" then
+        self:ShowTextWindow("Your settings: press Ctrl+C to copy, then share them", self:ExportSettings(), 8)
+        return
+    end
+    local f
+    f = self:ShowTextWindow("Paste settings with Ctrl+V, then click Import", "", 8, function()
+        local count, why = BT:ImportSettings(f.edit:GetText())
+        if count then
+            BT.Print("settings imported.")
+            f:Hide()
+        else
+            BT.Print("couldn't import: " .. why .. ".")
+        end
+    end)
 end

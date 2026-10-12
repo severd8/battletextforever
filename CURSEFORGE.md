@@ -12,10 +12,12 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 - **What happens to you**, in its own area: the damage you take, and the attacks you dodge, parry, block or resist.
 - **Heals**, the ones you get and the ones you do, in their own Healing area under your character (or with the damage, if you prefer).
 - **Notifications**: combat, experience, reputation, honor, loot, money, skill ups, a paladin's seals going on and coming off, and (if you turn it on) your buffs.
-- **Four text areas** you can drag anywhere on screen.
-- **Your look**: 23 fonts, outline thickness, text and crit size, short numbers (12.3k), scroll speed and distance, your own colors, and for each area its own size, opacity and direction (up or down, straight or curved).
-- **Your choice of what's shown.** Turn any kind of text off, icons and spell names per area, hide small hits and heals, and hide the game's own numbers so nothing shows twice.
-- **Settings per character** if you want them, starting from a copy of your shared ones.
+- **Fight summary**: when a fight ends, your damage, DPS and healing ("4,820 damage (127 DPS), 1,200 healed in 38s").
+- **Four text areas** you can drag anywhere on screen, each with its own movement: Scroll, Pop, Fountain or Horizontal.
+- **Your look**: 23 fonts, an outline (thin or thick) or a drop shadow, text and crit size, bigger text for bigger hits, short numbers (12.3k), scroll speed and distance, your own colors, and for each area its own size, opacity and direction (up or down, straight or curved).
+- **Your choice of what's shown.** Turn any kind of text off, hide your auto attacks, icons and spell names per area, hide small hits and heals, and hide the game's own numbers so nothing shows twice.
+- **Sounds** if you want them: a ping on your crits, a chime on a killing blow.
+- **Settings per character** if you want them, starting from a copy of your shared ones, and **share your settings** with a friend as a line of text.
 
 ## Installation
 
@@ -36,13 +38,13 @@ The options have the same look as TauntMaster Forever, ToppedOff Forever and Out
 
 | Tab | What's there |
 |---|---|
-| **General** | Show BattleText, move the text areas, hide the game's own numbers, minimap button, remind me to click Start, settings for this character only, show sample text, reset positions |
-| **Text** | Font (a list of 23), outline and crit outline (none, thin or thick), text size, crit size, short numbers (12.3k) |
-| **Scrolling** | Crits pop and hold, add up rapid hits, scroll time, scroll distance |
-| **Outgoing** | Damage, misses, pet, damage shields, icons, names, seal damage, hide hits below a number, this area's text size, opacity, scroll upward and curved scrolling |
-| **Incoming** | Damage, avoids, power gains, icons, names, this area's text size, opacity, scroll upward and curved scrolling |
-| **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number, this area's text size, opacity and scroll upward |
-| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, buffs, this area's text size, opacity and scroll upward |
+| **General** | Show BattleText, move the text areas, hide the game's own numbers, minimap button, remind me to click Start, settings for this character only, show sample text, reset positions, share settings (export and import) |
+| **Text** | Font (a list of 23), outline and crit outline (none, thin, thick or shadow), text size, crit size, short numbers (12.3k), size by hit |
+| **Scrolling** | Crits pop and hold, add up rapid hits, scroll time, scroll distance, how long ticks and area hits add up |
+| **Outgoing** | Damage, misses, pet, damage shields, icons, names, seal damage, auto attacks, hide hits below a number; the area's text size, opacity, movement, scroll upward and curved scrolling |
+| **Incoming** | Damage, avoids, power gains, icons, names; the area's text size, opacity, movement, scroll upward and curved scrolling |
+| **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number; the area's text size, opacity, movement and scroll upward |
+| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, buffs, fight summary, sound on crits, sound on killing blows; the area's text size, opacity, movement and scroll upward |
 | **Colors** | The color of your hits, spells, misses, damage you take, avoids, heals, power gains, notifications, combat, experience, seals and buffs; reset colors |
 
 ### Keybindings
@@ -66,6 +68,7 @@ Go to **Options → Keybindings → BattleText Forever**:
 | `/btf debug` | Start or stop recording the combat lines the game sends (for bug reports) |
 | `/btf copy` | Show the recorded lines in a box you can copy from |
 | `/btf check` | Check the spells, texts and icons BattleText uses against your game, and report anything missing |
+| `/btf export` · `/btf import` | Share your settings as a line of text, or take someone else's |
 
 `/battletext` works too.
 
@@ -87,6 +90,8 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
 - **Buffs** (off unless you turn them on) show when they go on or come off. The game hides your buffs during a fight: there, a buff you put on yourself (Slice and Dice, Evasion, Sprint...) shows as you cast it, and the rest of what changed, including when those ran out, shows when the fight ends. Food, drink, and buffs with no time limit (mounts, auras, stances) aren't shown, and nothing is shown when you die.
 - **The last swing on a mob may not show**: the game stops reporting a unit the moment it dies.
 - **Damage you take has no spell names.**
+- **The fight summary counts what BattleText can read.** When the game hides a hit's number, it isn't in the total. Killing blows (and their sound) need the game to let BattleText read its combat lines.
+- **Auto attacks off**: without the game's combat lines, a physical hit BattleText can't name counts as a swing and is hidden too.
 - When the game does let BattleText read the Combat Log's lines, they're used instead: every hit then has its spell, and your pet's hits are marked.
 
 ## Troubleshooting

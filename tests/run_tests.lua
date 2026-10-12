@@ -388,6 +388,165 @@ assertEq(#lines("outgoing"), 2, "adding up turned off")
 BT.db.merge = true
 clear()
 
+step("ticks and area hits add up for longer")
+local function tick(spell, id, amount, school)   -- the same line, from a damage-over-time spell
+    return (hit(spell, id, amount, school):gsub("SPELL_DAMAGE", "SPELL_PERIODIC_DAMAGE"))
+end
+assertEq(BT.DEFAULTS.tickMerge, 0, "off to start with: ticks add up as quickly as other hits")
+log(tick("Rake", 1822, 12))
+Advance(0.9)
+log(tick("Rake", 1822, 12))
+assertEq(#lines("outgoing"), 2, "ticks 0.9 seconds apart are two lines")
+clear()
+BT.db.tickMerge = 1.5
+log(tick("Rake", 1822, 12))
+Advance(0.9)
+log(tick("Rake", 1822, 13))
+assertEq(lines("outgoing")[1], "Rake 25 |cffb0b0b0(x2)|r", "with the window, they add up")
+assertEq(#lines("outgoing"), 1, "on one line")
+log(hit("Rake", 1822, 30))
+assertEq(#lines("outgoing"), 2, "the spell's own hit isn't a tick")
+Advance(0.8)
+log(tick("Rake", 1822, 12))
+assertEq(lines("outgoing")[1], "Rake 37 |cffb0b0b0(x3)|r", "a third tick, still adding up")
+Advance(1.0)
+log(tick("Rake", 1822, 12))
+assertEq(lines("outgoing")[1], "Rake 37 |cffb0b0b0(x3)|r", "a line most of the way across takes no more")
+BT.db.tickMerge = 0
+clear()
+
+step("auto attacks can be hidden")
+assertEq(BT.DEFAULTS.outSwings, true, "shown to start with")
+BT.db.outSwings = false
+log(swing(27))
+assertEq(#lines("outgoing"), 0, "a swing is hidden")
+log(hit("Claw", 16827, 50))
+assertEq(last("outgoing"), "Claw 50", "a spell still shows")
+BT.db.outSwings = true
+log(swing(27))
+assertEq(last("outgoing"), "27", "shown again")
+clear()
+
+step("size by hit")
+assertEq(BT.DEFAULTS.sizeByHit, false, "off to start with")
+BT.db.sizeByHit = true
+BT.areas.outgoing.usualHit = nil
+log(hit("Claw", 16827, 50))
+assertEq(BT.areas.outgoing.active[1].text.__font[2], 20, "the first hit is the usual size")
+Advance(1)
+log(hit("Wrath", 5176, 500, "Nature"))
+local big = BT.areas.outgoing.active[2].text.__font[2]
+assert(big > 20 and big <= 30, "a much bigger hit shows bigger, at most half again: " .. big)
+Advance(1)
+log(hit("Claw", 16827, 5))
+local small = BT.areas.outgoing.active[3].text.__font[2]
+assert(small < 20 and small >= 15, "a small one shows smaller, at least three quarters: " .. small)
+BT.db.sizeByHit = false
+Advance(1)
+log(hit("Wrath", 5176, 5000, "Nature"))
+assertEq(BT.areas.outgoing.active[4].text.__font[2], 20, "turned off: every hit the same size")
+clear()
+
+step("sounds on crits and killing blows")
+assertEq(BT.DEFAULTS.soundCrit or BT.DEFAULTS.soundKill, false, "off to start with")
+STATE.sounds = {}
+log(hit("Claw", 16827, 100, "Physical", "(Critical)"))
+BT:ShowCombat({ kind = "kill", fromMe = true })
+assertEq(#STATE.sounds, 0, "no sounds while they're off")
+clear()
+BT.db.soundCrit, BT.db.soundKill = true, true
+log(hit("Claw", 16827, 100, "Physical", "(Critical)"))
+assertEq(STATE.sounds[1], 3175, "a ping on a crit")
+log(hit("Claw", 16827, 100, "Physical", "(Critical)"))
+assertEq(#STATE.sounds, 1, "not twice at once")
+log(hit("Claw", 16827, 40))
+assertEq(#STATE.sounds, 1, "not on a normal hit")
+BT:ShowCombat({ kind = "kill", fromMe = true })
+assertEq(STATE.sounds[2], 878, "a chime on a killing blow")
+BT.db.soundCrit, BT.db.soundKill = false, false
+clear()
+
+step("fight summary")
+assertEq(BT.DEFAULTS.nSummary, true, "on to start with")
+fire("PLAYER_REGEN_DISABLED")
+log(hit("Claw", 16827, 300))
+Advance(1)
+log(swing(100))
+log(healMe("Healing Touch", 5185, 250))
+Advance(19)
+fire("PLAYER_REGEN_ENABLED")
+assertEq(last("notify"), "400 damage (20 DPS), 250 healed in 20s", "damage, DPS and healing when the fight ends")
+clear()
+fire("PLAYER_REGEN_DISABLED")
+Advance(5)
+fire("PLAYER_REGEN_ENABLED")
+assertEq(last("notify"), "-Combat", "nothing done: no summary")
+clear()
+BT.db.nSummary = false
+fire("PLAYER_REGEN_DISABLED")
+log(hit("Claw", 16827, 300))
+fire("PLAYER_REGEN_ENABLED")
+assertEq(last("notify"), "-Combat", "turned off")
+BT.db.nSummary = true
+clear()
+
+step("movement: scroll, pop, fountain, horizontal")
+assertEq(BT.DEFAULTS.outStyle, "scroll", "scroll to start with")
+for _, style in ipairs({ "pop", "fountain", "horizontal" }) do
+    BT.db.outStyle = style
+    BT:Emit("outgoing", "a", { 1, 1, 1 })
+    BT:Emit("outgoing", "b", { 1, 1, 1 })
+    local a, b = BT.areas.outgoing.active[1], BT.areas.outgoing.active[2]
+    assertEq(a.style, style, style .. ": the line moves that way")
+    assertEq(b.start, a.start, style .. ": no waiting for room")
+    Advance(BT:ScrollTime(BT.areas.outgoing) / 2)
+    assertEq(a:IsShown() and BT.areas.outgoing.active[1] == a, true, style .. ": still there halfway")
+    clear()
+end
+BT.db.outStyle = "something odd"
+BT:Emit("outgoing", "a", { 1, 1, 1 })
+assertEq(BT.areas.outgoing.active[1].style, nil, "an unknown style scrolls")
+BT.db.outStyle = "scroll"
+clear()
+
+step("share settings")
+local saved = {}
+for k, v in pairs(BT.db) do saved[k] = v end
+BT.db.fontSize, BT.db.outline, BT.db.nStyle, BT.db.tickMerge = 27, "SHADOW", "pop", 1.5
+BT.db.colors = { melee = { 0.5, 0.25, 1 } }
+local text = BT:ExportSettings()
+assertEq(text:sub(1, 5), "BTF1:", "marked as BattleText's")
+assert(not text:find("shieldAmounts", 1, true), "nothing learned in fights goes in")
+assert(not text:find("enabled", 1, true), "nor whether it's turned on")
+BT.db.fontSize, BT.db.outline, BT.db.nStyle, BT.db.tickMerge, BT.db.colors = 20, "OUTLINE", "scroll", 0, {}
+local count = BT:ImportSettings("  " .. text .. "\n")
+assert(count and count > 20, "read back: " .. tostring(count))
+assertEq(BT.db.fontSize, 27, "a number")
+assertEq(BT.db.outline, "SHADOW", "a word")
+assertEq(BT.db.nStyle, "pop", "a style")
+assertEq(BT.db.tickMerge, 1.5, "a half")
+assertEq(BT.db.colors.melee[2], 0.25, "a color")
+assertEq(select(2, BT:ImportSettings("hello")), "that isn't BattleText settings text", "not settings")
+assertEq(BT:ImportSettings(text:sub(1, 40)), nil, "cut short")
+assertEq(BT:ImportSettings('BTF1:{fontSize="big",nothing=t,colors={melee=t}}'), nil, "wrong kinds are left out")
+assertEq(BT.db.fontSize, 27, "and change nothing")
+assertEq(BT:ImportSettings('BTF1:{fontSize=os.exit()}'), nil, "code is never run")
+assertEq(BT.Deserialize('{a="x\\"y",b={1=2,2=-3.5}}').a, 'x"y', "quotes inside words")
+SlashCmdList.BATTLETEXTFOREVER("export")
+assertEq(BT.copyWindow.edit:GetText():sub(1, 5), "BTF1:", "/btf export shows it to copy")
+SlashCmdList.BATTLETEXTFOREVER("import")
+assertEq(BT.copyWindow.edit:GetText(), "", "/btf import: an empty box")
+BT.copyWindow.edit:SetText(text)
+BT.db.fontSize = 20
+BT.copyWindow.action.__scripts.OnClick(BT.copyWindow.action)
+assertEq(BT.db.fontSize, 27, "Import reads the box")
+assertEq(BT.copyWindow:IsShown(), false, "and closes it")
+for k in pairs(BT.db) do BT.db[k] = nil end
+for k, v in pairs(saved) do BT.db[k] = v end
+BT.db.colors = {}
+BT:ApplySettings()
+clear()
+
 step("crits are bigger and hold")
 log(hit("Claw", 16827, 100, "Physical", "(Critical)"))
 local crit = BT.areas.outgoing.active[1]
@@ -1946,7 +2105,7 @@ for _, f in ipairs(ALL_FRAMES) do
         f.__scripts.OnClick(f)
     end
 end
-assertEq(switches, 44, "the switches are there")
+assertEq(switches, 49, "the switches are there")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged: " .. k) end
 end
@@ -1969,13 +2128,14 @@ for _, f in ipairs(ALL_FRAMES) do
             assert(f.label and f.label:lower():find(({ fontSize = "text size", critScale = "crit size",
                 scrollTime = "scroll time", height = "scroll distance", minDamage = "hide hits below", minHeal = "hide heals below",
                 outSize = "text size", inSize = "text size", healSize = "text size", nSize = "text size",
-                outAlpha = "opacity", inAlpha = "opacity", healAlpha = "opacity", nAlpha = "opacity" })[moved[1]], 1, true),
+                outAlpha = "opacity", inAlpha = "opacity", healAlpha = "opacity", nAlpha = "opacity",
+                tickMerge = "ticks and area hits" })[moved[1]], 1, true),
                 "slider label matches its setting: " .. tostring(f.label) .. " -> " .. moved[1])
             f.__scripts.OnValueChanged(f, snapshot[moved[1]])
         end
     end
 end
-assertEq(sliders, 14, "fourteen sliders: six, and each area's size and opacity")
+assertEq(sliders, 15, "fifteen sliders: seven, and each area's size and opacity")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged after the sliders: " .. k) end
 end
@@ -2081,8 +2241,9 @@ assertEq(old.curved, nil, "both")
 local outlineDropdown, critDropdown = BT.config.outlineDropdown, BT.config.critOutlineDropdown
 assertEq(outlineDropdown:GetText(), "Thin", "it shows the outline in use")
 local outlineMenu, critMenu = openMenu(outlineDropdown), openMenu(critDropdown)
-assertEq(#outlineMenu, 3, "none, thin, thick")
-assertEq(outlineMenu[1].text .. outlineMenu[2].text .. outlineMenu[3].text, "NoneThinThick", "named for people")
+assertEq(#outlineMenu, 4, "none, thin, thick, shadow")
+assertEq(outlineMenu[1].text .. outlineMenu[2].text .. outlineMenu[3].text .. outlineMenu[4].text,
+    "NoneThinThickShadow", "named for people")
 clear()
 critMenu[3].pick()
 assertEq(BT.db.critOutline, "THICKOUTLINE", "picking Thick sets the crits' outline")
@@ -2105,10 +2266,21 @@ assertEq(fonts["12"], "", "a normal line uses the normal outline")
 assertEq(fonts["34"], "THICKOUTLINE", "a crit uses the crits' outline")
 BT.db.outline = "SOMETHING ODD"
 assertEq(BT:OutlineFlags(false), "OUTLINE", "an unknown outline falls back to thin")
+clear()
+outlineMenu[4].pick()
+assertEq(BT.db.outline, "SHADOW", "picking Shadow")
+local shadowed = BT.areas.notify.active[1].text
+assertEq(shadowed.__font[3], "", "a shadow instead of an outline")
+assertEq(shadowed.__shadow[1] > 0 and shadowed.__shadow[2] < 0, true, "down and to the right")
+clear()
+outlineMenu[2].pick()
+assertEq(BT.areas.notify.active[1].text.__shadow[1], 0, "an outlined line has no shadow")
 WithoutMenus(function()
     BT.db.critOutline = "OUTLINE"
     critDropdown.__scripts.OnClick(critDropdown)
     assertEq(BT.db.critOutline, "THICKOUTLINE", "with no menus, a click steps to the next outline")
+    critDropdown.__scripts.OnClick(critDropdown)
+    assertEq(BT.db.critOutline, "SHADOW", "and the next")
     critDropdown.__scripts.OnClick(critDropdown)
     assertEq(BT.db.critOutline, "", "round to the start")
     assertEq(critDropdown:GetText(), "None", "shown on the dropdown")

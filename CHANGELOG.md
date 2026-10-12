@@ -1,7 +1,16 @@
 # Changelog
 
-## 1.8.1
+## 1.9.0
 
+- **Fight summary** (Notifications tab, on): when a fight ends, a line with your damage, DPS and healing, like "4,820 damage (127 DPS), 1,200 healed in 38s". It counts the numbers the game lets BattleText read.
+- **Movement styles** for each area: Scroll (as before), Pop, Fountain or Horizontal. Pick one under "Movement" on each area's tab.
+- **Shadow** as a fourth outline choice (Text tab): a drop shadow instead of an outline, for normal lines and crits separately.
+- **Size by hit** (Text tab, off): a big hit shows bigger than the hits before it, a small one smaller.
+- **Ticks and area hits add up for longer** (Scrolling tab): set how many seconds the ticks of your DoTs and bleeds, and the hits of an area spell, keep adding up on one line. 0 keeps it as before.
+- **Auto attacks** (Outgoing tab, on): turn off to hide your white swings and their misses, and see only your spells and abilities.
+- **Sounds** (Notifications tab, off): a ping when you crit, and a chime on a killing blow.
+- **Share settings** (General tab): Export gives your settings as text to copy; Import takes someone else's. Also `/btf export` and `/btf import`.
+- The size and opacity card on each area's tab is now named after the area ("Outgoing text: size and movement") instead of "This area".
 - **Bane of Agony's ticks are named.** Forever calls the warlock spell Bane of Agony, not Curse of Agony, so its ticks showed as bare numbers.
 - Buffs: Sweeping Strikes is recognized as a buff you put on yourself; a spell that isn't in Forever was taken off the list. Found with `/btf check` in game.
 
