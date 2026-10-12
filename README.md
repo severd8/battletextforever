@@ -30,7 +30,7 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 ## Using it
 
 - **Your hits show as soon as you log in**: on your target, and on the mobs attacking you or your pet.
-- **Click Start BattleText** (the button at the top of the screen) once after you log in. With it, BattleText can name the ticks of your bleeds and, in a group, tell your hits from everyone else's (see Good to know). You can also bind a key to it. If you haven't clicked it ten seconds after logging in, a line in chat reminds you (turn off **Remind me to click Start** in the options to stop that).
+- **Click Start BattleText** (the button at the top of the screen) once after you log in. With it, BattleText can name the ticks of your bleeds and, in a group, tell your hits from everyone else's (see Good to know). You can also bind a key to it. If you haven't clicked it ten seconds after logging in, a line in chat reminds you (turn off **Remind me to click Start** in the options to stop that). Right-click the button to hide it until you log in again.
 - **Move the text.** Turn on **Move the text areas** in the options (or type `/btf unlock`) and drag the four boxes where you want them. Closing the options locks them again.
 - **See it without fighting.** Type `/btf test`, or right-click the minimap button.
 - **Open the options.** Type `/btf`, or left-click the minimap button.
@@ -102,6 +102,7 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
 
 - **No numbers for your hits.** Target what you're hitting, or turn on enemy nameplates. In a group, click **Start BattleText**.
 - **A bleed's ticks have no name.** Click **Start BattleText**.
+- **Start BattleText does nothing.** A chat addon that replaces the game's chat window (like Chattynator) hides the game's Combat Log tab, which the button opens. Open the Combat Log once in your chat addon instead; the button goes away when the combat lines start. Alone, your hits show without it, and right-clicking the button hides it.
 - **Other people's hits show as mine.** In a group, click **Start BattleText** and keep the Combat Log's filter on **My actions**.
 - **Numbers show twice.** Turn on **Hide the game's own numbers** in the options.
 - **Something isn't shown.** Type `/btf debug`, fight for a moment, then type `/btf copy` and copy the lines into a bug report. Type `/btf debug` again to stop.

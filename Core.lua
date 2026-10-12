@@ -2032,15 +2032,27 @@ function BT:BuildStartButton()
             .. "This click opens it and switches back for you.", 1, 1, 1, true)
         GameTooltip:AddLine("Playing alone, your hits show without it. In a group, BattleText needs those lines to tell "
             .. "your hits from everyone else's.", 1, 1, 1, true)
-        GameTooltip:AddLine("Once each time you log in.", 0.7, 0.7, 0.7, true)
+        GameTooltip:AddLine("Once each time you log in. Right-click to hide it until then.", 0.7, 0.7, 0.7, true)
         GameTooltip:Show()
     end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    -- Right-click hides it until the next login: a harmless secure action instead of the macro
+    b:SetAttribute("type2", "attribute")
+    b:SetAttribute("attribute-name", "btf-hidden")
+    b:SetAttribute("attribute-value", true)
     -- Go back to whichever chat tab is selected right now
     b:SetScript("PreClick", function() BT:SetStartMacro() end)
     -- The click has opened and closed the tab; the game turned the lines off
     -- again when it closed, so turn them back on
-    b:SetScript("PostClick", function() BT:KeepLogFlowing() end)
+    b:SetScript("PostClick", function(_, button)
+        if button == "RightButton" then
+            BT.startHidden = true
+            BT:UpdateStartButton()
+            return
+        end
+        BT:KeepLogFlowing()
+        BT:CheckStarted()
+    end)
     b:Hide()
     self.startButton = b
     self:SetStartMacro()
@@ -2074,15 +2086,30 @@ function BT:SetStartMacro()
     b:SetAttribute("macrotext", macro)
 end
 
+-- A click that didn't open the Combat Log: a chat addon (Chattynator and the like)
+-- has replaced the game's chat window and keeps its tabs hidden, so the click
+-- reaches a tab nobody can see. Say so, once. (Looked at a moment later: the click
+-- comes down and up, and only one of them runs the macro.)
+function BT:CheckStarted()
+    local function check()
+        if BT.started or BT.startFailSaid then return end
+        BT.startFailSaid = true
+        Print("the click couldn't open the game's Combat Log tab. A chat addon (like Chattynator) may be "
+            .. "hiding it: open the Combat Log once in your chat addon instead, and this button goes away. "
+            .. "Alone, your hits show without it. Right-click the button to hide it.")
+    end
+    if C_Timer and C_Timer.After then C_Timer.After(0.3, check) else check() end
+end
+
 -- Shown until the lines are flowing: until the Combat Log window has been
--- shown, or a line has arrived
+-- shown, or a line has arrived (or right-clicked away)
 function BT:UpdateStartButton()
     if not self.startButton then
         if self.built then self:BuildStartButton() end
         if not self.startButton then return end
     end
     local b = self.startButton
-    local show = self.db.enabled and not self.started
+    local show = self.db.enabled and not self.started and not self.startHidden
     if show == b.wanted then return end
     if InCombatLockdown() then
         self.startPending = true   -- showing or hiding a secure button waits for combat to end
@@ -2095,7 +2122,7 @@ end
 -- A line in chat a little after logging in (or a /reload), if Start hasn't been clicked by then
 local REMIND_AFTER = 10
 function BT:RemindStart()
-    if not (self.db.enabled and self.db.startReminder) or self.started then return end
+    if not (self.db.enabled and self.db.startReminder) or self.started or self.startHidden then return end
     local key = GetBindingKey and Str(GetBindingKey("CLICK BattleTextForeverStart:LeftButton"))
     Print("click |cffffd100Start BattleText|r at the top of your screen"
         .. (key and (" (or press " .. key .. ")") or "")

@@ -339,6 +339,34 @@ assertEq(SELECTED_DOCK_FRAME, ChatFrame2, "and you're still on it")
 assertEq(start:IsShown(), false, "started")
 ClickTab(ChatFrame1Tab)
 assertClean("after starting from the Combat Log tab")
+-- A chat addon (like Chattynator) that replaced the game's chat window: its tabs are
+-- hidden, so clicking the Combat Log tab opens nothing
+local wasApplied = STATE.filterApplied
+BT.started, BT.startFailSaid = nil, nil
+STATE.filterApplied = false
+BT:UpdateStartButton()
+local realTab = ChatFrame2Tab.__scripts.OnClick
+ChatFrame2Tab.__scripts.OnClick = function() end
+local said = #LOG
+ClickButton(start)
+Advance(0.5)
+assertEq(start:IsShown(), true, "the click opened nothing: the button stays")
+assert(#LOG > said and LOG[#LOG]:find("couldn't open the game's Combat Log tab", 1, true),
+    "and chat says why, and what to do")
+said = #LOG
+ClickButton(start)
+Advance(0.5)
+assertEq(#LOG, said, "said once, not on every click")
+ClickButton(start, "RightButton")
+assertEq(start:IsShown(), false, "right-click hides it")
+assertEq(STATE.filterApplied, false, "without running the click's macro")
+BT:RemindStart()
+assertEq(#LOG, said, "and no reminder about it")
+ChatFrame2Tab.__scripts.OnClick = realTab
+STATE.filterApplied = wasApplied
+BT.started, BT.startHidden = true, nil
+BT:UpdateStartButton()
+assertClean("after a chat addon hid the Combat Log tab")
 
 ---------------------------------------------------------------------------
 step("your hits")

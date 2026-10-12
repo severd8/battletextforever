@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.10.1
+
+- **Start BattleText with a chat addon (like Chattynator).** A chat addon that replaces the game's chat window hides the game's Combat Log tab, so clicking Start BattleText did nothing and the button stayed until combat lines started on their own. Now BattleText notices, and says in chat what to do: open the Combat Log once in your chat addon. (Thanks to the player who reported it.)
+- **Right-click Start BattleText to hide it** until you log in again.
+
 ## 1.10.0
 
 - **Hits on someone else's mob no longer show as yours.** With a mob targeted that another player tagged and is fighting, their hits on it showed up as your numbers. Now they're left out, unless the mob turns on you or your pet. With Start BattleText clicked, your own hits when you help out still show.
