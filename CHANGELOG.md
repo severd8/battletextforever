@@ -2,7 +2,7 @@
 
 ## 1.10.1
 
-- **Start BattleText with a chat addon (like Chattynator).** A chat addon that replaces the game's chat window hides the game's Combat Log tab, so clicking Start BattleText did nothing and the button stayed until combat lines started on their own. Now BattleText notices, and says in chat what to do: open the Combat Log once in your chat addon. (Thanks to the player who reported it.)
+- **Start BattleText with a chat addon (like Chattynator).** A chat addon that replaces the game's chat window hides the game's Combat Log tab, so clicking Start BattleText did nothing and the button stayed until combat lines started on their own. Now BattleText notices and says so in chat. There's no real way around it while the game's Combat Log tab is hidden: alone, your hits still show; in a group, other people's hits may show as yours. (Thanks to the player who reported it.)
 - **Right-click Start BattleText to hide it** until you log in again.
 
 ## 1.10.0

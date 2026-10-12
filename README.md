@@ -102,7 +102,7 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
 
 - **No numbers for your hits.** Target what you're hitting, or turn on enemy nameplates. In a group, click **Start BattleText**.
 - **A bleed's ticks have no name.** Click **Start BattleText**.
-- **Start BattleText does nothing.** A chat addon that replaces the game's chat window (like Chattynator) hides the game's Combat Log tab, which the button opens. Open the Combat Log once in your chat addon instead; the button goes away when the combat lines start. Alone, your hits show without it, and right-clicking the button hides it.
+- **Start BattleText does nothing.** A chat addon that replaces the game's chat window (like Chattynator) hides the game's Combat Log tab, which the button opens, and there's no real way around that. Alone, your hits still show without it; in a group, other people's hits may show as yours, and bleed ticks have no name. Right-click the button to hide it. The button also goes away by itself if the combat lines start some other way.
 - **Other people's hits show as mine.** In a group, click **Start BattleText** and keep the Combat Log's filter on **My actions**.
 - **Numbers show twice.** Turn on **Hide the game's own numbers** in the options.
 - **Something isn't shown.** Type `/btf debug`, fight for a moment, then type `/btf copy` and copy the lines into a bug report. Type `/btf debug` again to stop.

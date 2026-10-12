@@ -2095,8 +2095,8 @@ function BT:CheckStarted()
         if BT.started or BT.startFailSaid then return end
         BT.startFailSaid = true
         Print("the click couldn't open the game's Combat Log tab. A chat addon (like Chattynator) may be "
-            .. "hiding it: open the Combat Log once in your chat addon instead, and this button goes away. "
-            .. "Alone, your hits show without it. Right-click the button to hide it.")
+            .. "hiding it, and there's no real way around that. Alone, your hits still show without it; in a group, "
+            .. "other people's hits may show as yours. Right-click the button to hide it.")
     end
     if C_Timer and C_Timer.After then C_Timer.After(0.3, check) else check() end
 end
