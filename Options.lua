@@ -59,10 +59,17 @@ local function IconsAndNames(card, y, section, what)
 end
 
 -- Each area's own text size and opacity
-local function AreaLook(p, y, prefix)
-    local card = Card(p, "This area", 0, y, PAGE_W, 84)
+-- Each area's own text size, opacity and scrolling (curved: the side areas, whose lines bow outward)
+local function AreaLook(p, y, prefix, curved)
+    local card = Card(p, "This area", 0, y, PAGE_W, 110)
     Slider(card, "Text size", 12, -30, prefix .. "Size", 50, 200, "%", 5)
     Slider(card, "Opacity", COL2, -30, prefix .. "Alpha", 10, 100, "%", 5)
+    Setting(card, "Scroll upward", 12, -82, prefix .. "ScrollUp",
+        "Lines in this area start at the bottom and move up. Turn off to scroll down.")
+    if curved then
+        Setting(card, "Curved scrolling", COL2, -82, prefix .. "Curved",
+            "Lines in this area bow outward as they scroll. Turn off for straight lines.")
+    end
 end
 
 -- A color square that opens the game's color picker
@@ -175,16 +182,15 @@ local function BuildText(p, refs)
 end
 
 local function BuildScrolling(p)
-    local card = Card(p, "Scrolling", 0, 0, PAGE_W, 150)
-    Setting(card, "Curved scrolling", 12, -30, "curved", "Lines bow outward as they scroll. Turn off for straight lines.")
-    Setting(card, "Scroll upward", COL2, -30, "scrollUp",
-        "Lines start at the bottom of their area and move up. Turn off to scroll down.")
-    Setting(card, "Crits pop and hold", 12, -56, "sticky",
+    local card = Card(p, "Scrolling", 0, 0, PAGE_W, 124)
+    Setting(card, "Crits pop and hold", 12, -30, "sticky",
         "Critical hits jump out and stay in place for a moment instead of scrolling.")
-    Setting(card, "Add up rapid hits", COL2, -56, "merge",
+    Setting(card, "Add up rapid hits", COL2, -30, "merge",
         "Hits from the same spell that land together are shown as one total, like \"Swipe 150 (x3)\".")
-    Slider(card, "Scroll time", 12, -90, "scrollTime", 1, 6, " sec")
-    Slider(card, "Scroll distance", COL2, -90, "height", 100, 500, "", 10)
+    Slider(card, "Scroll time", 12, -64, "scrollTime", 1, 6, " sec")
+    Slider(card, "Scroll distance", COL2, -64, "height", 100, 500, "", 10)
+    T.Note(p, "Which way each area scrolls, and whether it curves, is on that area's own tab "
+        .. "(Outgoing, Incoming, Healing, Notifications).", 0, -134, PAGE_W)
 end
 
 local function BuildOutgoing(p)
@@ -202,7 +208,7 @@ local function BuildOutgoing(p)
         "Paladins: the Holy hit of Seal of Righteousness or Seal of Command that lands with your swing is named "
         .. "after the seal. Turn off to show it as a plain number.")
     Slider(card, "Hide hits below", 12, -142, "minDamage", 0, 500, "", 5)
-    AreaLook(p, -206, "out")
+    AreaLook(p, -206, "out", true)
 end
 
 local function BuildIncoming(p)
@@ -211,7 +217,7 @@ local function BuildIncoming(p)
     Setting(card, "Avoids", COL2, -30, "inMisses", "Attacks you dodge, parry, block or resist.")
     Setting(card, "Power gains", 12, -56, "inPower", "Mana, rage and energy you gain.")
     IconsAndNames(card, -82, "in", "spells that hit you or that you avoid (when the game says which)")
-    AreaLook(p, -126, "in")
+    AreaLook(p, -126, "in", true)
 end
 
 local function BuildHealing(p)

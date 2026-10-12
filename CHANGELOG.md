@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.0
+
+- **Each text area scrolls its own way.** "Scroll upward" is now on each area's tab (Outgoing, Incoming, Healing, Notifications), so your hits can scroll up while the damage you take scrolls down. "Curved scrolling" is on the Outgoing and Incoming tabs too (the other two scroll straight). Your current choices carry over to every area.
+
 ## 1.7.2
 
 - **A heal on you could go missing.** When one of your own heals on yourself and someone else's heal landed at the same moment, only yours was shown. Now both are.

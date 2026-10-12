@@ -1592,19 +1592,29 @@ assert(act[2].start > act[1].start and act[3].start > act[2].start, "each line s
 Advance(1)
 assert(act[1].__pos[2] < 0, "moving down")
 assert(act[1].__pos[1] > 0, "bowing outward")
-BT.db.curved = false
+BT.db.outCurved = false
 Advance(0.1)
 assertEq(act[1].__pos[1], 0, "straight when curves are off")
-BT.db.curved = true
+BT.db.outCurved = true
 local downY = act[1].__pos[2]
-BT.db.scrollUp = true
+BT.db.outScrollUp = true
 BT:Animate(GetTime())
 local upY = act[1].__pos[2]
 assert(upY < downY, "scrolling up: the line starts low in its area")
 Advance(0.5)
 assert(act[1].__pos[2] > upY, "and moves up")
 assert(act[1].__pos[1] > 0, "still bowing outward")
-BT.db.scrollUp = false
+-- Each area has its own: Outgoing up, Incoming down
+local out = BT:Emit("outgoing", "5", { 1, 1, 1 })
+local inc = BT:Emit("incoming", "-30", { 1, 1, 1 })
+Advance(0.5)
+assert(inc.__pos[2] > -BT:AreaHeight(BT.areas.incoming) / 2, "Incoming still scrolls down from the top")
+assert(out.__pos[2] < -BT:AreaHeight(BT.areas.outgoing) / 2, "while Outgoing scrolls up from the bottom")
+BT.db.inCurved = false
+Advance(0.1)
+assertEq(inc.__pos[1], 0, "Incoming straight")
+assert(out.__pos[1] > 0, "Outgoing still curved")
+BT.db.inCurved, BT.db.outScrollUp = true, false
 Advance(5)
 assertEq(#BT.areas.outgoing.active, 0, "gone after their time")
 -- A burst of different things at once: nothing waits long, and no two lines
@@ -1936,7 +1946,7 @@ for _, f in ipairs(ALL_FRAMES) do
         f.__scripts.OnClick(f)
     end
 end
-assertEq(switches, 40, "the switches are there")
+assertEq(switches, 44, "the switches are there")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged: " .. k) end
 end
@@ -2051,7 +2061,18 @@ clear()
 -- The outlines: normal lines and crits each have their own
 assertEq(BT.DEFAULTS.outline, "OUTLINE", "a thin outline by default")
 assertEq(BT.DEFAULTS.critOutline, "OUTLINE", "for crits too")
-assertEq(BT.DEFAULTS.scrollUp, false, "lines scroll down by default")
+for _, k in ipairs({ "outScrollUp", "inScrollUp", "healScrollUp", "nScrollUp" }) do
+    assertEq(BT.DEFAULTS[k], false, "lines scroll down by default: " .. k)
+end
+assertEq(BT.DEFAULTS.outCurved and BT.DEFAULTS.inCurved, true, "and the side areas curve")
+-- The old one-for-all settings become each area's own
+local old = { scrollUp = true, curved = false, inCurved = true }
+BT:MoveOldSettings(old)
+assertEq(old.outScrollUp and old.inScrollUp and old.healScrollUp and old.nScrollUp, true, "scroll upward, in every area")
+assertEq(old.outCurved, false, "curves off")
+assertEq(old.inCurved, true, "never over a setting already made")
+assertEq(old.scrollUp, nil, "the old settings go")
+assertEq(old.curved, nil, "both")
 local outlineDropdown, critDropdown = BT.config.outlineDropdown, BT.config.critOutlineDropdown
 assertEq(outlineDropdown:GetText(), "Thin", "it shows the outline in use")
 local outlineMenu, critMenu = openMenu(outlineDropdown), openMenu(critDropdown)

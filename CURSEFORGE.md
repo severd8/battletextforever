@@ -13,7 +13,7 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 - **Heals**, the ones you get and the ones you do, in their own Healing area under your character (or with the damage, if you prefer).
 - **Notifications**: combat, experience, reputation, honor, loot, money, skill ups, a paladin's seals going on and coming off, and (if you turn it on) your buffs.
 - **Four text areas** you can drag anywhere on screen.
-- **Your look**: 20 fonts, outline thickness, text and crit size, short numbers (12.3k), scroll speed and distance, straight or curved, up or down, your own colors, and each area's own size and opacity.
+- **Your look**: 20 fonts, outline thickness, text and crit size, short numbers (12.3k), scroll speed and distance, your own colors, and for each area its own size, opacity and direction (up or down, straight or curved).
 - **Your choice of what's shown.** Turn any kind of text off, icons and spell names per area, hide small hits and heals, and hide the game's own numbers so nothing shows twice.
 - **Settings per character** if you want them, starting from a copy of your shared ones.
 
@@ -38,11 +38,11 @@ The options have the same look as TauntMaster Forever, ToppedOff Forever and Out
 |---|---|
 | **General** | Show BattleText, move the text areas, hide the game's own numbers, minimap button, remind me to click Start, settings for this character only, show sample text, reset positions |
 | **Text** | Font (a list of 20), outline and crit outline (none, thin or thick), text size, crit size, short numbers (12.3k) |
-| **Scrolling** | Curved scrolling, scroll upward, crits pop and hold, add up rapid hits, scroll time, scroll distance |
-| **Outgoing** | Damage, misses, pet, damage shields, icons, names, seal damage, hide hits below a number, this area's text size and opacity |
-| **Incoming** | Damage, avoids, power gains, icons, names, this area's text size and opacity |
-| **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number, this area's text size and opacity |
-| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, buffs, this area's text size and opacity |
+| **Scrolling** | Crits pop and hold, add up rapid hits, scroll time, scroll distance |
+| **Outgoing** | Damage, misses, pet, damage shields, icons, names, seal damage, hide hits below a number, this area's text size, opacity, scroll upward and curved scrolling |
+| **Incoming** | Damage, avoids, power gains, icons, names, this area's text size, opacity, scroll upward and curved scrolling |
+| **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number, this area's text size, opacity and scroll upward |
+| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, buffs, this area's text size, opacity and scroll upward |
 | **Colors** | The color of your hits, spells, misses, damage you take, avoids, heals, power gains, notifications, combat, experience, seals and buffs; reset colors |
 
 ### Keybindings

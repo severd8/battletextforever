@@ -63,8 +63,6 @@ local DEFAULTS = {
     critScale = 150,          -- crits, as a percent of the text size
     scrollTime = 3,           -- seconds a line takes to cross its area
     height = 240,             -- how far a line travels
-    curved = true,            -- lines bow outward as they scroll
-    scrollUp = false,         -- lines scroll up instead of down
     outline = "OUTLINE",      -- the outline round normal lines (one of BT.OUTLINES)
     critOutline = "OUTLINE",  -- and round crits
     sticky = true,            -- crits pop and hold in place
@@ -84,6 +82,9 @@ local DEFAULTS = {
     -- Each area's text size (percent of the text size) and opacity (percent)
     outSize = 100, outAlpha = 100, inSize = 100, inAlpha = 100,
     healSize = 100, healAlpha = 100, nSize = 100, nAlpha = 100,
+    -- Each area's scrolling: up instead of down, and (the side areas) bowing outward
+    outScrollUp = false, inScrollUp = false, healScrollUp = false, nScrollUp = false,
+    outCurved = true, inCurved = true,
     outDamage = true, outHeals = true, outMisses = true, outPet = true, outShields = true,
     outSeals = true,          -- name a seal's hit beside your swing
     shieldAmounts = {},       -- learned: what each damage shield of yours hits for (by its name)
@@ -181,6 +182,8 @@ end
 local SPLIT_SETTINGS = {
     icons = { "outIcons", "inIcons", "healIcons", "nIcons" },
     spellNames = { "outNames", "inNames", "healNames" },
+    scrollUp = { "outScrollUp", "inScrollUp", "healScrollUp", "nScrollUp" },   -- (one for all areas until 1.8.0)
+    curved = { "outCurved", "inCurved" },
 }
 function BT:MoveOldSettings(db)
     for old, new in pairs(SPLIT_SETTINGS) do
@@ -470,8 +473,8 @@ function BT:Animate(now)
                     if t < 0.15 then scale = 1 + 0.7 * (1 - t / 0.15) end
                     if t > o.duration - 0.4 then alpha = (o.duration - t) / 0.4 end
                 else
-                    y = self.db.scrollUp and -(1 - p) * h or -p * h
-                    if self.db.curved and a.def.dir ~= 0 then
+                    y = self:AreaSetting(a, "ScrollUp") and -(1 - p) * h or -p * h
+                    if a.def.dir ~= 0 and self:AreaSetting(a, "Curved") then
                         x = a.def.dir * AREA_WIDTH * (1 - (2 * p - 1) ^ 2)
                     end
                     if p < 0.08 then alpha = p / 0.08 elseif p > 0.75 then alpha = (1 - p) / 0.25 end
@@ -2042,7 +2045,8 @@ function BT:Test()
         function() self:Notify("Killing blow!", C.combat, { crit = true }) end,
     }
     -- Shown even while BattleText is turned off, and whatever is ticked in the options
-    local LOOKS = { sticky = true, curved = true, scrollUp = true, healArea = true, healOver = true, merge = true,
+    local LOOKS = { sticky = true, outCurved = true, inCurved = true, outScrollUp = true, inScrollUp = true,
+        healScrollUp = true, nScrollUp = true, healArea = true, healOver = true, merge = true,
         shortNumbers = true, healWho = true,
         outIcons = true, outNames = true, inIcons = true, inNames = true, healIcons = true, healNames = true, nIcons = true }
     local function show(fn)
