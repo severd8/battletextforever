@@ -269,6 +269,11 @@ function UnitCanAttack(a, b)
     local id = who(b)
     return a == "player" and id ~= nil and STATE.unit[id] ~= nil and STATE.unit[id].enemy == true
 end
+-- A mob someone outside your group tagged first (STATE.unit[id].tapDenied)
+function UnitIsTapDenied(unit)
+    local id = who(unit)
+    return id ~= nil and STATE.unit[id] ~= nil and STATE.unit[id].tapDenied == true
+end
 -- A unit's name: STATE.unit[id].name, or hidden when .secretName is set
 function UnitName(unit)
     if unit == "player" then return "Me" end
@@ -456,6 +461,9 @@ function Methods:SetTextColor(r, g, b) self.__color = { r, g, b } end
 function Methods:SetScale(s) self.__scale = s end
 function Methods:SetJustifyH(j) self.__justify = j end
 function Methods:SetShadowOffset(x, y) self.__shadow = { x, y } end
+function Methods:SetHitRectInsets(l, r, t, b) self.__hitRect = { l, r, t, b } end
+-- (about 7 pixels a letter: close enough to place things by)
+function Methods:GetStringWidth() return #tostring(self.__text or "") * 7 end
 
 -- Sounds the addon played, by sound kit number
 -- (STATE.missingSounds[kit]: a sound this client doesn't have, which doesn't play)

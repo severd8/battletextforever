@@ -1,6 +1,11 @@
 -- BattleText Forever: options window (/btf), in the shared look (Theme.lua).
--- Tabs down the left: General, then how the text looks (Text, Scrolling), then
--- one tab per text area (Outgoing, Incoming, Healing, Notifications).
+-- Tabs down the left: General, then how the text looks (Text, Motion), then
+-- one tab per text area (Outgoing, Incoming, Healing, Notifications), then Colors.
+--
+-- Layout rules: two columns (12 and COL2); rows 26 apart; a dropdown after a
+-- row label starts at DROP_X; a note explaining a card is its last line, full
+-- width. A control that does nothing with the other settings as they are is
+-- greyed out (enabledIf), and its tooltip still shows.
 
 local ADDON, ns = ...
 local BT = ns.BT
@@ -8,23 +13,41 @@ local T = ns.Theme
 local C, Text, FlatButton, Card = T.C, T.Text, T.FlatButton, T.Card
 
 local PAGE_W = T.WINDOW.PAGE_W
-local COL2 = 270   -- the second column of a card
+local COL2 = 270     -- the second column of a card
+local DROP_X = 110   -- where a dropdown starts, after its row label
 
 local refreshers = {}
 local function AddRefresher(fn) table.insert(refreshers, fn) end
 
+local function Print(msg) BT.Print(msg) end
+
+-- Greys a control out while enabledIf() says it does nothing
+local function DependsOn(widget, enabledIf)
+    if enabledIf then AddRefresher(function() widget:SetDisabled(not enabledIf()) end) end
+end
+
+-- A note at the bottom of a card, full width
+local function CardNote(card, text, y)
+    return T.Note(card, text, 12, y, PAGE_W - 24)
+end
+
 -- A switch bound to a setting. "locked" reads as "Move the text areas", so it's turned round.
-local function Setting(parent, text, x, y, key, tip)
+local function Setting(parent, text, x, y, key, tip, enabledIf)
     local sw = T.LabeledSwitch(parent, text, x, y)
     sw.key = key
     sw:SetScript("OnClick", function(self)
+        if self.disabled then return end
         self:SetOn(not self:IsOn())
         if key == "locked" then
             BT:SetLocked(not self:IsOn())
         else
             BT.db[key] = self:IsOn()
             BT:ApplySettings()
+            if key == "hideBlizzard" and InCombatLockdown() then
+                Print("the game's own numbers change when this fight ends.")
+            end
         end
+        BT:RefreshConfig()   -- (other controls may depend on it)
     end)
     if tip then T.Tooltip(sw, text, tip) end
     AddRefresher(function()
@@ -32,56 +55,90 @@ local function Setting(parent, text, x, y, key, tip)
         if key == "locked" then v = not v end
         sw:SetOn(v and true or false)
     end)
+    DependsOn(sw, enabledIf)
     return sw
 end
 
-local function Slider(parent, text, x, y, key, min, max, suffix, step, fmt)
+-- A slider bound to a number setting, over its range in BT.RANGES.
+--   o.suffix, o.step, o.fmt  how the value reads   o.zero  what 0 reads as ("Off")
+--   o.tip  tooltip   o.enabledIf  greyed out unless it says yes
+local function Slider(parent, text, x, y, key, o)
+    o = o or {}
+    local range = BT.RANGES[key]
     local s = T.Slider(parent, text, x, y, 244,
         function() return BT.db[key] end,
-        function(v) BT.db[key] = v BT:ApplySettings() end, min, max, suffix, step, fmt)
+        function(v) BT.db[key] = v BT:ApplyAreas() end,   -- (the areas' sizes; the rest is read as lines come)
+        range[1], range[2], o.suffix, o.step, o.fmt, o.zero)
     s.label, s.key = text, key
+    if o.tip then T.Tooltip(s, text, o.tip) end
     AddRefresher(s.Refresh)
+    DependsOn(s, o.enabledIf)
     return s
 end
 
-local function Dropdown(parent, x, y, width, keys, labels, key, choose)
-    local d = T.Dropdown(parent, width, keys, labels, function() return BT.db[key] end, choose)
+local function Dropdown(parent, x, y, width, keys, labels, key, choose, tip, enabledIf)
+    local d = T.Dropdown(parent, width, keys, labels, function() return BT.db[key] end, function(k)
+        choose(k)
+        BT:RefreshConfig()
+    end)
     d:SetPoint("TOPLEFT", x, y)
     d.key = key
+    if tip then T.Tooltip(d, nil, tip) end
     AddRefresher(d.Refresh)
+    DependsOn(d, enabledIf)
     return d
 end
 
--- The two switches the combat tabs share
-local function IconsAndNames(card, y, section, what)
-    Setting(card, "Icons", 12, y, section .. "Icons", "Show the spell's icon beside " .. what .. ".")
-    Setting(card, "Names", COL2, y, section .. "Names", "Show the spell's name beside " .. what .. ".")
+local function Either(...)
+    local keys = { ... }
+    return function()
+        for _, k in ipairs(keys) do if BT.db[k] then return true end end
+        return false
+    end
 end
 
--- Each area's own text size, opacity and movement (curved: the side areas, whose lines bow outward)
-local AREA_LOOK_H = 148
-local function AreaLook(p, y, prefix, curved)
-    local card = Card(p, "Appearance", 0, y, PAGE_W, AREA_LOOK_H)
-    Slider(card, "Text size", 12, -30, prefix .. "Size", 50, 200, "%", 5)
-    Slider(card, "Opacity", COL2, -30, prefix .. "Alpha", 10, 100, "%", 5)
+-- The two switches the combat tabs share
+local function IconsAndNames(card, y, section, what, enabledIf)
+    Setting(card, "Icons", 12, y, section .. "Icons", "Shows the spell's icon beside " .. what .. ".", enabledIf)
+    Setting(card, "Names", COL2, y, section .. "Names", "Shows the spell's name beside " .. what .. ".", enabledIf)
+end
+
+-- Each area's own text size, opacity and movement. curved: the side areas, whose
+-- lines can bow outward. enabledIf/offNote: when the area isn't in use, and why.
+local function AreaLook(p, y, prefix, curved, enabledIf, offNote)
+    local card = Card(p, "Appearance", 0, y, PAGE_W, curved and 142 or 116)
+    Slider(card, "Size", 12, -30, prefix .. "Size", { suffix = "%", step = 5, enabledIf = enabledIf,
+        tip = "This area's text, as a percent of the text size on the Text tab." })
+    Slider(card, "Opacity", COL2, -30, prefix .. "Alpha", { suffix = "%", step = 5, enabledIf = enabledIf,
+        tip = "How see-through this area's text is. 100% is solid." })
     local keys = {}
     for _, st in ipairs(BT.STYLES) do keys[#keys + 1] = st.key end
     T.RowLabel(card, "Movement", 12, -82)
-    local d = Dropdown(card, 110, -82, 150, keys, function(k) return BT:StyleName(k) end, prefix .. "Style",
-        function(k) BT.db[prefix .. "Style"] = k BT:ApplySettings() end)
-    T.Tooltip(d, "Movement", "Scroll: lines move up or down the area, one after another. Pop: each one jumps out "
-        .. "somewhere in the area and fades. Fountain: thrown up and falling to the side. Horizontal: they slide "
-        .. "sideways, away from the middle.")
-    Setting(card, "Scroll upward", 12, -116, prefix .. "ScrollUp",
-        "With Scroll: lines start at the bottom and move up. Turn off to scroll down.")
+    local style = prefix .. "Style"
+    local d = Dropdown(card, DROP_X, -82, 150, keys, function(k) return BT:StyleName(k) end, style,
+        function(k) BT.db[style] = k end,
+        "Scroll: lines move up or down the area, one after another. Pop: each one jumps out somewhere in the area "
+        .. "and fades. Fountain: thrown up and falling to the side. Horizontal: they slide sideways, away from the "
+        .. "middle. Crits that stay in place (Motion tab) stay put whatever this is.", enabledIf)
+    local function scrolling()
+        return (not enabledIf or enabledIf()) and BT:AreaStyle({ def = { prefix = prefix } }) == "scroll"
+    end
+    Setting(card, "Scroll upward", COL2, -84, prefix .. "ScrollUp",
+        "Lines start at the bottom and move up. Off: they scroll down. Only with Scroll movement.", scrolling)
     if curved then
-        Setting(card, "Curved scrolling", COL2, -116, prefix .. "Curved",
-            "With Scroll: lines bow outward as they scroll. Turn off for straight lines.")
+        Setting(card, "Curved scrolling", COL2, -110, prefix .. "Curved",
+            "Lines bow outward as they scroll. Off: straight lines. Only with Scroll movement.", scrolling)
+    end
+    if offNote then
+        local note = T.Note(card, offNote, 0, 0)
+        note:ClearAllPoints()
+        note:SetPoint("TOPRIGHT", -12, -10)
+        AddRefresher(function() note:SetShown(not enabledIf()) end)
     end
     return d
 end
 
--- A color square that opens the game's color picker
+-- A color square that opens the game's color picker (its label works the same)
 local function Swatch(parent, text, x, y, key)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(30, 16)
@@ -90,6 +147,7 @@ local function Swatch(parent, text, x, y, key)
     T.Border(b, C.edge)
     b.label = Text(parent, text, "GameFontHighlight")
     b.label:SetPoint("TOPLEFT", b, "TOPRIGHT", 8, 1)
+    T.ClickableLabel(b, b.label)
     b.key = key
     local function paint()
         local c = BT.TEXT_COLORS[key]
@@ -124,17 +182,58 @@ function BT:RefreshConfig()
 end
 
 ---------------------------------------------------------------------------
+-- "Are you sure?": a small window in the same look, over the options
+---------------------------------------------------------------------------
+function BT:Confirm(text, yesLabel, onYes)
+    local f = self.confirmWindow
+    if not f then
+        f = CreateFrame("Frame", "BattleTextForeverConfirm", UIParent)
+        f:SetSize(380, 130)
+        f:SetPoint("CENTER", 0, 80)
+        f:SetFrameStrata("FULLSCREEN_DIALOG")
+        f:SetToplevel(true)
+        f:EnableMouse(true)
+        f:Hide()
+        table.insert(UISpecialFrames, "BattleTextForeverConfirm")   -- Escape is Cancel
+        T.Fill(f, C.win)
+        T.Border(f, C.edge)
+        f.text = Text(f, "", "GameFontHighlight")
+        f.text:SetPoint("TOPLEFT", 16, -16)
+        f.text:SetWidth(348)
+        f.text:SetWordWrap(true)
+        f.text:SetJustifyH("LEFT")
+        f.no = FlatButton(f, "Cancel", 100)
+        f.no:SetPoint("BOTTOMRIGHT", -16, 14)
+        f.no:SetScript("OnClick", function() f:Hide() end)
+        f.yes = FlatButton(f, "", 120)
+        f.yes:SetPoint("RIGHT", f.no, "LEFT", -8, 0)
+        self.confirmWindow = f
+    end
+    f.text:SetText(text)
+    f.yes:SetText(yesLabel)
+    f.yes:SetScript("OnClick", function()
+        f:Hide()
+        onYes()
+    end)
+    f:Show()
+    return f
+end
+
+---------------------------------------------------------------------------
 -- The pages. refs collects the widgets the window keeps a name for.
 ---------------------------------------------------------------------------
 local function BuildGeneral(p, refs)
-    local card = Card(p, "BattleText", 0, 0, PAGE_W, 150)
-    Setting(card, "Show BattleText", 12, -30, "enabled")
+    local card = Card(p, "Basics", 0, 0, PAGE_W, 150)
+    Setting(card, "Show BattleText", 12, -30, "enabled",
+        "Turns all of BattleText's text on or off (also /btf on and /btf off).")
     Setting(card, "Move the text areas", COL2, -30, "locked",
         "Shows a box for each text area. Drag the boxes where you want them, then turn this off. "
         .. "Closing the options locks them again.")
     Setting(card, "Hide the game's own numbers", 12, -56, "hideBlizzard",
-        "Turns off the game's floating combat text so numbers aren't shown twice. Turn it off to bring them back.")
-    Setting(card, "Minimap button", COL2, -56, "minimap")
+        "Turns off the game's floating combat text so numbers aren't shown twice. Turn it off to bring them back. "
+        .. "During a fight, the change waits until the fight ends.")
+    Setting(card, "Minimap button", COL2, -56, "minimap",
+        "The BattleText button on the minimap: left-click opens the options, right-click shows sample text.")
     Setting(card, "Remind me to click Start", 12, -82, "startReminder",
         "Ten seconds after you log in, a line in chat reminds you to click Start BattleText if you haven't yet.")
     local own = T.LabeledSwitch(card, "Settings for this character only", COL2, -82)
@@ -143,39 +242,47 @@ local function BuildGeneral(p, refs)
         BT:SetOwnSettings(self:IsOn())
     end)
     T.Tooltip(own, "Settings for this character only",
-        "On: this character keeps its own settings, starting from a copy of the shared ones. "
-        .. "Off: it uses the settings every character shares.")
+        "On: this character has its own settings. The first time, they start as a copy of the shared ones. "
+        .. "Off: it uses the settings every character shares, and keeps its own for when you turn this back on.")
     AddRefresher(function() own:SetOn(BT:OwnSettings()) end)
     refs.ownSwitch = own
     local sample = FlatButton(card, "Show sample text", 140)
     sample:SetPoint("TOPLEFT", 12, -114)
     sample:SetScript("OnClick", function() BT:Test() end)
+    T.Tooltip(sample, nil, "A few sample lines in every area, to see the look and where the areas are.")
     local reset = FlatButton(card, "Reset positions", 120)
     reset:SetPoint("LEFT", sample, "RIGHT", 8, 0)
-    reset:SetScript("OnClick", function() BT:ResetPositions() end)
+    reset:SetScript("OnClick", function()
+        BT:Confirm("Move all four text areas back to where they started?", "Reset positions",
+            function() BT:ResetPositions() end)
+    end)
     refs.sampleButton, refs.resetButton = sample, reset
 
-    local know = Card(p, "Good to know", 0, -160, PAGE_W, 150)
-    T.Note(know, "Your hits are read from the unit you hit: your target, and the mobs attacking you or your pet. "
-        .. "Turn on enemy nameplates for the ones you aren't targeting.\n\n"
+    local know = Card(p, "Good to know", 0, -160, PAGE_W, 130)
+    local text = Text(know, "Your hits are read from the unit you hit: your target, and the mobs attacking you or your "
+        .. "pet. Turn on enemy nameplates for the ones you aren't targeting.\n\n"
         .. "The game doesn't say whose hit it was: alone, your pet's hits show as yours.\n\n"
         .. "Click \"Start BattleText\" once after you log in. It lets BattleText name the ticks of your bleeds, "
-        .. "and in a group it leaves other people's hits out.", 12, -34, PAGE_W - 24)
+        .. "and in a group it leaves other people's hits out.", "GameFontHighlightSmall", C.muted)
+    text:SetPoint("TOPLEFT", 12, -34)
+    text:SetWidth(PAGE_W - 24)
+    text:SetWordWrap(true)
+    text:SetJustifyH("LEFT")
 
-    local share = Card(p, "Share settings", 0, -320, PAGE_W, 64)
+    local share = Card(p, "Share settings", 0, -300, PAGE_W, 90)
     local export = FlatButton(share, "Export", 90)
     export:SetPoint("TOPLEFT", 12, -28)
     export:SetScript("OnClick", function() BT:OpenShareWindow("export") end)
     local import = FlatButton(share, "Import", 90)
     import:SetPoint("LEFT", export, "RIGHT", 8, 0)
     import:SetScript("OnClick", function() BT:OpenShareWindow("import") end)
-    local note = Text(share, "Your settings as text to copy, or paste someone else's.", "GameFontDisableSmall")
-    note:SetPoint("LEFT", import, "RIGHT", 12, 0)
+    CardNote(share, "Export: your settings as a line of text to copy. Import: paste someone else's to use them "
+        .. "(your text areas stay where they are unless you choose).", -58)
     refs.exportButton, refs.importButton = export, import
 end
 
 local function BuildText(p, refs)
-    local card = Card(p, "Font", 0, 0, PAGE_W, 130)
+    local card = Card(p, "Font and outline", 0, 0, PAGE_W, 124)
     local fontKeys, outlineKeys, outlineNames = {}, {}, {}
     for _, f in ipairs(BT.FONTS) do fontKeys[#fontKeys + 1] = f.name end
     for _, o in ipairs(BT.OUTLINES) do
@@ -183,128 +290,153 @@ local function BuildText(p, refs)
         outlineNames[o.flags] = o.name
     end
     local function outlineName(flags) return outlineNames[flags] or outlineNames.OUTLINE end
+    local outlineTip = "None, a thin or thick dark edge round the letters, or a drop shadow instead. "
+        .. "Picking one shows a sample line."
 
     T.RowLabel(card, "Font", 12, -30)
-    refs.fontDropdown = Dropdown(card, 140, -30, 220, fontKeys, function(k) return k end, "font",
-        function(name) BT:SetFont(name) end)
+    refs.fontDropdown = Dropdown(card, DROP_X, -30, 220, fontKeys, function(k) return k end, "font",
+        function(name) BT:SetFont(name) end, "The letters of every line. Picking one shows a sample line in it.")
     refs.fontDropdown.menuScroll = 20 * 12   -- twelve rows, then it scrolls
     T.RowLabel(card, "Outline", 12, -60)
-    refs.outlineDropdown = Dropdown(card, 140, -60, 220, outlineKeys, outlineName, "outline",
-        function(flags) BT:SetOutline("outline", flags) end)
+    refs.outlineDropdown = Dropdown(card, DROP_X, -60, 220, outlineKeys, outlineName, "outline",
+        function(flags) BT:SetOutline("outline", flags) end, "Normal lines: " .. outlineTip)
     T.RowLabel(card, "Crit outline", 12, -90)
-    refs.critOutlineDropdown = Dropdown(card, 140, -90, 220, outlineKeys, outlineName, "critOutline",
-        function(flags) BT:SetOutline("critOutline", flags) end)
+    refs.critOutlineDropdown = Dropdown(card, DROP_X, -90, 220, outlineKeys, outlineName, "critOutline",
+        function(flags) BT:SetOutline("critOutline", flags) end, "Crits: " .. outlineTip)
 
-    local size = Card(p, "Size", 0, -140, PAGE_W, 112)
-    Slider(size, "Text size", 12, -30, "fontSize", 10, 40)
-    Slider(size, "Crit size", COL2, -30, "critScale", 100, 250, "%", 10)
-    Setting(size, "Short numbers", 12, -82, "shortNumbers", "Big numbers in short: 12,345 shows as 12.3k, 1,234,567 as 1.2m.")
+    local size = Card(p, "Size", 0, -134, PAGE_W, 112)
+    Slider(size, "Text size", 12, -30, "fontSize",
+        { tip = "The size of normal lines. Each area can make its own bigger or smaller (Appearance, on its tab)." })
+    Slider(size, "Crit size", COL2, -30, "critScale", { suffix = "%", step = 10,
+        tip = "Crits, as a percent of the text size." })
+    Setting(size, "Short numbers", 12, -82, "shortNumbers",
+        "Big numbers in short: 12,345 shows as 12.3k, 1,234,567 as 1.2m. Below 10,000 they stay as they are.")
     Setting(size, "Size by hit", COL2, -82, "sizeByHit",
-        "A hit bigger than that area's usual ones shows bigger (up to half again), a smaller one smaller.")
+        "Each area compares a number with its recent ones: a bigger hit or heal shows bigger (up to 1.5 times), "
+        .. "a smaller one smaller (down to three quarters). A number the game hides keeps the usual size.")
 end
 
-local function BuildScrolling(p)
-    local card = Card(p, "Scrolling", 0, 0, PAGE_W, 160)
-    Setting(card, "Crits pop and hold", 12, -30, "sticky",
-        "Critical hits jump out and stay in place for a moment instead of scrolling.")
+local function BuildMotion(p)
+    local card = Card(p, "Motion", 0, 0, PAGE_W, 196)
+    Setting(card, "Crits stay in place", 12, -30, "sticky",
+        "Critical hits jump out and stay in place for a moment instead of moving with the rest, "
+        .. "whatever the area's movement.")
     Setting(card, "Add up rapid hits", COL2, -30, "merge",
         "Hits from the same spell that land together are shown as one total, like \"Swipe 150 (x3)\".")
-    Slider(card, "Scroll time", 12, -64, "scrollTime", 1, 6, " sec")
-    Slider(card, "Scroll distance", COL2, -64, "height", 100, 500, "", 10)
-    Slider(card, "Ticks and area hits add up for", 12, -116, "tickMerge", 0, 3, " sec", 0.5, "%.1f")
-    T.Note(card, "Ticks of your bleeds and DoTs, and the hits of an area spell, keep adding up on one line for this "
-        .. "long. 0: as quick as other hits.", COL2, -112, PAGE_W - COL2 - 12)
-    T.Note(p, "How each area's lines move (Scroll, Pop, Fountain, Horizontal), which way and whether they curve, "
-        .. "is on that area's own tab (Outgoing, Incoming, Healing, Notifications).", 0, -170, PAGE_W)
+    Slider(card, "Time on screen", 12, -64, "scrollTime", { suffix = " sec", step = 0.5, fmt = "%.1f",
+        tip = "How long a line takes to cross its area. Notifications move a little faster, and Pop lines "
+            .. "stay a little over half as long." })
+    Slider(card, "Area height", COL2, -64, "height", { suffix = " px", step = 10,
+        tip = "How tall the Outgoing and Incoming areas are: how far their lines travel. The Healing area is "
+            .. "60% of it and Notifications 45%." })
+    Slider(card, "Ticks and area hits add up for", 12, -116, "tickMerge", { suffix = " sec", step = 0.5,
+        fmt = "%.1f", zero = "Off", enabledIf = function() return BT.db.merge end,
+        tip = "Ticks of your bleeds and DoTs, and the hits of an area spell, keep adding up on one line for this "
+            .. "long. Off: as quickly as other hits. Needs Add up rapid hits." })
+    CardNote(card, "How each area's lines move (Scroll, Pop, Fountain or Horizontal), which way, and whether they "
+        .. "curve, is under Appearance on that area's own tab.", -156)
 end
 
 local function BuildOutgoing(p)
     local card = Card(p, "What you do", 0, 0, PAGE_W, 196)
-    Setting(card, "Damage", 12, -30, "outDamage")
-    Setting(card, "Misses", COL2, -30, "outMisses", "Your attacks that miss or are dodged, parried, blocked or resisted.")
-    Setting(card, "Pet", 12, -56, "outPet",
-        "Your pet's hits, marked (Pet). This only works when the game lets BattleText read its combat lines; "
-        .. "when it doesn't, your pet's hits can't be told from yours and show with them.")
-    Setting(card, "Damage shields", COL2, -56, "outShields",
+    local damage = function() return BT.db.outDamage end
+    Setting(card, "Damage", 12, -30, "outDamage", "Your hits on mobs: spells, abilities and swings.")
+    Setting(card, "Misses", COL2, -30, "outMisses",
+        "Your attacks that miss, or are dodged, parried, fully blocked or resisted.")
+    Setting(card, "Auto attacks", 12, -56, "outSwings",
+        "Your white swings and their misses. Off: only your spells and abilities. Without the game's combat "
+        .. "lines, a physical hit BattleText can't name counts as a swing.", Either("outDamage", "outMisses"))
+    Setting(card, "Pet", COL2, -56, "outPet",
+        "Your pet's hits and heals, marked (Pet). This only works when the game lets BattleText read its combat "
+        .. "lines; when it doesn't, your pet's hits can't be told from yours and show with them.")
+    Setting(card, "Damage shields", 12, -82, "outShields",
         "What your damage shields do to whoever hits you: buffs like Thorns, Lightning Shield and Retribution Aura "
-        .. "(learned from their first two hits), and gear that stings back.")
-    IconsAndNames(card, -82, "out", "your hits and misses")
-    Setting(card, "Seal damage", 12, -108, "outSeals",
-        "Paladins: the Holy hit of Seal of Righteousness or Seal of Command that lands with your swing is named "
-        .. "after the seal. Turn off to show it as a plain number.")
-    Setting(card, "Auto attacks", COL2, -108, "outSwings",
-        "Your white swings and their misses. Turn off to show only your spells and abilities. Without the "
-        .. "game's combat lines, a physical hit BattleText can't name counts as a swing.")
-    Slider(card, "Hide hits below", 12, -142, "minDamage", 0, 500, "", 5)
+        .. "(learned from their first two hits), and gear that stings back. Off: hidden.", damage)
+    Setting(card, "Name seal hits", COL2, -82, "outSeals",
+        "Paladins: the Holy hit of Seal of Righteousness or Seal of Command that lands with your swing shows the "
+        .. "seal's name and icon. Off: it shows as a plain number.", damage)
+    IconsAndNames(card, -108, "out", "your hits and misses", Either("outDamage", "outMisses"))
+    Slider(card, "Hide hits below", 12, -142, "minDamage", { step = 5, zero = "Off", enabledIf = damage,
+        tip = "Your hits (and your pet's) for less than this aren't shown. A hit whose number the game hides "
+            .. "always shows." })
     AreaLook(p, -206, "out", true)
 end
 
 local function BuildIncoming(p)
     local card = Card(p, "What happens to you", 0, 0, PAGE_W, 116)
-    Setting(card, "Damage", 12, -30, "inDamage")
-    Setting(card, "Avoids", COL2, -30, "inMisses", "Attacks you dodge, parry, block or resist.")
+    Setting(card, "Damage", 12, -30, "inDamage", "The damage you take.")
+    Setting(card, "Avoids", COL2, -30, "inMisses", "Attacks you dodge, parry, block or resist, and ones that miss you.")
     Setting(card, "Power gains", 12, -56, "inPower", "Mana, rage and energy you gain.")
-    IconsAndNames(card, -82, "in", "spells that hit you or that you avoid (when the game says which)")
+    IconsAndNames(card, -82, "in", "what hits you or what you avoid (only when the game says which spell)",
+        Either("inDamage", "inMisses"))
     AreaLook(p, -126, "in", true)
 end
 
 local function BuildHealing(p)
     local card = Card(p, "Heals", 0, 0, PAGE_W, 196)
+    local anyHeals = Either("inHeals", "outHeals")
     Setting(card, "Own area for heals", 12, -30, "healArea",
-        "Heals scroll in their own area, under your character. Turn off to show them with damage: "
-        .. "heals you get on the left, heals you do on the right.")
+        "Heals scroll in their own area, under your character. Off: they show with damage, heals you get in the "
+        .. "Incoming area and heals you do in the Outgoing one.")
     Setting(card, "Show overhealing", COL2, -30, "healOver",
-        "The grey \"(40 over)\" after a heal. Only when the game lets BattleText read its combat lines.")
-    Setting(card, "Heals you get", 12, -56, "inHeals")
-    Setting(card, "Heals you do", COL2, -56, "outHeals")
-    IconsAndNames(card, -82, "heal", "heals")
+        "The grey \"(40 over)\" after a heal. Only when the game lets BattleText read its combat lines.", anyHeals)
+    Setting(card, "Heals you get", 12, -56, "inHeals", "Heals on you, yours and other people's.")
+    Setting(card, "Heals you do", COL2, -56, "outHeals", "Your heals on others (and your pet's).")
+    IconsAndNames(card, -82, "heal", "heals", anyHeals)
     Setting(card, "Show who you healed", 12, -108, "healWho",
-        "The name of the player you healed, after the number. Only when the game lets BattleText read it.")
-    Slider(card, "Hide heals below", 12, -142, "minHeal", 0, 500, "", 5)
-    AreaLook(p, -206, "heal")
+        "The name of the player you healed, after the number. Only when the game lets BattleText read it.",
+        function() return BT.db.outHeals end)
+    Slider(card, "Hide heals below", 12, -142, "minHeal", { step = 5, zero = "Off", enabledIf = anyHeals,
+        tip = "Heals for less than this aren't shown. A heal whose number the game hides always shows." })
+    AreaLook(p, -206, "heal", false, function() return BT.db.healArea end,
+        "Off: heals use the Incoming and Outgoing areas")
 end
 
 local function BuildNotifications(p, refs)
-    local card = Card(p, "Notifications", 0, 0, PAGE_W, 220)
-    Setting(card, "Combat", 12, -30, "nCombat", "Entering and leaving combat.")
+    local card = Card(p, "Show", 0, 0, PAGE_W, 160)
+    Setting(card, "Combat", 12, -30, "nCombat", "+Combat and -Combat as you enter and leave a fight.")
     Setting(card, "Killing blows", COL2, -30, "nKill",
-        "Only when the game lets BattleText read its combat lines (it often hides them).")
-    Setting(card, "Experience", 12, -56, "nXP")
-    Setting(card, "Reputation", COL2, -56, "nRep")
-    Setting(card, "Honor", 12, -82, "nHonor")
-    Setting(card, "Loot", COL2, -82, "nLoot")
-    Setting(card, "Money", 12, -108, "nMoney")
-    Setting(card, "Skill ups", COL2, -108, "nSkill")
-    Setting(card, "Icons", 12, -134, "nIcons", "Show the icon beside loot, skill ups (professions like First Aid) and seals.")
-    Setting(card, "Seals", COL2, -134, "nSeals",
+        "\"Killing blow!\" when your hit kills. Only when the game lets BattleText read its combat lines "
+        .. "(it often hides them).")
+    Setting(card, "Experience", 12, -56, "nXP", "The experience you gain, like \"+103 XP\".")
+    Setting(card, "Reputation", COL2, -56, "nRep", "Reputation you gain or lose with a faction.")
+    Setting(card, "Honor", 12, -82, "nHonor", "Honor you gain.")
+    Setting(card, "Loot", COL2, -82, "nLoot", "Items you loot, with how many.")
+    Setting(card, "Money", 12, -108, "nMoney", "Money you loot or get.")
+    Setting(card, "Skill ups", COL2, -108, "nSkill", "A skill going up, like First Aid or a weapon skill.")
+    Setting(card, "Seals", 12, -134, "nSeals",
         "Paladins: a line when a seal goes on or comes off. In a fight the game hides your buffs, so a seal "
         .. "coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.")
-    Setting(card, "Buffs", 12, -160, "nBuffs",
+    Setting(card, "Buffs", COL2, -134, "nBuffs",
         "A line when a buff goes on or comes off. The game hides your buffs during a fight: there, a buff you put on "
         .. "yourself (Slice and Dice, Evasion...) shows as you cast it, and the rest of what changed shows when the fight "
         .. "ends. Not shown: food and drink, and buffs with no time limit (mounts, auras, stances).")
-    Setting(card, "Fight summary", COL2, -160, "nSummary",
+
+    local extras = Card(p, "Extras", 0, -170, PAGE_W, 86)
+    Setting(extras, "Fight summary", 12, -30, "nSummary",
         "When a fight ends: your damage, damage per second and healing, like \"4,820 damage (127 DPS) in 38s\". "
         .. "Only counts numbers the game lets BattleText read.")
+    Setting(extras, "Icons", COL2, -30, "nIcons",
+        "Shows the icon beside loot, skill ups, seals and buffs.", Either("nLoot", "nSkill", "nSeals", "nBuffs"))
     local soundKeys = {}
     for _, s in ipairs(BT.SOUNDS) do soundKeys[#soundKeys + 1] = s.key end
     local function soundName(k) return BT:SoundName(k) end
-    Setting(card, "Crit sound", 12, -186, "soundCrit",
-        "A sound when you crit. Pick it from the list beside it: picking one plays it.")
-    refs.critSoundDropdown = Dropdown(card, 128, -184, 130, soundKeys, soundName, "critSound",
-        function(k) BT:SetAlertSound("crit", k) end)
-    Setting(card, "Kill sound", COL2, -186, "soundKill",
-        "A sound on your killing blows. Only when the game lets BattleText read its combat lines. "
-        .. "Pick it from the list beside it: picking one plays it.")
-    refs.killSoundDropdown = Dropdown(card, COL2 + 116, -184, 130, soundKeys, soundName, "killSound",
-        function(k) BT:SetAlertSound("kill", k) end)
+    local pickTip = "Picking a sound plays it. If this game doesn't have it, chat says so."
+    Setting(extras, "Crit sound", 12, -56, "soundCrit", "A sound when you crit. Pick it in the list beside it.")
+    refs.critSoundDropdown = Dropdown(extras, 130, -54, 126, soundKeys, soundName, "critSound",
+        function(k) BT:SetAlertSound("crit", k) end, pickTip)
+    Setting(extras, "Kill sound", COL2, -56, "soundKill",
+        "A sound on your killing blows (only when the game lets BattleText read its combat lines). "
+        .. "Pick it in the list beside it.")
+    refs.killSoundDropdown = Dropdown(extras, COL2 + 118, -54, 126, soundKeys, soundName, "killSound",
+        function(k) BT:SetAlertSound("kill", k) end, pickTip)
     refs.critSoundDropdown.menuScroll, refs.killSoundDropdown.menuScroll = 20 * 12, 20 * 12
-    AreaLook(p, -230, "n")
+    AreaLook(p, -266, "n")
 end
 
 local function BuildColors(p)
     local rows = math.ceil(#BT.COLOR_CHOICES / 2)
-    local card = Card(p, "Colors", 0, 0, PAGE_W, 40 + rows * 26 + 34)
+    local card = Card(p, "Colors", 0, 0, PAGE_W, 40 + rows * 26 + 66)
     for i, choice in ipairs(BT.COLOR_CHOICES) do
         local col, row = (i - 1) % 2, math.floor((i - 1) / 2)
         Swatch(card, choice[2], col == 0 and 12 or COL2, -30 - row * 26, choice[1])
@@ -312,24 +444,26 @@ local function BuildColors(p)
     local reset = FlatButton(card, "Reset colors", 120)
     reset:SetPoint("TOPLEFT", 12, -36 - rows * 26)
     reset:SetScript("OnClick", function()
-        wipe(BT.db.colors)
-        BT:ApplyColors()
-        BT:RefreshConfig()
+        BT:Confirm("Put every text color back to how it started?", "Reset colors", function()
+            wipe(BT.db.colors)
+            BT:ApplyColors()
+            BT:RefreshConfig()
+        end)
     end)
-    T.Note(p, "Spells that do Holy, Fire, Nature, Frost, Shadow or Arcane damage keep their school's color.",
-        0, -(40 + rows * 26 + 44), PAGE_W)
+    CardNote(card, "Spells that do Holy, Fire, Nature, Frost, Shadow or Arcane damage keep their school's color.",
+        -72 - rows * 26)
 end
 
 -- Tab icons are the game's own icon files
 local TABS = {
     { key = "general",  label = "General",       icon = "Interface\\Icons\\INV_Misc_Gear_01",                build = BuildGeneral },
     { key = "text",     label = "Text",          icon = "Interface\\Icons\\INV_Misc_Note_01",                build = BuildText },
-    { key = "scroll",   label = "Scrolling",     icon = "Interface\\Icons\\INV_Misc_Spyglass_03",            build = BuildScrolling },
+    { key = "scroll",   label = "Motion",        icon = "Interface\\Icons\\INV_Misc_Spyglass_03",            build = BuildMotion },
     { key = "outgoing", label = "Outgoing",      icon = "Interface\\Icons\\INV_Sword_04",                    build = BuildOutgoing },
     { key = "incoming", label = "Incoming",      icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance", build = BuildIncoming },
     { key = "healing",  label = "Healing",       icon = "Interface\\Icons\\Spell_Holy_Heal",                 build = BuildHealing },
     { key = "notify",   label = "Notifications", icon = "Interface\\Icons\\INV_Misc_Bag_08",                 build = BuildNotifications },
-    { key = "colors",   label = "Colors",       icon = "Interface\\Icons\\INV_Misc_Gem_Variety_01",         build = BuildColors },
+    { key = "colors",   label = "Colors",        icon = "Interface\\Icons\\INV_Misc_Gem_Variety_01",         build = BuildColors },
 }
 BT.CONFIG_TABS = TABS
 
@@ -402,10 +536,18 @@ local function TextWindow()
     local close = FlatButton(header, "X", 24, 24)
     close:SetPoint("RIGHT", -8, 0)
     close:SetScript("OnClick", function() f:Hide() end)
-    -- Share settings' Import: takes what's in the box
+    -- Share settings' Import: takes what's in the box, and whether to take their area positions too
     f.action = FlatButton(header, "Import", 80, 24)
     f.action:SetPoint("RIGHT", close, "LEFT", -8, 0)
     f.action:Hide()
+    f.positions = T.LabeledSwitch(header, "Positions too", 0, 0)
+    f.positions:ClearAllPoints()
+    f.positions:SetPoint("RIGHT", f.action, "LEFT", -112, 0)
+    f.positions:SetScript("OnClick", function(self) self:SetOn(not self:IsOn()) end)
+    T.Tooltip(f.positions, "Positions too",
+        "Also move your text areas to where they were on their screen. Off: yours stay where they are.")
+    f.positions:Hide()
+    f.positions.label:Hide()
 
     local box = CreateFrame("Frame", nil, f)
     box:SetPoint("TOPLEFT", 12, -(COPY_HEADER + 10))
@@ -418,6 +560,7 @@ local function TextWindow()
     edit:SetMultiLine(true)
     edit:SetAutoFocus(false)
     edit:SetFontObject("ChatFontNormal")
+    edit:SetMaxLetters(0)   -- (no limit: a pasted settings line is a few thousand letters)
     edit:SetWidth(COPY_W - 60)
     edit:SetScript("OnEscapePressed", function() f:Hide() end)
     f.edit, f.scroll = edit, scroll
@@ -435,6 +578,9 @@ function BT:ShowTextWindow(title, text, rows, action)
     f.scroll:SetContent(COPY_W - 48, height)
     f.action:SetShown(action ~= nil)
     f.action:SetScript("OnClick", action)
+    f.positions:SetShown(action ~= nil)
+    f.positions.label:SetShown(action ~= nil)
+    f.positions:SetOn(false)
     f:Show()
     f.edit:SetFocus()
     f.edit:HighlightText()
@@ -461,12 +607,18 @@ function BT:OpenShareWindow(mode)
     end
     local f
     f = self:ShowTextWindow("Paste settings with Ctrl+V, then click Import", "", 8, function()
-        local count, why = BT:ImportSettings(f.edit:GetText())
-        if count then
+        local t, count = BT:ReadSettings(f.edit:GetText())
+        if not t then
+            BT.Print("couldn't import: " .. count .. ".")
+            return
+        end
+        local whose = BT:OwnSettings() and "this character's own settings" or "the settings every character shares"
+        local positions = f.positions:IsOn()
+        BT:Confirm(("Replace %s with these (%d settings)?%s"):format(whose, count,
+            positions and " Your text areas move to their places too." or ""), "Import", function()
+            BT:TakeSettings(t, positions)
             BT.Print("settings imported.")
             f:Hide()
-        else
-            BT.Print("couldn't import: " .. why .. ".")
-        end
+        end)
     end)
 end

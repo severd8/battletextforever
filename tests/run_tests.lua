@@ -547,14 +547,44 @@ assertEq(BT:ImportSettings(text:sub(1, 40)), nil, "cut short")
 assertEq(BT:ImportSettings('BTF1:{fontSize="big",nothing=t,colors={melee=t}}'), nil, "wrong kinds are left out")
 assertEq(BT.db.fontSize, 27, "and change nothing")
 assertEq(BT:ImportSettings('BTF1:{fontSize=os.exit()}'), nil, "code is never run")
+-- Out of range or not in its list: kept in range, or left as it was
+BT:ImportSettings('BTF1:{fontSize=1000,scrollTime=0,nSize=5,font="Comic Sans",outline="SHADOW",outStyle="spin",'
+    .. 'critSound="NOPE",colors={melee={1=2,2=-1,3=0.5}}}')
+assertEq(BT.db.fontSize, 40, "a size too big becomes the biggest the slider has")
+assertEq(BT.db.scrollTime, 1, "a time of 0 becomes the shortest")
+assertEq(BT.db.nSize, 50, "an area size too small, the smallest")
+assertEq(BT.db.font, saved.font, "a font that isn't in the list is left as it was")
+assertEq(BT.db.outline, "SHADOW", "one that is, taken")
+assertEq(BT.db.outStyle, saved.outStyle, "a movement that doesn't exist, left")
+assertEq(BT.db.critSound, saved.critSound, "a sound that doesn't exist, left")
+assertEq(BT.db.colors.melee[1] .. "," .. BT.db.colors.melee[2], "1,0", "colors kept between 0 and 1")
+-- Where the text areas are only changes when asked
+BT.db.areas.outgoing.x = 230
+BT:ImportSettings('BTF1:{areas={outgoing={x=-500,y=40}}}')
+assertEq(BT.db.areas.outgoing.x, 230, "your text areas stay where they are")
+BT:ImportSettings('BTF1:{areas={outgoing={x=-500,y=40}}}', true)
+assertEq(BT.db.areas.outgoing.x, -500, "unless you ask for their places too")
+BT.db.areas.outgoing.x, BT.db.areas.outgoing.y = 230, 20
+BT:ImportSettings(text)
 assertEq(BT.Deserialize('{a="x\\"y",b={1=2,2=-3.5}}').a, 'x"y', "quotes inside words")
 SlashCmdList.BATTLETEXTFOREVER("export")
 assertEq(BT.copyWindow.edit:GetText():sub(1, 5), "BTF1:", "/btf export shows it to copy")
 SlashCmdList.BATTLETEXTFOREVER("import")
 assertEq(BT.copyWindow.edit:GetText(), "", "/btf import: an empty box")
+BT.copyWindow.edit:SetText("not settings")
+BT.copyWindow.action.__scripts.OnClick(BT.copyWindow.action)
+assert(not (BT.confirmWindow and BT.confirmWindow:IsShown()), "text that isn't settings asks nothing")
+assert(LOG[#LOG]:find("couldn't import", 1, true), "and says why in chat")
 BT.copyWindow.edit:SetText(text)
 BT.db.fontSize = 20
 BT.copyWindow.action.__scripts.OnClick(BT.copyWindow.action)
+assertEq(BT.db.fontSize, 20, "Import asks first")
+assertEq(BT.confirmWindow:IsShown(), true, "in a small window")
+assert(BT.confirmWindow.text:GetText():find("settings every character shares", 1, true), "saying whose settings change")
+BT.confirmWindow.no.__scripts.OnClick(BT.confirmWindow.no)
+assertEq(BT.db.fontSize, 20, "Cancel changes nothing")
+BT.copyWindow.action.__scripts.OnClick(BT.copyWindow.action)
+BT.confirmWindow.yes.__scripts.OnClick(BT.confirmWindow.yes)
 assertEq(BT.db.fontSize, 27, "Import reads the box")
 assertEq(BT.copyWindow:IsShown(), false, "and closes it")
 for k in pairs(BT.db) do BT.db[k] = nil end
@@ -950,6 +980,25 @@ assertEq(#lines("outgoing"), 3, "damage turned off")
 BT.db.outDamage = true
 fire("UNIT_COMBAT", "target", "ENERGIZE", "", 10, 1)
 assertEq(#lines("outgoing"), 3, "a mob gaining power is nothing of yours")
+clear()
+-- Someone else's fight: you target a mob another player tagged and is fighting
+local mobA, wasSeen = STATE.unit[STATE.who.target], BT.hiddenSeen
+local wasTarget, wasTT = mobA.target, STATE.who.targettarget
+mobA.tapDenied, mobA.target, BT.hiddenSeen, STATE.who.targettarget = true, "friend", nil, nil
+fire("UNIT_COMBAT", "target", "WOUND", "", 25, 32)
+fire("UNIT_COMBAT", "target", "WOUND", "", 24, 32)
+fire("UNIT_COMBAT", "target", "PARRY", "", 0, 1)
+assertEq(#lines("outgoing"), 0, "their hits on your target aren't yours")
+BT.hiddenSeen, BT.credits = true, nil
+fire("UNIT_COMBAT", "target", "WOUND", "", 25, 32)
+assertEq(#lines("outgoing"), 0, "with the combat lines arriving: still not, without a line of yours")
+BT.hiddenSeen = nil
+mobA.target = "me"
+fire("UNIT_COMBAT", "target", "WOUND", "", 31, 1)
+assertEq(last("outgoing"), "31", "unless it turns on you: then it's your fight too")
+mobA.tapDenied, mobA.target, BT.hiddenSeen, STATE.who.targettarget = nil, wasTarget, wasSeen, wasTT
+fire("UNIT_COMBAT", "target", "WOUND", "", 26, 1)
+assertEq(last("outgoing"), "26", "a mob nobody else tagged: your target's hits are yours, as before")
 clear()
 
 -- Whose fight it is
@@ -2089,7 +2138,7 @@ for _, t in ipairs(BT.CONFIG_TABS) do
     tabNames[#tabNames + 1] = t.label
     assert(win.pages[t.key] and win.tabButtons[t.key], "a tab and its page: " .. t.label)
 end
-assertEq(table.concat(tabNames, ", "), "General, Text, Scrolling, Outgoing, Incoming, Healing, Notifications, Colors", "the tabs")
+assertEq(table.concat(tabNames, ", "), "General, Text, Motion, Outgoing, Incoming, Healing, Notifications, Colors", "the tabs")
 assertEq(win.currentTab, "general", "it opens on General")
 win:ShowTab("healing")
 assertEq(win.pages.healing:IsShown(), true, "a tab shows its page")
@@ -2117,11 +2166,63 @@ for _, f in ipairs(ALL_FRAMES) do
         for k, v in pairs(before) do
             if type(v) == "boolean" and BT.db[k] ~= v then changed = true end
         end
-        assert(changed, "a switch that changes no setting: " .. f.key)
-        f.__scripts.OnClick(f)
+        if f.disabled then
+            assert(not changed, "a greyed-out switch can't be clicked: " .. f.key)
+        else
+            assert(changed, "a switch that changes no setting: " .. f.key)
+            f.__scripts.OnClick(f)
+        end
     end
 end
 assertEq(switches, 49, "the switches are there")
+-- A switch's label is part of it: its click area stretches over the text
+for _, f in ipairs(ALL_FRAMES) do
+    if f.isSwitch and f.key and inWindow(f) then
+        local reach = -f.__hitRect[2]
+        assert(reach >= 8 + #f.label:GetText() * 7, "the label can be clicked: " .. f.key)
+    end
+end
+-- Controls that do nothing with the settings as they are, are greyed out
+local function control(key)
+    for _, f in ipairs(ALL_FRAMES) do if f.key == key and inWindow(f) then return f end end
+end
+local savedLook = { merge = BT.db.merge, outStyle = BT.db.outStyle, healArea = BT.db.healArea, outDamage = BT.db.outDamage }
+BT.db.merge, BT.db.outStyle, BT.db.healArea, BT.db.outDamage = true, "scroll", true, true
+BT:RefreshConfig()
+assertEq(control("tickMerge").disabled, false, "the tick window, with Add up rapid hits on")
+assertEq(control("outScrollUp").disabled, false, "Scroll upward, with Scroll movement")
+assertEq(control("healSize").disabled, false, "the Healing area's look, with its own area")
+BT.db.merge, BT.db.outStyle, BT.db.healArea, BT.db.outDamage = false, "pop", false, false
+BT:RefreshConfig()
+assertEq(control("tickMerge").disabled, true, "greyed out with Add up rapid hits off")
+assertEq(control("tickMerge").__alpha, 0.4, "and looks it")
+assertEq(control("outScrollUp").disabled and control("outCurved").disabled, true, "Scroll upward and Curved, with Pop")
+assertEq(control("healSize").disabled and control("healStyle").disabled, true, "the Healing area's look, without it")
+assertEq(control("minDamage").disabled and control("outSeals").disabled, true, "Hide hits below and seals, with Damage off")
+assertEq(control("inScrollUp").disabled, false, "each area on its own")
+for k, v in pairs(savedLook) do BT.db[k] = v end
+BT:RefreshConfig()
+-- 0 reads Off where 0 turns a setting off
+BT.db.minDamage = 0
+BT:RefreshConfig()
+assertEq(control("minDamage").valueText:GetText(), "Off", "Hide hits below at 0")
+BT.db.minDamage = 25
+BT:RefreshConfig()
+assertEq(control("minDamage").valueText:GetText(), "25", "and its number otherwise")
+BT.db.minDamage = 0
+assertEq(control("fontSize").valueText:GetText(), "20", "a size never reads Off")
+-- Hiding the game's numbers in a fight waits for the fight to end, and says so
+COMBAT = true
+control("hideBlizzard").__scripts.OnClick(control("hideBlizzard"))
+assert(LOG[#LOG]:find("when this fight ends", 1, true), "said in chat")
+control("hideBlizzard").__scripts.OnClick(control("hideBlizzard"))
+COMBAT = false
+-- Reset positions asks first
+BT.db.areas.notify.x = 77
+win.resetButton.__scripts.OnClick(win.resetButton)
+assertEq(BT.db.areas.notify.x, 77, "Reset positions asks first")
+BT.confirmWindow.yes.__scripts.OnClick(BT.confirmWindow.yes)
+assertEq(BT.db.areas.notify.x, 0, "then moves them back")
 for k, v in pairs(before) do
     if type(v) ~= "table" then assertEq(BT.db[k], v, "setting unchanged: " .. k) end
 end
@@ -2142,8 +2243,8 @@ for _, f in ipairs(ALL_FRAMES) do
         do
             assertEq(BT.db[moved[1]], target, "slider set " .. moved[1])
             assert(f.label and f.label:lower():find(({ fontSize = "text size", critScale = "crit size",
-                scrollTime = "scroll time", height = "scroll distance", minDamage = "hide hits below", minHeal = "hide heals below",
-                outSize = "text size", inSize = "text size", healSize = "text size", nSize = "text size",
+                scrollTime = "time on screen", height = "area height", minDamage = "hide hits below", minHeal = "hide heals below",
+                outSize = "size", inSize = "size", healSize = "size", nSize = "size",
                 outAlpha = "opacity", inAlpha = "opacity", healAlpha = "opacity", nAlpha = "opacity",
                 tickMerge = "ticks and area hits" })[moved[1]], 1, true),
                 "slider label matches its setting: " .. tostring(f.label) .. " -> " .. moved[1])
@@ -2285,7 +2386,7 @@ assertEq(BT:OutlineFlags(false), "OUTLINE", "an unknown outline falls back to th
 -- The sound lists on the Notifications tab
 local critSounds = openMenu(BT.config.critSoundDropdown)
 assertEq(#critSounds, #BT.SOUNDS, "every sound in the list")
-assertEq(BT.config.critSoundDropdown:GetText(), "Crit", "the crit sound to start with")
+assertEq(BT.config.critSoundDropdown:GetText(), "Crafting crit", "the crit sound to start with")
 assertEq(BT.config.killSoundDropdown:GetText(), "Boss defeated", "and the kill sound")
 STATE.sounds = {}
 for _, item in ipairs(critSounds) do if item.text == "Cheers" then item.pick() end end
@@ -2601,8 +2702,11 @@ assertEq(BT.TEXT_COLORS.heal[2], BT.DEFAULT_COLORS.heal[2], "the starting color"
 BT:SetColor("inDamage", 0.5, 0.5, 0.5)
 assertEq(BT.TEXT_COLORS.inDamage[1], 0.5, "any color can change")
 for _, f in ipairs(ALL_FRAMES) do
-    if f.__kind == "Button" and f:GetText() == "Reset colors" then f.__scripts.OnClick(f) end
+    if f.__kind == "Button" and f:GetText() == "Reset colors" and f ~= BT.confirmWindow.yes then f.__scripts.OnClick(f) end
 end
+assertEq(BT.db.colors.inDamage ~= nil, true, "Reset colors asks first")
+assert(BT.confirmWindow.text:GetText():find("text color", 1, true), "what it's asking")
+BT.confirmWindow.yes.__scripts.OnClick(BT.confirmWindow.yes)
 assertEq(next(BT.db.colors), nil, "Reset colors forgets them all")
 assertEq(BT.TEXT_COLORS.inDamage[1], BT.DEFAULT_COLORS.inDamage[1], "back to how they started")
 clear()
@@ -2663,7 +2767,8 @@ BT:SetOwnSettings(false)
 assert(BT.db == shared, "turned off: back to the shared ones")
 assertEq(BT.db.fontSize, 22, "as they were")
 BT:SetOwnSettings(true)
-assertEq(BT.db.fontSize, 22, "turning it on again starts from a fresh copy")
+assertEq(BT.db.fontSize, 30, "turning it on again brings back this character's own")
+assertEq(BT.db.areas.heal.x, 99, "all of them")
 BT:SetOwnSettings(false)
 shared.fontSize = 20
 BT:ApplySettings()

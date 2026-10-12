@@ -35,11 +35,15 @@ BT.TEXT_COLORS = {
 BT.DEFAULT_COLORS = {}
 for k, c in pairs(BT.TEXT_COLORS) do BT.DEFAULT_COLORS[k] = { c[1], c[2], c[3] } end
 -- The colors you can change, in the order the options list them
+-- (by area: outgoing, incoming, heals, notifications; two columns, read across)
 BT.COLOR_CHOICES = {
-    { "melee", "Your hits" }, { "spell", "Your spells" }, { "miss", "Your misses" },
-    { "inDamage", "Damage you take" }, { "inAvoid", "Attacks you avoid" }, { "heal", "Heals" },
-    { "power", "Power gains" }, { "notify", "Notifications" }, { "combat", "Entering combat" },
-    { "xp", "Experience" }, { "seal", "Seals" }, { "buff", "Buffs" },
+    { "melee", "Your hits" }, { "spell", "Your spells" },
+    { "miss", "Your misses" }, { "inDamage", "Damage you take" },
+    { "inAvoid", "Attacks you avoid" }, { "power", "Power gains" },
+    { "heal", "Heals" }, { "notify", "Notifications" },
+    { "combat", "+Combat and killing blows" }, { "xp", "Experience" },
+    { "loot", "Loot" }, { "seal", "Seals" },
+    { "buff", "Buffs" },
 }
 -- Spell damage is tinted by its school (the game's own words for them)
 local SCHOOL_KEYS = {
@@ -706,7 +710,7 @@ end
 -- name. Forever may not have every one of them: a sound it lacks plays the
 -- fallback (FALLBACK_SOUNDS) instead.
 BT.SOUNDS = {
-    { key = "UI_PROFESSION_CRAFTING_RESULT_CRIT", name = "Crit" },
+    { key = "UI_PROFESSION_CRAFTING_RESULT_CRIT", name = "Crafting crit" },
     { key = "UI_73_ARTIFACT_OVERLOADED_ORB_IMPACT_MEDIUM", name = "Impact" },
     { key = "UI_73_ARTIFACT_OVERLOADED_ORB_IMPACT_LOW", name = "Low impact" },
     { key = "UI_REFORGING_REFORGE", name = "Anvil" },
@@ -1762,6 +1766,12 @@ function BT:OnUnitHit(unit, action, flag, amount, school)
     local enemy = Flag(UnitCanAttack, "player", unit)
     -- In a group, once the combat log lines are arriving, they say which hits are yours
     local grouped = self.hiddenSeen and self:InGroup()
+    -- A mob someone else tagged, and that isn't after you or your pet: its hits are theirs.
+    -- Once the combat log lines are arriving, one of yours with a hit still makes it yours
+    -- (helping someone out); without them, none are.
+    local othersMob = enemy and not healing and Flag(UnitIsTapDenied, unit)
+        and not Flag(UnitIsUnit, unit .. "target", "player") and not Flag(UnitIsUnit, unit .. "target", "pet")
+    if othersMob and self.hiddenSeen then grouped = true end
 
     local why, splash
     if not kind then
@@ -1772,6 +1782,8 @@ function BT:OnUnitHit(unit, action, flag, amount, school)
         why = "a heal on an enemy"
     elseif not healing and not enemy then
         why = "not an enemy"
+    elseif othersMob and not grouped then
+        why = "someone else's mob"
     elseif healing and not grouped and not myPet and not Flag(UnitIsUnit, unit, "target") then
         why = "not your target"
     elseif not healing and not Fighting(unit) and kind ~= "damage" then
@@ -2151,8 +2163,15 @@ function BT:SetOwnSettings(on)
     self:ApplyBlizzardText(true)   -- put the game's numbers back while the settings change hands
     local char = BattleTextForeverCharDB
     if on then
-        local mine = Copy(BattleTextForeverDB)
-        mine.savedCVars = nil
+        -- The ones this character had before, if it had its own; else a copy of the shared ones
+        local mine = type(char.settings) == "table" and char.settings
+        if mine then
+            self:MoveOldSettings(mine)
+            FillDefaults(mine, DEFAULTS)
+        else
+            mine = Copy(BattleTextForeverDB)
+            mine.savedCVars = nil
+        end
         char.settings, char.own = mine, true
         self.db = mine
     else
@@ -2291,46 +2310,104 @@ function BT:ExportSettings()
     return SHARE_PREFIX .. Serialize(out)
 end
 
--- Takes only settings BattleText has, each of the right kind. Returns how many, or nil and why not.
-function BT:ImportSettings(text)
+-- The range of every number setting (the options' sliders use the same ones)
+BT.RANGES = {
+    fontSize = { 10, 40 }, critScale = { 100, 250 }, scrollTime = { 1, 6 }, height = { 100, 500 },
+    tickMerge = { 0, 3 }, minDamage = { 0, 500 }, minHeal = { 0, 500 },
+}
+for _, area in pairs(BT.AREAS) do
+    BT.RANGES[area.prefix .. "Size"] = { 50, 200 }
+    BT.RANGES[area.prefix .. "Alpha"] = { 10, 100 }
+end
+
+-- The settings that are one of a list: the list's keys
+function BT:Choices(key)
+    local list, field
+    if key == "font" then list, field = self.FONTS, "name"
+    elseif key == "outline" or key == "critOutline" then list, field = self.OUTLINES, "flags"
+    elseif key == "critSound" or key == "killSound" then list, field = self.SOUNDS, "key"
+    elseif key:match("Style$") then list, field = self.STYLES, "key"
+    else return nil end
+    local keys = {}
+    for _, item in ipairs(list) do keys[item[field]] = true end
+    return keys
+end
+
+local function Clamp(v, range) return math.max(range[1], math.min(range[2], v)) end
+
+-- Reads shared settings text into a table of settings BattleText has, each of the right
+-- kind and in its range. Returns it and how many, or nil and why not.
+function BT:ReadSettings(text)
     text = type(text) == "string" and text:match("^%s*(.-)%s*$") or ""
     if text:sub(1, #SHARE_PREFIX) ~= SHARE_PREFIX then return nil, "that isn't BattleText settings text" end
     local t = Deserialize(text:sub(#SHARE_PREFIX + 1))
     if type(t) ~= "table" then return nil, "the text is cut short or changed" end
-    local db, count = self.db, 0
+    local out, count = {}, 0
     for k, v in pairs(t) do
         local default = DEFAULTS[k]
         if default ~= nil and not NOT_SHARED[k] and type(v) == type(default) then
-            local took = true
+            local took
             if k == "colors" then
                 -- (the colors they changed: the rest are the usual ones)
-                local colors = {}
+                took = {}
                 for name, c in pairs(v) do
                     if self.TEXT_COLORS[name] and type(c) == "table" and type(c[1]) == "number"
                             and type(c[2]) == "number" and type(c[3]) == "number" then
-                        colors[name] = { c[1], c[2], c[3] }
+                        took[name] = { Clamp(c[1], { 0, 1 }), Clamp(c[2], { 0, 1 }), Clamp(c[3], { 0, 1 }) }
                     else
-                        took = false
+                        took = nil
+                        break
                     end
                 end
-                if took then db.colors = colors end
             elseif k == "areas" then
-                took = false
                 for name, pos in pairs(v) do
-                    if db.areas[name] and type(pos) == "table" and type(pos.x) == "number" and type(pos.y) == "number" then
-                        db.areas[name].x, db.areas[name].y = pos.x, pos.y
-                        took = true
+                    if DEFAULTS.areas[name] and type(pos) == "table" and type(pos.x) == "number" and type(pos.y) == "number" then
+                        took = took or {}
+                        took[name] = { x = Clamp(math.floor(pos.x + 0.5), { -2000, 2000 }),
+                            y = Clamp(math.floor(pos.y + 0.5), { -2000, 2000 }) }
                     end
                 end
+            elseif type(v) == "number" then
+                local range = self.RANGES[k]
+                took = range and Clamp(v, range) or v
+            elseif type(v) == "string" then
+                local choices = self:Choices(k)
+                if not choices or choices[v] then took = v end
             else
-                db[k] = v
+                took = v
             end
-            if took then count = count + 1 end
+            if took ~= nil then
+                out[k] = took
+                count = count + 1
+            end
         end
     end
     if count == 0 then return nil, "there were no settings in it" end
+    return out, count
+end
+
+-- Puts read settings (ReadSettings) in place. Where the text areas are on screen
+-- only changes with positionsToo: someone else's screen isn't yours.
+function BT:TakeSettings(t, positionsToo)
+    local db = self.db
+    for k, v in pairs(t) do
+        if k == "areas" then
+            if positionsToo then
+                for name, pos in pairs(v) do db.areas[name].x, db.areas[name].y = pos.x, pos.y end
+            end
+        else
+            db[k] = v
+        end
+    end
     self:ApplySettings()
     if self.RefreshConfig then self:RefreshConfig() end
+end
+
+-- Both at once. Returns how many settings, or nil and why not.
+function BT:ImportSettings(text, positionsToo)
+    local t, count = self:ReadSettings(text)
+    if not t then return nil, count end
+    self:TakeSettings(t, positionsToo)
     return count
 end
 

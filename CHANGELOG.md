@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.10.0
+
+- **Hits on someone else's mob no longer show as yours.** With a mob targeted that another player tagged and is fighting, their hits on it showed up as your numbers. Now they're left out, unless the mob turns on you or your pet. With Start BattleText clicked, your own hits when you help out still show.
+- **The options are easier to use:**
+  - Click or hover a setting's name, not just its switch. Its tooltip now shows when you point at the name too. Same for the color squares.
+  - Settings that do nothing with your other choices are greyed out, like "Ticks and area hits add up for" while "Add up rapid hits" is off, or "Scroll upward" with Pop movement. The Healing tab's Appearance says when heals aren't using their own area.
+  - Sliders that are off at 0 say "Off".
+  - Nearly every setting has a tooltip, and the ones that had one were checked against what the setting really does.
+- **Clearer names:** the Scrolling tab is now **Motion**, with "Time on screen" and "Area height" (in pixels), and "Crits stay in place" instead of "Crits pop and hold". "Seal damage" is now **Name seal hits**, since turning it off shows the number without the seal's name. Each area's "Text size" is now **Size**. The crit sound "Crit" is now "Crafting crit".
+- **Tidier tabs:** the Notifications tab is split into Show and Extras, Outgoing puts related switches side by side, and the color list goes by area. Loot's color can be changed too.
+- **Safer:**
+  - Import asks before replacing your settings, says whether they're this character's or the shared ones, and keeps your text areas where they are unless you turn on "Positions too".
+  - Imported numbers are kept within each setting's range, and unknown fonts, outlines, sounds or movements are ignored.
+  - Reset positions and Reset colors ask first.
+  - Turning "Settings for this character only" off and back on brings back that character's settings instead of starting over.
+- Time on screen moves in half seconds. Turning on "Hide the game's own numbers" during a fight says the change waits until the fight ends.
+
 ## 1.9.0
 
 - **Fight summary** (Notifications tab, on): when a fight ends, a line with your damage, DPS and healing, like "4,820 damage (127 DPS), 1,200 healed in 38s". It counts the numbers the game lets BattleText read.

@@ -37,19 +37,19 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 
 ### Options window
 
-The options have the same look as TauntMaster Forever, ToppedOff Forever and Outfitter Forever: tabs down the left and a switch for each setting.
+The options have the same look as TauntMaster Forever, ToppedOff Forever and Outfitter Forever: tabs down the left and a switch for each setting. Point at a setting's name for what it does; a setting that does nothing with your other choices is greyed out.
 
 
 | Tab | What's there |
 |---|---|
 | **General** | Show BattleText, move the text areas, hide the game's own numbers, minimap button, remind me to click Start, settings for this character only, show sample text, reset positions, share settings (export and import) |
 | **Text** | Font (a list of 23), outline and crit outline (none, thin, thick or shadow), text size, crit size, short numbers (12.3k), size by hit |
-| **Scrolling** | Crits pop and hold, add up rapid hits, scroll time, scroll distance, how long ticks and area hits add up |
-| **Outgoing** | Damage, misses, pet, damage shields, icons, names, seal damage, auto attacks, hide hits below a number; the area's text size, opacity, movement, scroll upward and curved scrolling |
-| **Incoming** | Damage, avoids, power gains, icons, names; the area's text size, opacity, movement, scroll upward and curved scrolling |
-| **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number; the area's text size, opacity, movement and scroll upward |
-| **Notifications** | Combat, killing blows, experience, reputation, honor, loot, money, skill ups, icons, seals, buffs, fight summary, crit sound and kill sound (each with its own pick of sound); the area's text size, opacity, movement and scroll upward |
-| **Colors** | The color of your hits, spells, misses, damage you take, avoids, heals, power gains, notifications, combat, experience, seals and buffs; reset colors |
+| **Motion** | Crits stay in place, add up rapid hits, time on screen, area height, how long ticks and area hits add up |
+| **Outgoing** | Damage, misses, auto attacks, pet, damage shields, name seal hits, icons, names, hide hits below a number; Appearance: size, opacity, movement, scroll upward and curved scrolling |
+| **Incoming** | Damage, avoids, power gains, icons, names; Appearance: size, opacity, movement, scroll upward and curved scrolling |
+| **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number; Appearance: size, opacity, movement and scroll upward |
+| **Notifications** | Show: combat, killing blows, experience, reputation, honor, loot, money, skill ups, seals, buffs. Extras: fight summary, icons, crit sound and kill sound (each with its own pick of sound). Appearance: size, opacity, movement and scroll upward |
+| **Colors** | The color of your hits, spells, misses, damage you take, avoids, power gains, heals, notifications, combat and killing blows, experience, loot, seals and buffs; reset colors |
 
 ### Keybindings
 
@@ -81,13 +81,13 @@ Go to **Options → Keybindings → BattleText Forever**:
 WoW: Forever doesn't let addons read the combat log. The game tells an addon **what happened to a unit** (it took 27 damage, it dodged), but not **who did it** or **with which spell**. BattleText works from that:
 
 - **Your hits are read from the unit you hit**: your target, and the mobs attacking you or your pet. An area spell (Fire Nova, Arcane Explosion, Swipe...) also shows on every other mob it hits at the same moment. Turn on **enemy nameplates** to see your hits on the ones you aren't targeting.
-- **Alone, every hit on those units is shown as yours**, your pet's hits included (they can't be told apart, so they aren't marked).
+- **Alone, every hit on those units is shown as yours**, your pet's hits included (they can't be told apart, so they aren't marked). The exception is a mob someone else tagged that isn't after you or your pet: its hits are theirs and aren't shown (with Start BattleText clicked, your own hits on it still show).
 - **Click Start BattleText once per login.** It opens the Combat Log tab and switches back for you. From then on the game tells BattleText *when* you did something. In a group, only that many hits are shown, so other people's are left out (now and then a number may still be a groupmate's hit that landed at the same moment as yours). Keep the Combat Log's filter on **My actions** (the default).
 - **Spell names and icons** show for:
   - hits that land the instant you cast (instant attacks and spells with no travel time);
   - the ticks of your damage-over-time spells (Rake, Rip, Rend, Moonfire, Corruption, Shadow Word: Pain and the like). Bleeds need Start BattleText clicked;
   - your **damage shields**: buffs (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen one answer two blows, and gear that hurts whoever strikes you (named after the item). Turn off **Damage shields** in the options to hide these;
-  - a paladin's **seal** (Righteousness, Command): its Holy damage landing with your swing. Turn off **Seal damage** in the options to show it as a plain number.
+  - a paladin's **seal** (Righteousness, Command): its Holy damage landing with your swing. Turn off **Name seal hits** in the options to show it as a plain number.
 
   Other hits show as a plain number in their school's color.
 - **Seals in a fight.** The game hides your buffs during a fight, so a seal coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.
