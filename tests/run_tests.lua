@@ -2472,6 +2472,10 @@ BT:ApplySettings()
 assertClean("after switching settings")
 
 step("/btf check")
+-- Names as Forever has them (from a /btf check in game, 1.8.0)
+local periodicNames = BT:SpellLists()
+assert(periodicNames["Bane of Agony"], "a warlock's Bane of Agony ticks are known by Forever's name")
+assert(BT:SelfBuffList()["Sweeping Strikes"], "Sweeping Strikes is a buff on you only")
 LOG = {}
 local problems, report = BT:CheckGameData()
 assert(#report > 20, "it checks every spell, skill, text and icon (" .. #report .. ")")

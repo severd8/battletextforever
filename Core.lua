@@ -811,7 +811,7 @@ local PERIODIC_SPELLS = {
     { 8921, "Moonfire", 3, 64, true }, { 5570, "Insect Swarm", 2, 8 }, { 339, "Entangling Roots", 3, 8 },
     { 772, "Rend", 3, 1 }, { 703, "Garrote", 3, 1 }, { 1943, "Rupture", 2, 1 },
     { 1978, "Serpent Sting", 3, 8 },
-    { 172, "Corruption", 3, 32 }, { 348, "Immolate", 3, 4, true }, { 980, "Curse of Agony", 2, 32 },
+    { 172, "Corruption", 3, 32 }, { 348, "Immolate", 3, 4, true }, { 980, "Bane of Agony", 2, 32 },
     { 18265, "Siphon Life", 3, 32 },
     { 589, "Shadow Word: Pain", 3, 32 }, { 2944, "Devouring Plague", 3, 32 }, { 14914, "Holy Fire", 2, 2, true },
     { 8050, "Flame Shock", 3, 4, true },
@@ -833,10 +833,10 @@ local JUDGEMENT = { 20271, "Judgement" }
 -- { first rank's ID, English name }
 local SELF_BUFFS = {
     { 5171, "Slice and Dice" }, { 5277, "Evasion" }, { 2983, "Sprint" }, { 13750, "Adrenaline Rush" },
-    { 13877, "Blade Flurry" }, { 1719, "Recklessness" }, { 12292, "Death Wish" }, { 18499, "Berserker Rage" },
+    { 13877, "Blade Flurry" }, { 1719, "Recklessness" }, { 12292, "Sweeping Strikes" }, { 18499, "Berserker Rage" },
     { 871, "Shield Wall" }, { 5217, "Tiger's Fury" }, { 1850, "Dash" }, { 22812, "Barkskin" },
     { 3045, "Rapid Fire" }, { 12042, "Arcane Power" }, { 12043, "Presence of Mind" }, { 11129, "Combustion" },
-    { 498, "Divine Protection" }, { 642, "Divine Shield" }, { 20216, "Divine Favor" }, { 16166, "Elemental Mastery" },
+    { 498, "Divine Protection" }, { 642, "Divine Shield" }, { 20216, "Divine Favor" },
 }
 local SEAL_TIME = 30   -- how long a seal lasts, in seconds
 
@@ -1739,7 +1739,7 @@ function BT:CheckGameData()
     for _, e in ipairs(SEAL_SPELLS) do spell(e[1], e[2], "seal") end
     for _, e in ipairs(SELF_BUFFS) do spell(e[1], e[2], "buff") end
     spell(JUDGEMENT[1], JUDGEMENT[2], "seal")
-    local skillNames = { [2366] = "Herb Gathering", [2575] = "Mining", [7620] = "Fishing" }
+    local skillNames = { [2366] = "Herbalism", [2575] = "Mining", [7620] = "Fishing" }
     for skill, id in pairs(SKILL_SPELLS) do spell(id, skillNames[id] or skill, "skill " .. skill) end
     line(Str(SKILL_RANK_UP) ~= nil, "text SKILL_RANK_UP: " .. tostring(Str(SKILL_RANK_UP)))
     local getFile = GetFileIDFromPath

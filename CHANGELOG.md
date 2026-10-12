@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.1
+
+- **Bane of Agony's ticks are named.** Forever calls the warlock spell Bane of Agony, not Curse of Agony, so its ticks showed as bare numbers.
+- Buffs: Sweeping Strikes is recognized as a buff you put on yourself; a spell that isn't in Forever was taken off the list. Found with `/btf check` in game.
+
 ## 1.8.0
 
 - **Each text area scrolls its own way.** "Scroll upward" is now on each area's tab (Outgoing, Incoming, Healing, Notifications), so your hits can scroll up while the damage you take scrolls down. "Curved scrolling" is on the Outgoing and Incoming tabs too (the other two scroll straight). Your current choices carry over to every area.
