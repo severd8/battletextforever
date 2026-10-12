@@ -10,7 +10,7 @@
 - **Auto attacks** (Outgoing tab, on): turn off to hide your white swings and their misses, and see only your spells and abilities.
 - **Sounds** (Notifications tab, off): a sound when you crit, and one on a killing blow. Pick each from 18 of the game's sounds (Crit, Impact, Anvil, Battle horn, Boss defeated, Cheers, Epic loot...); picking one plays it. If Forever doesn't have the one you picked, chat says so and a plain ping or chime plays instead.
 - **Share settings** (General tab): Export gives your settings as text to copy; Import takes someone else's. Also `/btf export` and `/btf import`.
-- The size and opacity card on each area's tab is now named after the area ("Outgoing text: size and movement") instead of "This area".
+- The card with each area's text size, opacity and movement is now called **Appearance** instead of "This area".
 - **Bane of Agony's ticks are named.** Forever calls the warlock spell Bane of Agony, not Curse of Agony, so its ticks showed as bare numbers.
 - Buffs: Sweeping Strikes is recognized as a buff you put on yourself; a spell that isn't in Forever was taken off the list. Found with `/btf check` in game.
 

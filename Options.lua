@@ -60,8 +60,8 @@ end
 
 -- Each area's own text size, opacity and movement (curved: the side areas, whose lines bow outward)
 local AREA_LOOK_H = 148
-local function AreaLook(p, y, prefix, title, curved)
-    local card = Card(p, title .. ": size and movement", 0, y, PAGE_W, AREA_LOOK_H)
+local function AreaLook(p, y, prefix, curved)
+    local card = Card(p, "Appearance", 0, y, PAGE_W, AREA_LOOK_H)
     Slider(card, "Text size", 12, -30, prefix .. "Size", 50, 200, "%", 5)
     Slider(card, "Opacity", COL2, -30, prefix .. "Alpha", 10, 100, "%", 5)
     local keys = {}
@@ -236,7 +236,7 @@ local function BuildOutgoing(p)
         "Your white swings and their misses. Turn off to show only your spells and abilities. Without the "
         .. "game's combat lines, a physical hit BattleText can't name counts as a swing.")
     Slider(card, "Hide hits below", 12, -142, "minDamage", 0, 500, "", 5)
-    AreaLook(p, -206, "out", "Outgoing text", true)
+    AreaLook(p, -206, "out", true)
 end
 
 local function BuildIncoming(p)
@@ -245,7 +245,7 @@ local function BuildIncoming(p)
     Setting(card, "Avoids", COL2, -30, "inMisses", "Attacks you dodge, parry, block or resist.")
     Setting(card, "Power gains", 12, -56, "inPower", "Mana, rage and energy you gain.")
     IconsAndNames(card, -82, "in", "spells that hit you or that you avoid (when the game says which)")
-    AreaLook(p, -126, "in", "Incoming text", true)
+    AreaLook(p, -126, "in", true)
 end
 
 local function BuildHealing(p)
@@ -261,7 +261,7 @@ local function BuildHealing(p)
     Setting(card, "Show who you healed", 12, -108, "healWho",
         "The name of the player you healed, after the number. Only when the game lets BattleText read it.")
     Slider(card, "Hide heals below", 12, -142, "minHeal", 0, 500, "", 5)
-    AreaLook(p, -206, "heal", "Healing text")
+    AreaLook(p, -206, "heal")
 end
 
 local function BuildNotifications(p, refs)
@@ -299,7 +299,7 @@ local function BuildNotifications(p, refs)
     refs.killSoundDropdown = Dropdown(card, COL2 + 116, -184, 130, soundKeys, soundName, "killSound",
         function(k) BT:SetAlertSound("kill", k) end)
     refs.critSoundDropdown.menuScroll, refs.killSoundDropdown.menuScroll = 20 * 12, 20 * 12
-    AreaLook(p, -230, "n", "Notification text")
+    AreaLook(p, -230, "n")
 end
 
 local function BuildColors(p)
