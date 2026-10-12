@@ -2000,8 +2000,13 @@ for i, font in ipairs(BT.FONTS) do
             or io.open(ADDON_DIR .. "/Fonts/Licenses/" .. family .. "-Apache.txt"), "its licence ships with it: " .. family)
     end
 end
-assertEq(bundled, 15, "fifteen bundled fonts")
-assertEq(#BT.FONTS, 20, "twenty fonts to choose from")
+assertEq(bundled, 18, "eighteen bundled fonts")
+assertEq(#BT.FONTS, 23, "twenty-three fonts to choose from")
+for _, name in ipairs({ "Cinzel Decorative", "Metamorphous", "New Rocker" }) do
+    local found
+    for _, font in ipairs(BT.FONTS) do if font.name == name then found = font end end
+    assert(found, "a font in the style of Diablo: " .. name)
+end
 local names = {}
 for _, font in ipairs(BT.FONTS) do
     assert(not names[font.name], "font listed twice: " .. font.name)
@@ -2019,20 +2024,20 @@ local function openMenu(d)
 end
 assertEq(dropdown:GetText(), "Default", "it shows the font in use")
 local menu = openMenu(dropdown)
-assertEq(#menu, 20, "every font is in the list")
+assertEq(#menu, 23, "every font is in the list")
 assertEq(menu.scroll, 240, "a long list scrolls")
 for i, row in ipairs(menu) do
     assertEq(row.text, BT.FONTS[i].name, "in order")
     assertEq(row.isSelected(), i == 1, "only the font in use is ticked")
 end
 clear()
-menu[12].pick()
+menu[13].pick()
 assertEq(BT.db.font, "Lato", "picking one sets the font")
 assertEq(dropdown:GetText(), "Lato", "the dropdown says so")
 assertEq(BT:FontPath(), "Interface\\AddOns\\BattleTextForever\\Fonts\\Lato-Bold.ttf", "its file")
 assertEq(last("notify"), "Lato", "and shows a line in it straight away")
 assertEq(BT.areas.notify.active[1].text.__font[1], BT:FontPath(), "in that font")
-assertEq(menu[12].isSelected(), true, "it's the ticked one now")
+assertEq(menu[13].isSelected(), true, "it's the ticked one now")
 assertEq(menu[1].isSelected(), false, "and the old one isn't")
 SlashCmdList.BATTLETEXTFOREVER("off")
 menu[2].pick()

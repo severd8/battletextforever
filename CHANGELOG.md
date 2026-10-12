@@ -3,6 +3,7 @@
 ## 1.8.0
 
 - **Each text area scrolls its own way.** "Scroll upward" is now on each area's tab (Outgoing, Incoming, Healing, Notifications), so your hits can scroll up while the damage you take scrolls down. "Curved scrolling" is on the Outgoing and Incoming tabs too (the other two scroll straight). Your current choices carry over to every area.
+- **Three new fonts in the style of Diablo**: Cinzel Decorative, Metamorphous and New Rocker (23 fonts in all). Diablo's own font can't be included (it's licensed to Blizzard), so these are free look-alikes.
 
 ## 1.7.2
 
