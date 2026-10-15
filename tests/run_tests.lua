@@ -1779,6 +1779,21 @@ fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-p", 1082)
 fire("UNIT_COMBAT", "target", "WOUND", "", 1, 8)
 fire("UNIT_COMBAT", "target", "WOUND", "", 50, 1)
 assertEq(table.concat(lines("outgoing"), " / "), "Sporid Cape 1 / Claw 50", "the cape's answer isn't taken for the cast's hit")
+-- Your own attacks can come in two parts too (Maul): one blow, not a miss and a hit
+freshFight()
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.who.target = "mobA"
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-3-q", 1082)   -- (any attack; the game sends Maul this way)
+fire("UNIT_COMBAT", "target", "WOUND", "", 0, 1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 37, 1)
+assertEq(table.concat(lines("outgoing"), " / "), "Claw 37", "an attack in two parts: no Miss with it")
+Advance(1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 0, 1)
+assertEq(last("outgoing"), "Miss", "a hit for nothing on its own is still a miss")
+Advance(1)
+fire("UNIT_COMBAT", "target", "WOUND", "PARRY", 0, 1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
+assertEq(table.concat(lines("outgoing"), " / "), "Claw 37 / Miss / Parry / 30", "a parry says so, whatever lands with it")
 STATE.who = {}
 
 step("a fourth real fight: Shred, whose hit comes ahead of its cast")

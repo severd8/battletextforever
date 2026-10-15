@@ -1591,7 +1591,20 @@ function BT:ResolveFrame(seq, first, last)
         if h.nothing and not blowInFrame then
             self:Emit("incoming", MissText("MISS"), self.TEXT_COLORS.inAvoid)   -- a hit on you for nothing
         end
-        if h.hit and not h.splash then
+        -- Some attacks land in two parts, one of them for nothing (Maul: "WOUND 0" and
+        -- "WOUND 37" on the mob in one frame). That's one blow, not a miss and a blow.
+        local otherPart = false
+        if h.hit and h.kind == "miss" and h.action == "WOUND" and not (h.flag and MISS_TEXT[h.flag]) and h.key then
+            for j = first, last do
+                local o = seq[j]
+                if j ~= i and o.hit and o.kind == "damage" and o.key == h.key then otherPart = true break end
+            end
+        end
+        if otherPart then
+            if self.db.debug then
+                self:Record(("  %s for nothing: the other part of a blow that landed"):format(h.unit), h.time)
+            end
+        elseif h.hit and not h.splash then
             local mask = Num(h.school)
             local what, spell = "hit", nil
             -- Without a line to go by, the cast's hit comes after the cast (a hit ahead of it in

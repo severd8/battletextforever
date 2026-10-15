@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10.2
+
+- **Maul no longer shows a "Miss" with its hit.** The game sends some attacks as two parts at once, one for nothing and one with the damage. BattleText showed the empty part as a miss. Now it's one hit, as it already was for attacks on you. (Thanks to the druid who reported it.)
+
 ## 1.10.1
 
 - **Start BattleText with a chat addon (like Chattynator).** A chat addon that replaces the game's chat window hides the game's Combat Log tab, so clicking Start BattleText did nothing and the button stayed until combat lines started on their own. Now BattleText notices and says so in chat. There's no real way around it while the game's Combat Log tab is hidden: alone, your hits still show; in a group, other people's hits may show as yours. (Thanks to the player who reported it.)
