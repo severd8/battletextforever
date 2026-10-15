@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10.3
+
+- **Other players' heals no longer show as yours.** With a player targeted, a heal they got from something else (their own regeneration, someone else's heal) showed as your heal, with their name. Now a heal on someone else shows only when it lands with your own heal, or is a tick of your Rejuvenation, Regrowth or Renew. (Thanks to the player who reported it.)
+
 ## 1.10.2
 
 - **Maul no longer shows a "Miss" with its hit.** The game sends some attacks as two parts at once, one for nothing and one with the damage. BattleText showed the empty part as a miss. Now it's one hit, as it already was for attacks on you. (Thanks to the druid who reported it.)

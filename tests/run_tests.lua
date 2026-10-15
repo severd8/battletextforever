@@ -1050,27 +1050,37 @@ assertEq(last("outgoing"), "52", "and the one your pet is on")
 STATE.unit.pet, STATE.pet = nil, false
 clear()
 STATE.who.target = "friend"
-fire("UNIT_COMBAT", "target", "HEAL", "CRITICAL", 120, 2)
+-- Your heals land with your cast (names off here, to read the numbers)
+local castN = 0
+local function healed(...)
+    castN = castN + 1
+    fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-h-" .. castN, 5185)
+    fire("UNIT_COMBAT", ...)
+end
+local namesWere, iconsWere = BT.db.healNames, BT.db.healIcons
+BT.db.healNames, BT.db.healIcons = false, false
+healed("target", "HEAL", "CRITICAL", 120, 2)
 assertEq(last("outgoing"), "+120", "a heal on the friend you're targeting")
 assert(isColor(newest(), C.heal), "in the heal color")
 assertEq(newest().sticky, true, "a crit heal holds")
-fire("UNIT_COMBAT", "target", "HEAL", "", Secret(90), 2)
+healed("target", "HEAL", "", Secret(90), 2)
 assertEq(last("outgoing"), "<secret fmt>", "with a hidden amount too")
 BT.db.outHeals = false
-fire("UNIT_COMBAT", "target", "HEAL", "", 120, 2)
+healed("target", "HEAL", "", 120, 2)
 assertEq(#lines("outgoing"), 2, "heals turned off")
 BT.db.outHeals = true
-fire("UNIT_COMBAT", "target", "HEAL", "", 0, 2)
+healed("target", "HEAL", "", 0, 2)
 assertEq(#lines("outgoing"), 2, "a heal for nothing isn't shown")
 BT.db.healArea = true
-fire("UNIT_COMBAT", "target", "HEAL", "", 130, 2)
+healed("target", "HEAL", "", 130, 2)
 assertEq(last("heal"), "+130", "with the Healing area on, a heal on a friend goes there")
 assertEq(#lines("outgoing"), 2, "and not with your hits")
 BT.db.minHeal = 200
-fire("UNIT_COMBAT", "target", "HEAL", "", 150, 2)
+healed("target", "HEAL", "", 150, 2)
 assertEq(#lines("heal"), 1, "heals below \"Hide heals below\" are hidden")
-fire("UNIT_COMBAT", "target", "HEAL", "", Secret(90), 2)
+healed("target", "HEAL", "", Secret(90), 2)
 assertEq(last("heal"), "<secret fmt>", "a hidden amount can't be compared, so it shows")
+BT.db.healNames, BT.db.healIcons = namesWere, iconsWere
 BT.db.minHeal, BT.db.healArea = 0, false
 STATE.who.target = "mobA"
 Advance(0.1)
@@ -2779,19 +2789,47 @@ clear()
 step("who you healed")
 STATE.who.target = "friend"
 STATE.unit.friend.name = "Mage"
-fire("UNIT_COMBAT", "target", "HEAL", "", 120, 2)
+local whoN = 0
+local function healedWho(...)
+    whoN = whoN + 1
+    fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-w-" .. whoN, 5185)
+    fire("UNIT_COMBAT", ...)
+end
+local namesWas, iconsWas = BT.db.healNames, BT.db.healIcons
+BT.db.healNames, BT.db.healIcons = false, false
+healedWho("target", "HEAL", "", 120, 2)
 assertEq(last("heal"), "+120 |cffc9f7ccMage|r", "the name after a heal you do")
 STATE.unit.friend.secretName = true
-fire("UNIT_COMBAT", "target", "HEAL", "", 121, 2)
+healedWho("target", "HEAL", "", 121, 2)
 assertEq(last("heal"), "+121", "a hidden name is left out")
 STATE.unit.friend.secretName = nil
 BT.db.healWho = false
-fire("UNIT_COMBAT", "target", "HEAL", "", 122, 2)
+healedWho("target", "HEAL", "", 122, 2)
 assertEq(last("heal"), "+122", "and none when it's turned off")
 BT.db.healWho = true
 STATE.unit.friend.name = nil
 STATE.who.target = nil
 BT.db.healArea = false
+clear()
+
+step("heals on someone else are yours only when you healed them")
+-- A player you're targeting heals by some means of their own (the game says "+7" on them, not who did it)
+BT.db.healNames, BT.db.healIcons = true, false
+STATE.who.target = "friend"
+STATE.unit.friend.name = "Invisibly"
+fire("UNIT_COMBAT", "target", "HEAL", "", 7, 1)
+assertEq(#lines("outgoing") + #lines("heal"), 0, "someone else's heal on your target isn't yours")
+-- Your heal-over-time on them: its ticks are yours
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-r-1", 774)
+Advance(3)
+fire("UNIT_COMBAT", "target", "HEAL", "", 40, 8)
+assertEq(last("outgoing"), "Rejuvenation +40 |cffc9f7ccInvisibly|r", "your Rejuvenation's tick, named")
+Advance(0.5)
+fire("UNIT_COMBAT", "target", "HEAL", "", 7, 1)
+assertEq(last("outgoing"), "Rejuvenation +40 |cffc9f7ccInvisibly|r", "but not another heal between its ticks")
+STATE.unit.friend.name = nil
+STATE.who.target = nil
+BT.db.healNames, BT.db.healIcons = namesWas, iconsWas
 clear()
 
 step("settings for this character only")

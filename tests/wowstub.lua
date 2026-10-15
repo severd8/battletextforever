@@ -228,7 +228,7 @@ STATE = {
     spellIcons = { [16827] = 132140, [8921] = 136096 },   -- by spell ID
     spellNames = { [16827] = "Claw", [8921] = "Moonfire", [1082] = "Claw", [1822] = "Rake", [1079] = "Rip", [5221] = "Shred",
         [467] = "Thorns", [782] = "Thorns", [1075] = "Thorns", [324] = "Lightning Shield", [5570] = "Insect Swarm",
-        [768] = "Cat Form" },
+        [768] = "Cat Form", [5185] = "Healing Touch", [774] = "Rejuvenation" },
     buffs = {},                   -- your buffs: { name = "Thorns", spellId = 782 }
     equipped = {},                -- your gear by slot: { name = "Sporid Cape", icon = 133762, lines = { "Equip: ..." } }
     spellDescriptions = {},       -- by spell ID

@@ -988,9 +988,9 @@ local DOT_TIME = 45       -- a damage-over-time spell is forgotten this long aft
 local FLAG_NOTES = { GLANCING = "glancing", BLOCK = "blocked", BLOCK_REDUCED = "blocked", ABSORB = "absorbed",
     RESIST = "resisted" }
 
--- Spells that keep hurting after the cast: { first rank's ID, English name,
--- seconds between ticks, school, whether the cast itself also hits }. The ID
--- gives the name in the game's language; every rank shares the name.
+-- Spells that keep hurting (or healing) after the cast: { first rank's ID, English
+-- name, seconds between ticks, school, whether the cast itself also hits, whether
+-- it heals }. The ID gives the name in the game's language; every rank shares the name.
 local PERIODIC_SPELLS = {
     { 1822, "Rake", 3, 1, true }, { 1079, "Rip", 2, 1 }, { 9005, "Pounce", 3, 1 },
     { 8921, "Moonfire", 3, 64, true }, { 5570, "Insect Swarm", 2, 8 }, { 339, "Entangling Roots", 3, 8 },
@@ -1000,6 +1000,7 @@ local PERIODIC_SPELLS = {
     { 18265, "Siphon Life", 3, 32 },
     { 589, "Shadow Word: Pain", 3, 32 }, { 2944, "Devouring Plague", 3, 32 }, { 14914, "Holy Fire", 2, 2, true },
     { 8050, "Flame Shock", 3, 4, true },
+    { 774, "Rejuvenation", 3, 8, false, true }, { 8936, "Regrowth", 3, 8, true, true }, { 139, "Renew", 3, 2, false, true },
 }
 -- Buffs on you that hurt whoever hits you: { first rank's ID, English name, school }
 local SHIELD_SPELLS = {
@@ -1045,7 +1046,7 @@ function BT:SpellLists()
     end
     self.periodic, self.shields = {}, {}
     for _, e in ipairs(PERIODIC_SPELLS) do
-        for _, name in ipairs(names(e)) do self.periodic[name] = { period = e[3], school = e[4], direct = e[5] or false } end
+        for _, name in ipairs(names(e)) do self.periodic[name] = { period = e[3], school = e[4], direct = e[5] or false, heal = e[6] or false } end
     end
     for _, e in ipairs(SHIELD_SPELLS) do
         for _, name in ipairs(names(e)) do self.shields[name] = { school = e[3], id = e[1] } end
@@ -1315,7 +1316,8 @@ function BT:OnSpellcast(spellId)
     if key then
         self.dots = self.dots or {}
         self.dots[key] = self.dots[key] or {}
-        self.dots[key][name] = { id = id, name = name, at = GetTime(), period = dot.period, school = dot.school }
+        self.dots[key][name] = { id = id, name = name, at = GetTime(), period = dot.period, school = dot.school,
+            heal = dot.heal }
     end
     if shields[name] then
         self.buffShields = self.buffShields or {}
@@ -1513,7 +1515,7 @@ end
 -- that unit, on its beat now (so many periods after the cast), of the hit's school
 function BT:TickFor(h)
     local dots = h.key and self.dots and self.dots[h.key]
-    if not dots or h.kind ~= "damage" then return nil end
+    if not dots or (h.kind ~= "damage" and h.kind ~= "heal") then return nil end
     local mask = Num(h.school)
     local best, bestOff
     for name, dot in pairs(dots) do
@@ -1523,7 +1525,8 @@ function BT:TickFor(h)
         else
             local beats = math.floor(since / dot.period + 0.5)
             local off = math.abs(since - beats * dot.period)
-            if beats >= 1 and off <= TICK_SLACK and (not mask or mask == dot.school) and (not best or off < bestOff) then
+            if beats >= 1 and off <= TICK_SLACK and (not mask or mask == dot.school) and (h.kind == "heal") == dot.heal
+                    and (not best or off < bestOff) then
                 best, bestOff = dot, off
             end
         end
@@ -1655,6 +1658,10 @@ function BT:ResolveFrame(seq, first, last)
             local why
             if h.grouped and not self:ClaimHit(h.time) then
                 why = "no line of yours with it"
+            elseif h.kind == "heal" and not spell and not h.grouped and not Flag(UnitIsUnit, h.unit, "pet") then
+                -- A heal on someone else that isn't your cast or your heal-over-time: anyone's (a
+                -- player regenerating, someone else's heal). In a group, a line of yours vouches for it.
+                why = "no heal of yours with it"
             else
                 why = self:ShowUnitHit(h, what, spell)
                 if not why and h.kind == "damage" then h.mine = { what = what, spell = spell } end
