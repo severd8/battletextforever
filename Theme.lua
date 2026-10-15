@@ -429,7 +429,7 @@ end
 --   opts.onShow / onHide / onTab(key)   optional
 -- Returns the window, with .pages[key], .tabButtons[key], :ShowTab(key) and .currentTab
 ---------------------------------------------------------------------------
-T.WINDOW = { W = 740, H = 540, HEADER = 52, FOOTER = 40, SIDE = 170, PAGE_W = 540 }
+T.WINDOW = { W = 740, H = 556, HEADER = 52, FOOTER = 40, SIDE = 170, PAGE_W = 540 }
 T.WINDOW.BODY_H = T.WINDOW.H - T.WINDOW.HEADER - T.WINDOW.FOOTER - 54   -- what's left for a page's content
 
 function T.Window(opts)

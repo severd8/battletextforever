@@ -30,6 +30,7 @@ BT.TEXT_COLORS = {
     loot      = { 1.00, 1.00, 1.00 },
     seal      = { 1.00, 0.92, 0.55 },
     buff      = { 0.55, 0.85, 1.00 },
+    alert     = { 1.00, 1.00, 0.20 },
 }
 -- What they start as; db.colors holds the ones you've changed (ApplyColors)
 BT.DEFAULT_COLORS = {}
@@ -43,7 +44,7 @@ BT.COLOR_CHOICES = {
     { "heal", "Heals" }, { "notify", "Notifications" },
     { "combat", "+Combat and killing blows" }, { "xp", "Experience" },
     { "loot", "Loot" }, { "seal", "Seals" },
-    { "buff", "Buffs" },
+    { "buff", "Buffs" }, { "alert", "Ability alerts" },
 }
 -- Spell damage is tinted by its school (the game's own words for them)
 local SCHOOL_KEYS = {
@@ -102,6 +103,7 @@ local DEFAULTS = {
     nLoot = true, nMoney = false, nSkill = true, nSeals = true,
     nBuffs = false,           -- a line when a buff goes on or comes off (out of a fight only)
     nSummary = true,          -- at the end of a fight: your damage, DPS and healing
+    nAlerts = true,           -- "Overpower!" when an ability you can use only just then opens up
     soundCrit = false,        -- a sound when you crit
     soundKill = false,        -- a sound on a killing blow
     critSound = "UI_PROFESSION_CRAFTING_RESULT_CRIT",   -- which ones (keys of BT.SOUNDS)
@@ -843,6 +845,7 @@ function BT:ShowCombat(info)
             end
             return true
         elseif mine or pet then
+            if mine and info.missType == "DODGE" then self:React("dodged") end   -- (Overpower)
             if pet and not db.outPet then return true end
             if mine and info.melee and not db.outSwings then return true end
             if db.outMisses then self:Emit("outgoing", outLabel .. word, C.miss) end
@@ -914,6 +917,13 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
     end
     if not action then return end
     if action == "WOUND" then self:ConfirmShield(GetTime()) end
+    -- You dodged, parried or blocked (a warrior's Revenge, a rogue's Riposte), a blow you
+    -- partly blocked too
+    local avoid = action == "WOUND" and flag or action
+    if avoid == "DODGE" or avoid == "PARRY" or avoid == "BLOCK" or avoid == "BLOCK_REDUCED" then
+        self:React("avoided")
+        if avoid == "PARRY" then self:React("parried") end
+    end
     local db, C = self.db, self.TEXT_COLORS
     local crit = flag == "CRITICAL" or flag == "CRUSHING"
     local secret = IsSecret(amount)
@@ -1025,6 +1035,27 @@ local SELF_BUFFS = {
     { 498, "Divine Protection" }, { 642, "Divine Shield" }, { 20216, "Divine Favor" },
 }
 local SEAL_TIME = 30   -- how long a seal lasts, in seconds
+-- Spells that fly to their target, so they land after the cast: { first rank's ID,
+-- English name, school, seconds between ticks of what it leaves burning (if it does) }.
+-- Fireball and Pyroblast tick from when they land, not from the cast.
+local FLIGHT_SPELLS = {
+    { 133, "Fireball", 4, 2 }, { 11366, "Pyroblast", 4, 3 }, { 116, "Frostbolt", 16 },
+    { 686, "Shadow Bolt", 32 }, { 6353, "Soul Fire", 4 },
+    { 5176, "Wrath", 8 }, { 2912, "Starfire", 64 },
+    { 403, "Lightning Bolt", 8 }, { 421, "Chain Lightning", 8 },
+    { 24275, "Hammer of Wrath", 2 }, { 3044, "Arcane Shot", 64 },
+}
+local FLIGHT_TIME = 2.5   -- the longest a spell can be on its way (about 40 yards)
+-- Abilities you can use only just after something happens: { first rank's ID, English
+-- name, class, what opens it, level it's learned at (none: a talent) }. What opens it:
+-- "dodged" your target dodged you; "avoided" you dodged, parried or blocked; "parried" you parried.
+local REACTIVE_SPELLS = {
+    { 7384, "Overpower", "WARRIOR", "dodged", 12 },
+    { 6572, "Revenge", "WARRIOR", "avoided", 14 },
+    { 14251, "Riposte", "ROGUE", "parried" },
+    { 19306, "Counterattack", "HUNTER", "parried" },
+}
+local REACT_GAP = 1   -- seconds before the same alert shows again
 
 local function SpellName(id)
     if not (C_Spell and C_Spell.GetSpellName) then return nil end
@@ -1044,12 +1075,15 @@ function BT:SpellLists()
         if name and name ~= entry[2] and not english then out[2] = name end
         return out
     end
-    self.periodic, self.shields = {}, {}
+    self.periodic, self.shields, self.flights = {}, {}, {}
     for _, e in ipairs(PERIODIC_SPELLS) do
         for _, name in ipairs(names(e)) do self.periodic[name] = { period = e[3], school = e[4], direct = e[5] or false, heal = e[6] or false } end
     end
     for _, e in ipairs(SHIELD_SPELLS) do
         for _, name in ipairs(names(e)) do self.shields[name] = { school = e[3], id = e[1] } end
+    end
+    for _, e in ipairs(FLIGHT_SPELLS) do
+        for _, name in ipairs(names(e)) do self.flights[name] = { school = e[3], period = e[4] } end
     end
     return self.periodic, self.shields
 end
@@ -1175,6 +1209,39 @@ function BT:SeenBuffs(now)
         if not now[name] and not before[name] then
             local icon = self.db.nIcons and self:IconText(b.id) or ""
             self:Notify(icon .. "-" .. name, self.TEXT_COLORS.buff)
+        end
+    end
+end
+
+-- Whether you have an ability of REACTIVE_SPELLS: your class, and the level it's
+-- trained at; a talent only when the game says you know it
+function BT:HasReactive(e)
+    local ok, _, class = pcall(UnitClass, "player")
+    if not ok or Str(class) ~= e[3] then return false end
+    if e[5] then
+        local okLevel, level = pcall(UnitLevel, "player")
+        level = okLevel and Num(level) or nil
+        return level == nil or level >= e[5]
+    end
+    for _, known in pairs({ IsPlayerSpell or false, IsSpellKnown or false }) do
+        local okKnown, yes = false, nil
+        if known then okKnown, yes = pcall(known, e[1]) end
+        if okKnown and not IsSecret(yes) and yes == true then return true end
+    end
+    return false
+end
+
+-- Something happened that opens an ability of yours ("dodged", "avoided", "parried"
+-- as in REACTIVE_SPELLS): "Overpower!" in Notifications
+function BT:React(what)
+    if not self.db.nAlerts then return end
+    local now = GetTime()
+    self.reactAt = self.reactAt or {}
+    for _, e in ipairs(REACTIVE_SPELLS) do
+        if e[4] == what and not (self.reactAt[e[2]] and now - self.reactAt[e[2]] < REACT_GAP) and self:HasReactive(e) then
+            self.reactAt[e[2]] = now
+            local icon = self.db.nIcons and self:IconText(e[1]) or ""
+            self:Notify(icon .. (SpellName(e[1]) or e[2]) .. "!", self.TEXT_COLORS.alert, { crit = true })
         end
     end
 end
@@ -1311,6 +1378,16 @@ function BT:OnSpellcast(spellId)
     self:Queue({ cast = true, id = id, name = name })
     if not name then return end
     local periodic, shields = self:SpellLists()
+    -- A spell that flies is on its way to your target: its hit comes later (FlightFor)
+    local flight = self.flights[name]
+    local flightKey = flight and UnitKey("target")
+    if flightKey then
+        self:ForgetOldFlights()
+        self.flying = self.flying or {}
+        while #self.flying >= 10 do table.remove(self.flying, 1) end
+        self.flying[#self.flying + 1] = { id = id, name = name, at = GetTime(), key = flightKey,
+            school = flight.school, period = flight.period }
+    end
     local dot = periodic[name]
     local key = dot and UnitKey("target")
     if key then
@@ -1509,6 +1586,7 @@ function BT:ForgetOldDots()
         end
         if next(list) == nil then self.dots[key] = nil end
     end
+    self:ForgetOldFlights()
 end
 
 -- The damage-over-time spell of yours whose tick this hit is: one you cast on
@@ -1534,6 +1612,81 @@ function BT:TickFor(h)
     return best
 end
 
+-- Ways a spell can fail to hurt that a swing can't (so a miss of that kind is a spell's)
+local SPELL_MISSES = { RESIST = true, IMMUNE = true, REFLECT = true }
+
+-- A plain hit: no crit, and nothing taken off it (blocked, resisted, absorbed)
+local function PlainHit(h)
+    return not h.crit and (h.flag == nil or h.flag == "")
+end
+
+-- What a spell that flies has hit for, at the least (by rank: self.flightLeast[id]), from
+-- its plain hits. A plain hit for much less is something else landing meanwhile (a mage's
+-- Ignite, a shaman's Lightning Shield answering a blow).
+local FLIGHT_SHORT = 0.6
+function BT:NoteFlightHit(id, h)
+    if not id or h.kind ~= "damage" or not h.n or not PlainHit(h) then return end
+    self.flightLeast = self.flightLeast or {}
+    local least = self.flightLeast[id]
+    if not least or h.n < least then self.flightLeast[id] = h.n end
+end
+
+-- The spell of yours on its way to this hit's unit that this hit is: the oldest one cast
+-- at it in the last FLIGHT_TIME seconds, before this frame, of the hit's school. A miss
+-- is one only if it's of the spell's school or a way only spells miss (resisted, immune).
+-- Returns the flight and where it is in self.flying.
+function BT:FlightFor(h)
+    local list = self.flying
+    if not list or not h.key or (h.kind ~= "damage" and h.kind ~= "miss") then return nil end
+    local mask = Num(h.school)
+    local how = h.action == "WOUND" and h.flag or h.action
+    for i, f in ipairs(list) do
+        if f.key == h.key and h.time > f.at and h.time - f.at <= FLIGHT_TIME then
+            if h.kind == "damage" then
+                -- (what a damage shield of yours does is the shield's)
+                local least = self.flightLeast and self.flightLeast[f.id]
+                local short = least and h.n and PlainHit(h) and h.n < least * FLIGHT_SHORT
+                if mask ~= nil and mask == f.school and not short and not self:KnownShield(h) then return f, i end
+            elseif (mask ~= nil and mask == f.school) or SPELL_MISSES[how or ""] then
+                return f, i
+            end
+        end
+    end
+    return nil
+end
+
+-- A spell on its way named a hit: it's landed. One that leaves something burning
+-- (Fireball, Pyroblast) ticks from now on.
+function BT:Landed(f, at, h)
+    table.remove(self.flying, at)
+    if f.period and h.kind == "damage" and h.key then
+        self.dots = self.dots or {}
+        self.dots[h.key] = self.dots[h.key] or {}
+        self.dots[h.key][f.name] = { id = f.id, name = f.name, at = h.time, period = f.period, school = f.school,
+            heal = false }
+    end
+end
+
+-- A spell that flies named a hit in its cast's own frame: that one needed no time to get there,
+-- or it was the one before it landing. Either way the oldest still on its way there has landed.
+function BT:TakeFlight(name, key)
+    for i, f in ipairs(self.flying or {}) do
+        if f.name == name and f.key == key then
+            table.remove(self.flying, i)
+            return
+        end
+    end
+end
+
+-- Spells that never landed (the mob died, or you were out of sight)
+function BT:ForgetOldFlights()
+    local list, now = self.flying, GetTime()
+    if not list then return end
+    for i = #list, 1, -1 do
+        if now - list[i].at > FLIGHT_TIME then table.remove(list, i) end
+    end
+end
+
 -- One frame's events, in the order they came: seq[first..last]
 function BT:ResolveFrame(seq, first, last)
     local periodic = self:SpellLists()
@@ -1543,6 +1696,17 @@ function BT:ResolveFrame(seq, first, last)
     end
     if casts ~= 1 or not cast.id then cast = nil end   -- two casts in a frame: no telling which did what
     local castSchool   -- the school of the hits this frame's cast has been given
+    local castStruck = {}   -- and the units they were on
+    -- A spell that flies: its school is known, and a miss is its own only if a spell's
+    local castFlight = cast and self.flights[cast.name or ""]
+    local function schoolOf(c)
+        local f = self.flights[c.name or ""]
+        return (f and f.school) or (self.spellSchool and self.spellSchool[c.id])
+    end
+    local function flightMiss(h)
+        local mask, how = Num(h.school), h.action == "WOUND" and h.flag or h.action
+        return (mask ~= nil and mask == castFlight.school) or SPELL_MISSES[how or ""] == true
+    end
     -- While the lines are arriving, a tick is known by its line: it comes right behind the hit
     local linesFlow = self.hiddenAt ~= nil and seq[first].time - self.hiddenAt < 10
     local lineInFrame, blowInFrame = false, false
@@ -1557,16 +1721,17 @@ function BT:ResolveFrame(seq, first, last)
     local byLine
     if cast and linesFlow then
         local info = periodic[cast.name or ""]
-        local taken, school = {}, nil
+        local taken, school, struck = {}, nil, {}
         for i = first, last do
             local h = seq[i]
             if h.hit and not h.splash then
                 local mask = Num(h.school)
-                local can = true
+                local can = not (castFlight and h.kind == "miss" and not flightMiss(h))
                 if h.kind == "damage" then
-                    local expect = school or (self.spellSchool and self.spellSchool[cast.id])
+                    local expect = school or schoolOf(cast)
                     can = not (info and not info.direct) and not (expect and mask and expect ~= mask)
                         and not (expect ~= mask and self:KnownShield(h))
+                        and not (h.key and struck[h.key] and self:FlightFor(h))
                 end
                 local mine = false
                 if can then
@@ -1580,7 +1745,10 @@ function BT:ResolveFrame(seq, first, last)
                 if mine then
                     byLine = byLine or {}
                     byLine[i] = true
-                    if h.kind == "damage" then school = school or mask end
+                    if h.kind == "damage" then
+                        school = school or mask
+                        if h.key then struck[h.key] = true end
+                    end
                 elseif self:TickFor(h) then
                     for j = i + 1, last do   -- the tick's own line, which the loop below gives it
                         if seq[j].line and not taken[j] then taken[j] = true break end
@@ -1615,20 +1783,45 @@ function BT:ResolveFrame(seq, first, last)
             if cast and ((byLine and byLine[i]) or (not byLine and i > castAt)) then
                 local info = periodic[cast.name or ""]
                 if h.kind ~= "damage" then
-                    spell = cast
+                    if not (castFlight and h.kind == "miss" and not flightMiss(h)) then spell = cast end
                     -- The cast missed: nothing was put on the unit to tick
-                    if h.kind == "miss" and info and h.key and self.dots and self.dots[h.key] then
+                    if spell and h.kind == "miss" and info and h.key and self.dots and self.dots[h.key] then
                         self.dots[h.key][cast.name] = nil
                     end
                 elseif not (info and not info.direct) then
-                    local expect = castSchool or (self.spellSchool and self.spellSchool[cast.id])
+                    local expect = castSchool or schoolOf(cast)
                     -- Not a hit of another school than the spell's; and a hit that's just what a
-                    -- damage shield of yours does is the shield's, unless the spell is of that school too
-                    if not (expect and mask and expect ~= mask) and not (expect ~= mask and self:KnownShield(h)) then
+                    -- damage shield of yours does is the shield's, unless the spell is of that school too.
+                    -- A second hit on the same unit is a spell of yours that was on its way, when there is one.
+                    if not (expect and mask and expect ~= mask) and not (expect ~= mask and self:KnownShield(h))
+                            and not (h.key and castStruck[h.key] and self:FlightFor(h)) then
                         spell, castSchool = cast, castSchool or mask
+                        if h.key then castStruck[h.key] = true end
                     end
                 end
-                if spell then what = "cast" end
+                if spell then
+                    what = "cast"
+                    if castFlight and h.key then
+                        self:TakeFlight(cast.name, h.key)
+                        self:NoteFlightHit(cast.id, h)
+                    end
+                end
+            end
+            -- In a group, a hit is yours only with a line of yours (see ClaimHit)
+            local claimed = not h.grouped or self:ClaimHit(h.time)
+            -- A spell of yours that was on its way to the unit. A tick of yours on its beat
+            -- comes first, unless its amount isn't what that spell's ticks have been.
+            if not spell and claimed then
+                local f, at = self:FlightFor(h)
+                local dot = f and self:TickFor(h)
+                if dot and not (dot.tick and h.n and h.n ~= dot.tick) then f = nil end
+                -- (a Holy hit with your swing is your seal's, not a Hammer of Wrath on its way)
+                if f and self:SealFor(h, seq, first, last, i) then f = nil end
+                if f then
+                    what, spell = "cast", f
+                    self:Landed(f, at, h)
+                    self:NoteFlightHit(f.id, h)
+                end
             end
             if not spell then
                 local dot = self:TickFor(h)
@@ -1644,7 +1837,10 @@ function BT:ResolveFrame(seq, first, last)
                     else
                         vouched = mask ~= nil and mask ~= 1   -- without the lines, a bleed's tick looks just like a swing
                     end
-                    if vouched then what, spell = "tick", dot end
+                    if vouched then
+                        what, spell = "tick", dot
+                        dot.tick = h.n or dot.tick   -- what its ticks hit for (see the spells on their way, above)
+                    end
                 end
             end
             if not spell then
@@ -1656,7 +1852,7 @@ function BT:ResolveFrame(seq, first, last)
                 if seal then what, spell = "seal", seal end
             end
             local why
-            if h.grouped and not self:ClaimHit(h.time) then
+            if not claimed then
                 why = "no line of yours with it"
             elseif h.kind == "heal" and not spell and not h.grouped and not Flag(UnitIsUnit, h.unit, "pet") then
                 -- A heal on someone else that isn't your cast or your heal-over-time: anyone's (a
@@ -1665,6 +1861,10 @@ function BT:ResolveFrame(seq, first, last)
             else
                 why = self:ShowUnitHit(h, what, spell)
                 if not why and h.kind == "damage" then h.mine = { what = what, spell = spell } end
+            end
+            -- Your target dodged you (a warrior's Overpower)
+            if claimed and h.kind == "miss" and (h.action == "DODGE" or (h.action == "WOUND" and h.flag == "DODGE")) then
+                self:React("dodged")
             end
             if self.db.debug then
                 self:Record(("  %s %s: %s"):format(h.unit, h.secret and "(hidden amount)" or tostring(h.amount),
@@ -1959,6 +2159,8 @@ function BT:CheckGameData()
     for _, e in ipairs(SHIELD_SPELLS) do spell(e[1], e[2], "shield") end
     for _, e in ipairs(SEAL_SPELLS) do spell(e[1], e[2], "seal") end
     for _, e in ipairs(SELF_BUFFS) do spell(e[1], e[2], "buff") end
+    for _, e in ipairs(FLIGHT_SPELLS) do spell(e[1], e[2], "flies") end
+    for _, e in ipairs(REACTIVE_SPELLS) do spell(e[1], e[2], "alert") end
     spell(JUDGEMENT[1], JUDGEMENT[2], "seal")
     local skillNames = { [2366] = "Herbalism", [2575] = "Mining", [7620] = "Fishing" }
     for skill, id in pairs(SKILL_SPELLS) do spell(id, skillNames[id] or skill, "skill " .. skill) end

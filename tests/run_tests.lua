@@ -2193,6 +2193,17 @@ for _, t in ipairs(BT.CONFIG_TABS) do
 end
 assertEq(table.concat(tabNames, ", "), "General, Text, Motion, Outgoing, Incoming, Healing, Notifications, Colors", "the tabs")
 assertEq(win.currentTab, "general", "it opens on General")
+-- Every page's cards fit above the footer
+for _, t in ipairs(BT.CONFIG_TABS) do
+    local body = win.pages[t.key].body
+    for _, f in ipairs(ALL_FRAMES) do
+        if f.__parent == body and f.__size and f.__pos then
+            local bottom = -f.__pos[2] + f.__size[2]
+            assert(bottom <= ns.Theme.WINDOW.BODY_H, ("%s: a card reaches %d, below the page's %d"):format(
+                t.label, bottom, ns.Theme.WINDOW.BODY_H))
+        end
+    end
+end
 win:ShowTab("healing")
 assertEq(win.pages.healing:IsShown(), true, "a tab shows its page")
 assertEq(win.pages.general:IsShown(), false, "and only its page")
@@ -2227,7 +2238,7 @@ for _, f in ipairs(ALL_FRAMES) do
         end
     end
 end
-assertEq(switches, 49, "the switches are there")
+assertEq(switches, 50, "the switches are there")
 -- A switch's label is part of it: its click area stretches over the text
 for _, f in ipairs(ALL_FRAMES) do
     if f.isSwitch and f.key and inWindow(f) then
@@ -2623,6 +2634,315 @@ cast(20271)
 SetIcons(false)
 STATE.who.target = nil
 clear()
+
+step("spells that fly to their target")
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.unit.mobB = { enemy = true, guid = "Creature-0-1-2-3-100-00000B", target = "me" }
+STATE.group, STATE.who.target, STATE.who.nameplate1, STATE.who.nameplate2 = false, "mobA", "mobA", "mobB"
+freshFight()
+BT.flying = nil
+SetIcons(false)
+BT.db.merge = false
+local function fly(id) fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-fly", id) end
+local function on(unit, amount, school, action, flag)
+    fire("UNIT_COMBAT", unit, action or "WOUND", flag or "", amount, school)
+end
+-- A Fireball lands a moment after the cast, and leaves the mob burning
+fly(133)
+assertEq(#lines("outgoing"), 0, "nothing lands with the cast")
+Advance(0.8)
+wound(60, 4)
+assertEq(last("outgoing"), "Fireball 60", "the fire hit that lands after it is the Fireball")
+assert(isColor(newest(), BT:SchoolColor("Fire")), "fire-colored")
+Advance(0.4)
+wound(61, 4)
+assertEq(last("outgoing"), "61", "one hit for one cast")
+Advance(1.6)
+wound(3, 4)
+assertEq(last("outgoing"), "Fireball 3", "its burn ticks two seconds after it landed")
+Advance(1.1)
+wound(3, 4)
+assertEq(last("outgoing"), "3", "off the beat: not a tick")
+clear()
+-- Only a hit of its school, on the mob it was cast at, while it can still be on its way
+fly(116)   -- Frostbolt
+Advance(0.4)
+wound(27, 1)
+assertEq(last("outgoing"), "27", "a swing landing meanwhile isn't the Frostbolt")
+on("target", 0, 1, "DODGE")
+assertEq(last("outgoing"), "Dodge", "nor is a swing that's dodged")
+Advance(0.5)
+on("nameplate2", 50, 16)
+assertEq(last("outgoing"), "50", "nor a frost hit on another mob")
+wound(52, 16)
+assertEq(last("outgoing"), "Frostbolt 52", "the frost hit on the mob it was cast at")
+fly(116)
+Advance(2.6)
+wound(53, 16)
+assertEq(last("outgoing"), "53", "too long after the cast: something else")
+fly(116)
+Advance(0.9)
+on("target", 0, 16, "RESIST")
+assertEq(last("outgoing"), "Frostbolt Resist", "a resist is the spell's")
+fly(116)
+Advance(0.9)
+on("target", 0, 1, "WOUND", "RESIST")
+assertEq(last("outgoing"), "Frostbolt Resist", "a resist is the spell's, whatever school the game gives it")
+clear()
+-- The mob it was cast at, even once you've moved to another
+fly(116)
+STATE.who.target = "mobB"
+Advance(0.7)
+on("nameplate1", 51, 16)
+assertEq(last("outgoing"), "Frostbolt 51", "it lands on the mob it was cast at")
+STATE.who.target = "mobA"
+-- Two on their way: they land in turn
+fly(133)
+Advance(0.3)
+fly(133)
+Advance(0.6)
+wound(70, 4)
+Advance(0.3)
+wound(71, 4)
+assertEq(table.concat(lines("outgoing"), " / "):match("Fireball 70 / Fireball 71$"), "Fireball 70 / Fireball 71",
+    "each cast names one hit")
+BT.dots = nil
+clear()
+-- In its cast's own frame: a swing isn't it; its own hit, when it needs no time to land, is
+fly(116)
+wound(27, 1)
+assertEq(last("outgoing"), "27", "a swing landing with the cast isn't the Frostbolt, even the first time")
+Advance(0.5)
+wound(54, 16)
+assertEq(last("outgoing"), "Frostbolt 54", "the Frostbolt still lands after")
+fly(5176)   -- Wrath
+wound(40, 8)
+assertEq(last("outgoing"), "Wrath 40", "a hit of its school with the cast is the cast's")
+Advance(0.5)
+wound(41, 8)
+assertEq(last("outgoing"), "41", "and it isn't waited for again")
+fly(5176)
+on("target", 0, 1, "DODGE")
+assertEq(last("outgoing"), "Dodge", "a swing dodged with the cast isn't the Wrath")
+Advance(0.5)
+wound(42, 8)
+assertEq(last("outgoing"), "Wrath 42", "the Wrath still lands")
+clear()
+-- With a tick of yours of the same school: the tick on its beat, unless its amount says otherwise
+BT.flying, BT.dots = nil, nil
+fly(5570)   -- Insect Swarm: nature, every 2 seconds
+Advance(2)
+wound(9, 8)
+assertEq(last("outgoing"), "Insect Swarm 9", "its first tick")
+Advance(1.5)
+fly(5176)
+Advance(0.5)
+wound(45, 8)
+assertEq(last("outgoing"), "Wrath 45", "a Wrath landing on the swarm's beat, for more than its ticks: the Wrath")
+Advance(2)
+wound(9, 8)
+assertEq(last("outgoing"), "Insect Swarm 9", "the next tick")
+Advance(1.5)
+fly(5176)
+Advance(0.5)
+wound(9, 8)
+assertEq(last("outgoing"), "Insect Swarm 9", "a tick for what its ticks hit for, while a Wrath is on its way: the tick")
+Advance(0.6)
+wound(44, 8)
+assertEq(last("outgoing"), "Wrath 44", "and then the Wrath")
+BT.dots = nil
+clear()
+-- Something much smaller of its school landing meanwhile (a mage's Ignite) isn't it, once it's been seen to land
+BT.flying, BT.flightLeast = nil, nil
+fly(133)
+Advance(0.8)
+wound(300, 4)
+assertEq(last("outgoing"), "Fireball 300", "a Fireball lands")
+BT.dots = nil
+fly(133)
+Advance(0.5)
+wound(60, 4)
+assertEq(last("outgoing"), "60", "an Ignite tick for a fifth of it, while the next is on its way: not the Fireball")
+Advance(0.3)
+wound(280, 4)
+assertEq(last("outgoing"), "Fireball 280", "the Fireball, for about what it hit for before")
+fly(133)
+Advance(0.8)
+wound(120, 4, "RESIST")
+assertEq(last("outgoing"), "Fireball 120 |cffb0b0b0(resisted)|r", "partly resisted, it's still the Fireball")
+STATE.spellNames[143] = "Fireball"
+fly(143)   -- a lower rank of it
+Advance(0.8)
+wound(40, 4)
+assertEq(last("outgoing"), "Fireball 40", "a lower rank hits for less, and goes by its own amounts")
+STATE.spellNames[143] = nil
+BT.dots = nil
+clear()
+-- Landing in the frame of an instant cast of the same school: one hit on the mob is the cast's, the other the Fireball's
+BT.flightLeast = nil
+fly(133)
+Advance(0.8)
+fly(2136)   -- Fire Blast
+wound(80, 4)
+wound(300, 4)
+assertEq(table.concat(lines("outgoing"), " / "), "Fire Blast 80 / Fireball 300", "the cast's hit, and the Fireball")
+BT.dots = nil
+clear()
+hidden(70)
+fly(133)
+Advance(0.8)
+hidden(71) fly(2136) hidden(72) wound(81, 4) hidden(73) wound(301, 4)
+assertEq(table.concat(lines("outgoing"), " / "), "Fire Blast 81 / Fireball 301", "the same with the combat lines arriving")
+Advance(0.5)
+hidden(74) fly(2136) hidden(75) wound(82, 4)
+assertEq(last("outgoing"), "Fire Blast 82", "with nothing on its way, the cast's hit as before")
+BT.hiddenSeen, BT.hiddenAt, BT.credits, BT.dots = nil, nil, nil, nil
+clear()
+-- A Holy hit with your swing is your seal's, even with a Hammer of Wrath on its way
+STATE.spellNames[24275] = "Hammer of Wrath"
+BT.seal = nil
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-seal", 21084)
+fly(24275)
+Advance(0.3)
+wound(30, 1)
+wound(12, 2)
+assertEq(table.concat(lines("outgoing"), " / "), "30 / Seal of Righteousness 12", "the seal's hit beside your swing")
+Advance(0.4)
+wound(250, 2)
+assertEq(last("outgoing"), "Hammer of Wrath 250", "and then the Hammer of Wrath")
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-seal", 20271)
+BT.seal = nil
+clear()
+-- In a group, a hit is yours only with a line of yours: someone else's doesn't use yours up
+STATE.group = true
+BT.hiddenSeen, BT.hiddenAt, BT.credits, BT.flightLeast = true, nil, nil, nil
+fly(133)
+Advance(0.5)
+wound(55, 4)
+assertEq(#lines("outgoing"), 0, "a fire hit with no line of yours isn't yours")
+Advance(0.3)
+hidden(60)
+wound(62, 4)
+assertEq(last("outgoing"), "Fireball 62", "yours, with its line, is still the Fireball")
+STATE.group = false
+BT.hiddenSeen, BT.hiddenAt, BT.credits, BT.dots, BT.flying = nil, nil, nil, nil, nil
+-- Forgotten once they can't land any more
+fly(116)
+Advance(5)
+fire("PLAYER_REGEN_ENABLED")
+assertEq(#BT.flying, 0, "a spell that never landed is forgotten")
+-- Debug says what a hit was taken for
+BT.db.debug, BT.recorded = true, {}
+fly(116)
+Advance(0.5)
+wound(56, 16)
+BT:FlushHits(true)
+assert(table.concat(BT.recorded, "\n"):find("cast of Frostbolt", 1, true), "debug names the spell")
+BT.db.debug = false
+BT.db.merge = true
+clear()
+
+step("ability alerts: Overpower, Revenge, Riposte")
+assertEq(BT.DEFAULTS.nAlerts, true, "on to start with")
+BT.db.nAlerts = true
+BT.reactAt = nil
+STATE.class, STATE.level = "WARRIOR", 20
+-- Every alert shown since the last clear() (a notification can scroll away before it's looked at)
+local shownAlerts = {}
+local notifyWas = BT.Notify
+BT.Notify = function(self, text, ...)
+    if text:find("!$") then shownAlerts[#shownAlerts + 1] = text end
+    return notifyWas(self, text, ...)
+end
+local clearWas = clear
+clear = function() clearWas() shownAlerts = {} end
+local function alerts() BT:FlushHits(true) return table.concat(shownAlerts, " / ") end
+on("target", 0, 1, "DODGE")
+assertEq(last("outgoing"), "Dodge", "your attack was dodged")
+assertEq(alerts(), "Overpower!", "a warrior is told Overpower is open")
+assert(isColor(BT.areas.notify.active[#BT.areas.notify.active], BT.TEXT_COLORS.alert), "in the alerts' color")
+assertEq(BT.areas.notify.active[#BT.areas.notify.active].sticky, true, "and it stands out, like a crit")
+Advance(0.5)
+on("target", 0, 1, "DODGE")
+assertEq(alerts(), "Overpower!", "not again straight away")
+Advance(0.6)
+on("target", 0, 1, "WOUND", "DODGE")
+assertEq(alerts(), "Overpower! / Overpower!", "again a moment later")
+on("target", 0, 1, "PARRY")
+assertEq(alerts(), "Overpower! / Overpower!", "a parry doesn't open Overpower")
+clear()
+fire("UNIT_COMBAT", "player", "PARRY", "", 0, 1)
+assertEq(alerts(), "Revenge!", "you parried: Revenge")
+assertEq(last("incoming"), "Parry", "and the parry still shows")
+Advance(1.1)
+fire("UNIT_COMBAT", "player", "WOUND", "BLOCK_REDUCED", 20, 1)
+assertEq(alerts(), "Revenge! / Revenge!", "a blow you partly blocked: Revenge")
+Advance(1.1)
+fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
+fire("UNIT_COMBAT", "player", "MISS", "", 0, 1)
+assertEq(alerts(), "Revenge! / Revenge!", "a blow that lands, or misses you, doesn't")
+clear()
+-- With the combat lines readable, your dodged swing comes from its line
+assert(flowing(), "(the combat lines are arriving)")
+BT.reactAt = nil
+log(real("swing fails: DODGE"))
+assertEq(alerts(), "Overpower!", "a dodge in the combat lines")
+Advance(2)
+clear()
+-- Not a warrior, too low a level, or turned off
+STATE.level = 10
+BT.reactAt = nil
+on("target", 0, 1, "DODGE")
+assertEq(alerts(), "", "not before Overpower is learned (level 12)")
+fire("UNIT_COMBAT", "player", "DODGE", "", 0, 1)
+assertEq(alerts(), "", "nor Revenge (level 14)")
+STATE.level = 20
+BT.db.nAlerts = false
+on("target", 0, 1, "DODGE")
+assertEq(alerts(), "", "Ability alerts turned off")
+BT.db.nAlerts = true
+STATE.class = "ROGUE"
+Advance(1.1)
+on("target", 0, 1, "DODGE")
+fire("UNIT_COMBAT", "player", "PARRY", "", 0, 1)
+assertEq(alerts(), "", "a rogue without the talent: nothing")
+STATE.knownSpells[14251] = true
+Advance(1.1)
+fire("UNIT_COMBAT", "player", "PARRY", "", 0, 1)
+assertEq(alerts(), "Riposte!", "with Riposte: when you parry")
+fire("UNIT_COMBAT", "player", "DODGE", "", 0, 1)
+assertEq(alerts(), "Riposte!", "only a parry")
+STATE.knownSpells[14251] = nil
+STATE.class = "HUNTER"
+STATE.knownSpells[19306] = true
+Advance(1.1)
+fire("UNIT_COMBAT", "player", "PARRY", "", 0, 1)
+assertEq(alerts(), "Riposte! / Counterattack!", "a hunter with Counterattack")
+STATE.knownSpells[19306] = nil
+clear()
+-- In a group, a dodge with no line of yours could be anyone's
+STATE.class = "WARRIOR"
+STATE.group = true
+BT.hiddenSeen, BT.hiddenAt, BT.credits, BT.reactAt = true, nil, nil, nil
+on("target", 0, 1, "DODGE")
+assertEq(alerts(), "", "someone else's attack dodged: no Overpower")
+Advance(0.1)
+hidden(61)
+on("target", 0, 1, "DODGE")
+assertEq(alerts(), "Overpower!", "yours, with its line")
+STATE.group = false
+BT.hiddenSeen, BT.hiddenAt, BT.credits = nil, nil, nil
+-- With icons
+SetIcons(true)
+STATE.spellIcons[7384] = 132223
+Advance(1.1)
+on("target", 0, 1, "DODGE")
+assertEq(last("notify"), "|T132223:0|t Overpower!", "with its icon when icons are on")
+SetIcons(false)
+STATE.class = "DRUID"
+STATE.who.target, STATE.who.nameplate1, STATE.who.nameplate2 = nil, nil, nil
+clear()
+BT.Notify, clear = notifyWas, clearWas
 
 step("buffs gained and lost")
 local INTELLECT = { name = "Arcane Intellect", spellId = 1459, icon = 135932, duration = 1800 }

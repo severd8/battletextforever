@@ -393,7 +393,7 @@ local function BuildHealing(p)
 end
 
 local function BuildNotifications(p, refs)
-    local card = Card(p, "Show", 0, 0, PAGE_W, 160)
+    local card = Card(p, "Show", 0, 0, PAGE_W, 186)
     Setting(card, "Combat", 12, -30, "nCombat", "+Combat and -Combat as you enter and leave a fight.")
     Setting(card, "Killing blows", COL2, -30, "nKill",
         "\"Killing blow!\" when your hit kills. Only when the game lets BattleText read its combat lines "
@@ -411,13 +411,18 @@ local function BuildNotifications(p, refs)
         "A line when a buff goes on or comes off. The game hides your buffs during a fight: there, a buff you put on "
         .. "yourself (Slice and Dice, Evasion...) shows as you cast it, and the rest of what changed shows when the fight "
         .. "ends. Not shown: food and drink, and buffs with no time limit (mounts, auras, stances).")
+    Setting(card, "Ability alerts", 12, -160, "nAlerts",
+        "A line when an ability you can use only just then opens up: \"Overpower!\" when your target dodges you, "
+        .. "\"Revenge!\" when you dodge, parry or block (warriors), \"Riposte!\" or \"Counterattack!\" when you "
+        .. "parry (rogues and hunters with the talent).")
 
-    local extras = Card(p, "Extras", 0, -170, PAGE_W, 86)
+    local extras = Card(p, "Extras", 0, -196, PAGE_W, 86)
     Setting(extras, "Fight summary", 12, -30, "nSummary",
         "When a fight ends: your damage, damage per second and healing, like \"4,820 damage (127 DPS) in 38s\". "
         .. "Only counts numbers the game lets BattleText read.")
     Setting(extras, "Icons", COL2, -30, "nIcons",
-        "Shows the icon beside loot, skill ups, seals and buffs.", Either("nLoot", "nSkill", "nSeals", "nBuffs"))
+        "Shows the icon beside loot, skill ups, seals, buffs and ability alerts.",
+        Either("nLoot", "nSkill", "nSeals", "nBuffs", "nAlerts"))
     local soundKeys = {}
     for _, s in ipairs(BT.SOUNDS) do soundKeys[#soundKeys + 1] = s.key end
     local function soundName(k) return BT:SoundName(k) end
@@ -431,7 +436,7 @@ local function BuildNotifications(p, refs)
     refs.killSoundDropdown = Dropdown(extras, COL2 + 118, -54, 126, soundKeys, soundName, "killSound",
         function(k) BT:SetAlertSound("kill", k) end, pickTip)
     refs.critSoundDropdown.menuScroll, refs.killSoundDropdown.menuScroll = 20 * 12, 20 * 12
-    AreaLook(p, -266, "n")
+    AreaLook(p, -292, "n")
 end
 
 local function BuildColors(p)

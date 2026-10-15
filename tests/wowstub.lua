@@ -228,7 +228,11 @@ STATE = {
     spellIcons = { [16827] = 132140, [8921] = 136096 },   -- by spell ID
     spellNames = { [16827] = "Claw", [8921] = "Moonfire", [1082] = "Claw", [1822] = "Rake", [1079] = "Rip", [5221] = "Shred",
         [467] = "Thorns", [782] = "Thorns", [1075] = "Thorns", [324] = "Lightning Shield", [5570] = "Insect Swarm",
-        [768] = "Cat Form", [5185] = "Healing Touch", [774] = "Rejuvenation" },
+        [768] = "Cat Form", [5185] = "Healing Touch", [774] = "Rejuvenation",
+        [133] = "Fireball", [11366] = "Pyroblast", [116] = "Frostbolt", [2136] = "Fire Blast", [5176] = "Wrath",
+        [7384] = "Overpower", [6572] = "Revenge", [14251] = "Riposte", [19306] = "Counterattack" },
+    class = "DRUID", level = 20,  -- yours: the game's class word (UnitClass's second answer) and level
+    knownSpells = {},             -- talents you have, by spell ID (IsPlayerSpell)
     buffs = {},                   -- your buffs: { name = "Thorns", spellId = 782 }
     equipped = {},                -- your gear by slot: { name = "Sporid Cape", icon = 133762, lines = { "Equip: ..." } }
     spellDescriptions = {},       -- by spell ID
@@ -244,6 +248,13 @@ FAKE_TIME = 1000
 function GetTime() return FAKE_TIME end
 function InCombatLockdown() return COMBAT end
 function UnitXP() return STATE.xp end
+function UnitClass(unit)
+    if unit ~= "player" then return nil end
+    local name = STATE.class:sub(1, 1) .. STATE.class:sub(2):lower()
+    return name, STATE.class, 1
+end
+function UnitLevel(unit) return unit == "player" and STATE.level or 1 end
+function IsPlayerSpell(id) return STATE.knownSpells[id] == true end
 function UnitXPMax() return STATE.xpMax end
 -- Which unit a name like "target", "nameplate2" or "targettarget" stands for
 local function who(token)

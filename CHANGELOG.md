@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.11.0
+
+- **Spells that fly to their target are named.** Fireball, Frostbolt, Pyroblast, Shadow Bolt, Soul Fire, Wrath, Starfire, Lightning Bolt, Chain Lightning, Hammer of Wrath and Arcane Shot showed as bare numbers, because they land a moment after the cast. Now the hit of that spell's school that lands on the mob you cast it at, within a couple of seconds, is named after it, with its icon. A resist is named too ("Frostbolt Resist").
+  - Fireball's and Pyroblast's burn is named too, ticking from when the spell lands.
+  - What can land at the same time is kept apart: a tick of yours of the same school on its beat (Insect Swarm while a Wrath is on its way) stays the tick unless its amount says otherwise, a much smaller hit (a mage's Ignite, Lightning Shield answering a blow) isn't taken for the spell once the spell has been seen to land, a seal's Holy hit beside your swing stays the seal's, and a swing landing meanwhile is never taken for it.
+- **Ability alerts** (Notifications tab, on): a line when an ability you can use only just then opens up.
+  - **Overpower!** when your target dodges you (warriors, level 12 and up).
+  - **Revenge!** when you dodge, parry or block (warriors, level 14 and up).
+  - **Riposte!** (rogues) and **Counterattack!** (hunters) when you parry, if you have the talent.
+  - In a group, a dodge counts only with a combat line of yours, like your hits. The alerts have their own color on the Colors tab.
+- The options window is a little taller, to fit the new switch.
+
 ## 1.10.3
 
 - **Other players' heals no longer show as yours.** With a player targeted, a heal they got from something else (their own regeneration, someone else's heal) showed as your heal, with their name. Now a heal on someone else shows only when it lands with your own heal, or is a tick of your Rejuvenation, Regrowth or Renew. (Thanks to the player who reported it.)

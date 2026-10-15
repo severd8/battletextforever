@@ -14,6 +14,7 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 - **What happens to you**, in its own area: the damage you take, and the attacks you dodge, parry, block or resist.
 - **Heals**, the ones you get and the ones you do, in their own Healing area under your character (or with the damage, if you prefer).
 - **Notifications**: combat, experience, reputation, honor, loot, money, skill ups, a paladin's seals going on and coming off, and (if you turn it on) your buffs.
+- **Ability alerts**: "Overpower!" when your target dodges you, "Revenge!" when you dodge, parry or block, "Riposte!" and "Counterattack!" when you parry (with the talent).
 - **Fight summary**: when a fight ends, your damage, DPS and healing ("4,820 damage (127 DPS), 1,200 healed in 38s").
 - **Four text areas** you can drag anywhere on screen, each with its own movement: Scroll, Pop, Fountain or Horizontal.
 - **Your look**: 23 fonts, an outline (thin or thick) or a drop shadow, text and crit size, bigger text for bigger hits, short numbers (12.3k), scroll speed and distance, your own colors, and for each area its own size, opacity and direction (up or down, straight or curved).
@@ -48,8 +49,8 @@ The options have the same look as TauntMaster Forever, ToppedOff Forever and Out
 | **Outgoing** | Damage, misses, auto attacks, pet, damage shields, name seal hits, icons, names, hide hits below a number; Appearance: size, opacity, movement, scroll upward and curved scrolling |
 | **Incoming** | Damage, avoids, power gains, icons, names; Appearance: size, opacity, movement, scroll upward and curved scrolling |
 | **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number; Appearance: size, opacity, movement and scroll upward |
-| **Notifications** | Show: combat, killing blows, experience, reputation, honor, loot, money, skill ups, seals, buffs. Extras: fight summary, icons, crit sound and kill sound (each with its own pick of sound). Appearance: size, opacity, movement and scroll upward |
-| **Colors** | The color of your hits, spells, misses, damage you take, avoids, power gains, heals, notifications, combat and killing blows, experience, loot, seals and buffs; reset colors |
+| **Notifications** | Show: combat, killing blows, experience, reputation, honor, loot, money, skill ups, seals, buffs, ability alerts. Extras: fight summary, icons, crit sound and kill sound (each with its own pick of sound). Appearance: size, opacity, movement and scroll upward |
+| **Colors** | The color of your hits, spells, misses, damage you take, avoids, power gains, heals, notifications, combat and killing blows, experience, loot, seals, buffs and ability alerts; reset colors |
 
 ### Keybindings
 
@@ -85,6 +86,7 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
 - **Click Start BattleText once per login.** It opens the Combat Log tab and switches back for you. From then on the game tells BattleText *when* you did something. In a group, only that many hits are shown, so other people's are left out (now and then a number may still be a groupmate's hit that landed at the same moment as yours). Keep the Combat Log's filter on **My actions** (the default).
 - **Spell names and icons** show for:
   - hits that land the instant you cast (instant attacks and spells with no travel time);
+  - spells that fly to their target and land a moment later: Fireball, Frostbolt, Pyroblast, Shadow Bolt, Soul Fire, Wrath, Starfire, Lightning Bolt, Chain Lightning, Hammer of Wrath and Arcane Shot (and the burn Fireball and Pyroblast leave);
   - the ticks of your damage-over-time spells (Rake, Rip, Rend, Moonfire, Corruption, Shadow Word: Pain and the like). Bleeds need Start BattleText clicked;
   - your **damage shields**: buffs (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen one answer two blows, and gear that hurts whoever strikes you (named after the item). Turn off **Damage shields** in the options to hide these;
   - a paladin's **seal** (Righteousness, Command): its Holy damage landing with your swing. Turn off **Name seal hits** in the options to show it as a plain number.
