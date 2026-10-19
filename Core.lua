@@ -1061,6 +1061,20 @@ local THROWN_ITEMS = {
     { 13241, "Goblin Sapper Charge", 4 },
 }
 local THROW_TIME = 2.5   -- the longest one can take to go off after the throw
+-- Spells that keep hitting for a while after the cast, on every mob in the area or on the one
+-- you channel at: { first rank's ID, English name, school, longest it lasts in seconds, how }.
+-- how: "channel" (on the mobs where you aim it, until you stop channeling), "single" (a channel
+-- on your target only), "heal" (a channel that heals), or none (lasts its time, whatever you do).
+local AREA_SPELLS = {
+    { 5143, "Arcane Missiles", 64, 5, "single" }, { 15407, "Mind Flay", 32, 3, "single" },
+    { 689, "Drain Life", 32, 5, "single" }, { 1120, "Drain Soul", 32, 15, "single" },
+    { 10, "Blizzard", 16, 8, "channel" }, { 5740, "Rain of Fire", 4, 8, "channel" },
+    { 16914, "Hurricane", 8, 10, "channel" }, { 1510, "Volley", 64, 6, "channel" },
+    { 1949, "Hellfire", 4, 15, "channel" }, { 740, "Tranquility", 8, 10, "heal" },
+    { 26573, "Consecration", 2, 8 }, { 2120, "Flamestrike", 4, 8 },
+    { 8190, "Magma Totem", 4, 20 }, { 1535, "Fire Nova Totem", 4, 6 }, { 3599, "Searing Totem", 4, 55 },
+}
+local AREA_SLACK = 1   -- what's still on its way when a channel stops (Arcane Missiles) lands this late
 -- Abilities you can use only just after something happens: { first rank's ID, English
 -- name, class, what opens it, level it's learned at (none: a talent) }. What opens it:
 -- "dodged" your target dodged you; "avoided" you dodged, parried or blocked; "parried" you parried.
@@ -1103,6 +1117,12 @@ function BT:SpellLists()
     self.thrownItems = {}
     for _, e in ipairs(THROWN_ITEMS) do
         for _, name in ipairs(names(e)) do self.thrownItems[name] = { school = e[3] } end
+    end
+    self.areaSpells = {}
+    for _, e in ipairs(AREA_SPELLS) do
+        for _, name in ipairs(names(e)) do
+            self.areaSpells[name] = { id = e[1], name = e[2], school = e[3], time = e[4], how = e[5] }
+        end
     end
     return self.periodic, self.shields
 end
@@ -1424,6 +1444,8 @@ function BT:OnSpellcast(spellId)
         self.flying[#self.flying + 1] = { id = id, name = name, at = GetTime(), key = flightKey,
             school = flight.school, period = flight.period }
     end
+    -- A spell that keeps hitting for a while (AreaFor)
+    if self.areaSpells[name] then self:StartArea(name, id) end
     -- Something thrown goes off where it lands, on whatever is there (ThrownFor)
     local thrown = self.thrownItems[name]
     if thrown then
@@ -1499,10 +1521,20 @@ end
 -- to the attacker."). Read in English only; on other languages an item's
 -- shield goes unrecognised.
 local SCHOOL_WORDS = { physical = 1, holy = 2, fire = 4, nature = 8, frost = 16, shadow = 32, arcane = 64 }
+-- Weapon enchants that hurt the mob you hit, by the line they add to the weapon's tooltip
+local ENCHANT_PROCS = { ["Fiery Weapon"] = 4, ["Icy Chill"] = 16, ["Lifestealing"] = 32, ["Unholy Weapon"] = 32 }
+-- A "Chance on hit" line's damage: "for 75 Fire damage", "150 to 250 Nature damage"; the most it does
+local function ProcDamage(text)
+    local low, high, word = text:match("(%d+) to (%d+) (%a+) damage")
+    if not word then low, word = text:match("(%d+) (%a+) damage") end
+    local school = word and SCHOOL_WORDS[word:lower()]
+    if not school or school == 1 then return nil end
+    return school, tonumber(high or low)
+end
 function BT:ScanItemShields()
     if not (C_TooltipInfo and C_TooltipInfo.GetInventoryItem) then return end
     if InCombatLockdown() then return end
-    local found = {}
+    local found, procs = {}, {}
     for slot = 1, 19 do
         local ok, data = pcall(C_TooltipInfo.GetInventoryItem, "player", slot)
         local rows = ok and not IsSecret(data) and type(data) == "table" and data.lines
@@ -1520,16 +1552,26 @@ function BT:ScanItemShields()
                     name = name or text   -- the first line is the item's name
                     local amount, school = text:match("[Ii]nflicts (%d+) (%a+) damage to the attacker")
                     school = school and SCHOOL_WORDS[school:lower()]
+                    local okIcon, icon = pcall(GetInventoryItemTexture, "player", slot)
+                    icon = okIcon and (Num(icon) or Str(icon)) or nil
                     if school then
-                        local okIcon, icon = pcall(GetInventoryItemTexture, "player", slot)
-                        found[#found + 1] = { name = name, amount = tonumber(amount), school = school,
-                            icon = okIcon and (Num(icon) or Str(icon)) or nil }
+                        found[#found + 1] = { name = name, amount = tonumber(amount), school = school, icon = icon }
+                    end
+                    -- What it does to the mob you hit: named after the item (or the enchant)
+                    local proc = text:match("^Chance on hit: (.+)") or text:match("^Equip: Chance on hit: (.+)")
+                    local procSchool, most
+                    if proc then procSchool, most = ProcDamage(proc) end
+                    if procSchool then
+                        procs[#procs + 1] = { name = name, school = procSchool, most = most, icon = icon }
+                    elseif ENCHANT_PROCS[text] then
+                        procs[#procs + 1] = { name = text, school = ENCHANT_PROCS[text], icon = icon }
                     end
                 end
             end
         end
     end
     self.itemShields = found
+    self.itemProcs = procs
 end
 
 -- Whose answer to a blow this hit is, if it's a damage shield's. An item's is
@@ -1758,6 +1800,87 @@ function BT:ThrownFor(h)
     return nil
 end
 
+-- A spell that keeps hitting (AREA_SPELLS) started: from your cast, or from a channel starting.
+-- One of each at a time (cast again, it starts again). A channel's end comes from the game
+-- when it can be read (UnitChannelInfo), else the longest it lasts; StopArea ends it early.
+function BT:StartArea(name, id)
+    local spell = self.areaSpells[name]
+    if not spell then return end
+    local now = GetTime()
+    local ends = now + spell.time
+    local old = self.areaOn and self.areaOn[name]
+    if old and now - old.at < 0.5 then return end   -- the channel's start and its cast: one
+    if spell.how and UnitChannelInfo then
+        local ok, _, _, _, _, endMs = pcall(UnitChannelInfo, "player")
+        endMs = ok and Num(endMs) or nil
+        if endMs and endMs / 1000 > now then ends = math.min(ends, endMs / 1000) end
+    end
+    self.areaOn = self.areaOn or {}
+    self.areaOn[name] = { id = id or spell.id, name = name, school = spell.school, at = now, ends = ends + AREA_SLACK,
+        key = spell.how == "single" and UnitKey("target") or nil, heal = spell.how == "heal",
+        single = spell.how == "single" }
+end
+
+-- Your channel stopped (finished, or you moved): what's already on its way still lands
+function BT:StopArea(id)
+    local name = id and SpellName(id)
+    local on = name and self.areaOn and self.areaOn[name]
+    if on and on.ends > GetTime() + AREA_SLACK then on.ends = GetTime() + AREA_SLACK end
+end
+
+-- The spell of yours still hitting that this hit is: of its school, while it lasts, on any
+-- unit (on the one you channel at, for Arcane Missiles and the like). A heal for a heal.
+-- splash: a mob that isn't after you (only an area spell reaches those).
+function BT:AreaFor(h, splash)
+    local list = self.areaOn
+    if not list or (h.kind ~= "damage" and h.kind ~= "miss" and h.kind ~= "heal") then return nil end
+    local mask = Num(h.school)
+    local how = h.action == "WOUND" and h.flag or h.action
+    local best
+    for name, a in pairs(list) do
+        if h.time > a.ends then
+            list[name] = nil
+        elseif h.time >= a.at and (h.kind == "heal") == a.heal and not (a.single and (splash or a.key ~= h.key)) then
+            local fits
+            if h.kind == "miss" then
+                fits = (mask ~= nil and mask == a.school) or SPELL_MISSES[how or ""] == true
+            else
+                fits = mask ~= nil and mask == a.school and not (h.kind == "damage" and self:KnownShield(h))
+            end
+            if fits and (not best or a.at > best.at) then best = a end
+        end
+    end
+    return best
+end
+
+-- Your weapons' and gear's "Chance on hit" (self.itemProcs, read from the tooltips with the
+-- damage shields): a hit of its school, not too big for it, on a unit you struck with a
+-- weapon in this frame or just before (a bolt it sends can take a moment to land).
+local PROC_TIME = 1.5
+function BT:ProcFor(h, seq, first, last, at)
+    local procs = self.itemProcs
+    if not procs or #procs == 0 or h.kind ~= "damage" then return nil end
+    local mask = Num(h.school)
+    if not mask or mask == 1 then return nil end
+    local struck = h.key and self.struck and self.struck[h.key]
+    local near = struck and h.time - struck <= PROC_TIME
+    if not near then
+        for j = first, last do
+            local o = seq[j]
+            if j ~= at and o.hit and not o.splash and o.kind == "damage" and Num(o.school) == 1
+                    and ((h.key and o.key == h.key) or (not h.key and o.unit == h.unit)) then
+                near = true
+                break
+            end
+        end
+    end
+    if not near then return nil end
+    for _, p in ipairs(procs) do
+        if p.school == mask and not (p.most and h.n and h.n > p.most * (h.crit and 1.6 or 1.05)) then return p end
+    end
+    return nil
+end
+
 -- A throw named a hit in its own frame (it went off at once): it's done after this frame
 function BT:ThrowLanded(name, at)
     for _, t in ipairs(self.thrown or {}) do
@@ -1952,6 +2075,14 @@ function BT:ResolveFrame(seq, first, last)
                 local seal = self:SealFor(h, seq, first, last, i)
                 if seal then what, spell = "seal", seal end
             end
+            if not spell and claimed then
+                local area = self:AreaFor(h)
+                if area then what, spell = "tick", area end
+            end
+            if not spell and claimed then
+                local proc = self:ProcFor(h, seq, first, last, i)
+                if proc then what, spell = "proc", proc end
+            end
             local why
             if not claimed then
                 why = "no line of yours with it"
@@ -1962,6 +2093,11 @@ function BT:ResolveFrame(seq, first, last)
             else
                 why = self:ShowUnitHit(h, what, spell)
                 if not why and h.kind == "damage" then h.mine = { what = what, spell = spell } end
+                -- A weapon blow of yours: its "Chance on hit" may follow (ProcFor)
+                if h.kind == "damage" and mask == 1 and h.key then
+                    self.struck = self.struck or {}
+                    self.struck[h.key] = h.time
+                end
             end
             -- Your target dodged you (a warrior's Overpower)
             if claimed and h.kind == "miss" and (h.action == "DODGE" or (h.action == "WOUND" and h.flag == "DODGE")) then
@@ -1984,6 +2120,11 @@ function BT:ResolveFrame(seq, first, last)
                 if o.mine and mask ~= nil and Num(o.school) == mask then mine = o.mine break end
             end
             local why
+            -- (or a spell of yours hitting everything in its area)
+            if not mine then
+                local area = self:AreaFor(h, true)
+                if area then mine = { what = "tick", spell = area } end
+            end
             if not mine then
                 why = "not your fight"
             elseif h.grouped and not self:ClaimHit(h.time) then
@@ -2262,6 +2403,7 @@ function BT:CheckGameData()
     for _, e in ipairs(SELF_BUFFS) do spell(e[1], e[2], "buff") end
     for _, e in ipairs(FLIGHT_SPELLS) do spell(e[1], e[2], "flies") end
     for _, e in ipairs(THROWN_ITEMS) do spell(e[1], e[2], "thrown") end
+    for _, e in ipairs(AREA_SPELLS) do spell(e[1], e[2], "keeps hitting") end
     for _, e in ipairs(REACTIVE_SPELLS) do spell(e[1], e[2], "alert") end
     spell(JUDGEMENT[1], JUDGEMENT[2], "seal")
     local skillNames = { [2366] = "Herbalism", [2575] = "Mining", [7620] = "Fishing" }
@@ -2971,6 +3113,8 @@ for _, e in ipairs({ "COMBAT_LOG_MESSAGE", "PLAYER_ENTERING_WORLD", "PLAYER_REGE
 end
 pcall(events.RegisterEvent, events, "UNIT_COMBAT")   -- every unit: you, your target, the mobs around you
 pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_SUCCEEDED", "player")
+pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_CHANNEL_START", "player")
+pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
 pcall(events.RegisterUnitEvent, events, "UNIT_AURA", "player")
 pcall(events.RegisterEvent, events, "PLAYER_EQUIPMENT_CHANGED")
 
@@ -3019,6 +3163,12 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         BT:OnUnitCombat(a1, a2, a3, a4, a5)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         BT:OnSpellcast(a3)
+    elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
+        local id = Num(a3)
+        local name = id and SpellName(id)
+        if name then BT:SpellLists() BT:StartArea(name, id) end
+    elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+        BT:StopArea(Num(a3))
     elseif event == "UNIT_AURA" then
         BT:ScanShield()
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then

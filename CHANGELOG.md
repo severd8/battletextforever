@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.12.0
+
+- **Channeled spells are named.** Arcane Missiles, Mind Flay, Drain Life, Drain Soul, Blizzard, Rain of Fire, Hurricane, Volley, Hellfire and Tranquility showed their first hit at most, then bare numbers. Now every hit while you channel is named, with its icon, on every mob it hits (Arcane Missiles, Mind Flay and the drains on the mob you channel at only). What was already on its way when you stop still counts.
+- **Spells that keep burning an area are named.** Consecration, Flamestrike's burn, and Magma, Fire Nova and Searing Totem, for as long as they last.
+- **Weapon and gear procs are named.** A "Chance on hit" that does damage (Shadowfang, Thunderfury and the like) shows the item's name and icon when it goes off with your weapon hits, and so do weapon enchants that hurt (Fiery Weapon, Icy Chill, Lifestealing, Unholy Weapon). A hit too big to be the proc stays a plain number.
+- In a group, all of these still need a combat line of yours, like your other hits.
+
 ## 1.11.1
 
 - **Explosives are named, with their icon.** Dynamite and other thrown explosives showed only a number. Now their hits show the item's name and icon, like your abilities, on every mob they hit (your target or not). Covered: Rough, Coarse, Heavy, Solid and Dense Dynamite, Ez-Thro Dynamite and Ez-Thro Dynamite II, Rough Copper Bomb, Large Copper Bomb, Small and Big Bronze Bomb, Iron Grenade, Big Iron Bomb, Mithril Frag Bomb, Hi-Explosive Bomb, The Big One, Thorium Grenade, Dark Iron Bomb, Arcane Bomb and Goblin Sapper Charge. A resist is named too. (Thanks to prestoncr for reporting it.)

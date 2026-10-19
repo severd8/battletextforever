@@ -2955,6 +2955,145 @@ STATE.unit.mobC = nil
 BT.db.merge = true
 clear()
 
+step("spells that keep hitting: channels and area spells")
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.unit.mobB = { enemy = true, guid = "Creature-0-1-2-3-100-00000B", target = "me" }
+STATE.unit.mobC = { enemy = true, guid = "Creature-0-1-2-3-100-00000C" }   -- not after you
+STATE.group, STATE.who.target = false, "mobA"
+STATE.who.nameplate1, STATE.who.nameplate2, STATE.who.nameplate3 = "mobA", "mobB", "mobC"
+STATE.spellNames[10], STATE.spellNames[5143], STATE.spellNames[26573] = "Blizzard", "Arcane Missiles", "Consecration"
+STATE.spellIcons[10] = 135857
+freshFight()
+BT.areaOn = nil
+SetIcons(false)
+BT.db.merge = false
+local function on(unit, amount, school, action, flag)
+    fire("UNIT_COMBAT", unit, action or "WOUND", flag or "", amount, school)
+end
+local function channel(id) fire("UNIT_SPELLCAST_CHANNEL_START", "player", "Cast-ch", id) end
+local function stop(id) fire("UNIT_SPELLCAST_CHANNEL_STOP", "player", "Cast-ch", id) end
+-- Blizzard: every mob in it, each time it hits, while you channel
+channel(10)
+Advance(1)
+on("target", 40, 16)
+on("nameplate2", 41, 16)
+on("nameplate3", 39, 16)
+assertEq(table.concat(lines("outgoing"), " / "), "Blizzard 40 / Blizzard 41 / Blizzard 39",
+    "each mob it hits, your target or not, gets its name")
+Advance(1)
+on("target", 42, 16)
+assertEq(last("outgoing"), "Blizzard 42", "and the next wave too")
+Advance(0.5)
+on("nameplate3", 38, 16)
+assertEq(last("outgoing"), "Blizzard 38", "a mob that isn't after you, hit on its own")
+on("target", 30, 4)
+assertEq(last("outgoing"), "30", "a hit of another school isn't the Blizzard")
+SetIcons(true)
+Advance(1)
+on("target", 43, 16)
+assertEq(last("outgoing"), "|T135857:0|t Blizzard 43", "with its icon")
+SetIcons(false)
+on("target", 0, 16, "RESIST")
+assertEq(last("outgoing"), "Blizzard Resist", "a resist is the Blizzard's")
+stop(10)
+Advance(0.5)
+on("target", 44, 16)
+assertEq(last("outgoing"), "Blizzard 44", "what was already falling as you stopped still lands")
+Advance(0.6)
+on("target", 45, 16)
+assertEq(last("outgoing"), "45", "after you stopped channeling: something else")
+clear()
+-- The longest it can last, without a stop
+channel(10)
+Advance(8.5)
+on("target", 46, 16)
+assertEq(last("outgoing"), "Blizzard 46", "a moment after its 8 seconds: still landing")
+Advance(0.6)
+on("target", 47, 16)
+assertEq(last("outgoing"), "47", "past its time and the slack: something else")
+clear()
+-- Arcane Missiles: only the mob you channel at
+channel(5143)
+Advance(0.6)
+on("nameplate2", 20, 64)
+assertEq(last("outgoing"), "20", "an arcane hit on another mob isn't the missiles")
+on("target", 21, 64)
+assertEq(last("outgoing"), "Arcane Missiles 21", "the one you channel at")
+STATE.who.target = "mobB"
+Advance(0.6)
+on("nameplate1", 22, 64)
+assertEq(last("outgoing"), "Arcane Missiles 22", "even once you've moved your target")
+STATE.who.target = "mobA"
+stop(5143)
+clear()
+-- Consecration: lasts its 8 seconds whatever you do
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-cons", 26573)
+Advance(1)
+on("target", 12, 2)
+on("nameplate3", 12, 2)
+assertEq(table.concat(lines("outgoing"), " / "), "Consecration 12 / Consecration 12", "it burns every mob on it")
+Advance(7)
+on("target", 13, 2)
+assertEq(last("outgoing"), "Consecration 13", "for its 8 seconds")
+Advance(2.1)
+on("target", 14, 2)
+assertEq(last("outgoing"), "14", "and no longer")
+on("nameplate3", 15, 2)
+assertEq(last("outgoing"), "14", "a mob that isn't after you, with nothing of yours there: not shown")
+clear()
+STATE.who.nameplate1, STATE.who.nameplate2, STATE.who.nameplate3 = nil, nil, nil
+STATE.unit.mobC = nil
+BT.areaOn = nil
+
+step("weapon and gear procs")
+STATE.who.target, STATE.who.nameplate1 = "mobA", "mobA"
+freshFight()
+STATE.equipped[16] = { name = "Shadowfang", icon = 135315,
+    lines = { "Chance on hit: Shadow bolt the enemy for 30 Shadow damage." } }
+STATE.equipped[17] = { name = "Quel'Serrar", icon = 135349, lines = { "Fiery Weapon" } }
+STATE.equipped[18] = { name = "Ice Barbed Spear", icon = 135130,
+    lines = { "Chance on hit: Blasts a target for 95 to 105 Frost damage." } }
+STATE.equipped[13] = { name = "Hand of Justice", lines = { "Equip: 2% chance on hit to gain an extra attack." } }
+fire("PLAYER_EQUIPMENT_CHANGED", 16, true)
+assertEq(#BT.itemProcs, 3, "three procs read from your gear (an extra attack does no damage of its own)")
+assertEq(BT.itemProcs[1].name .. " " .. BT.itemProcs[1].school .. " " .. BT.itemProcs[1].most, "Shadowfang 32 30",
+    "Shadowfang, Shadow, up to 30")
+local function on(unit, amount, school, action, flag)
+    fire("UNIT_COMBAT", unit, action or "WOUND", flag or "", amount, school)
+end
+-- With your swing, in the same frame
+SetIcons(true)
+wound(55, 1)
+on("target", 30, 32)
+assertEq(table.concat(lines("outgoing"), " / "), "55 / |T135315:0|t Shadowfang 30",
+    "the proc beside your swing is named after the weapon, with its icon")
+SetIcons(false)
+Advance(1)
+on("target", 29, 32)
+assertEq(last("outgoing"), "Shadowfang 29", "a moment after the swing, it still is")
+Advance(2)
+on("target", 28, 32)
+assertEq(last("outgoing"), "28", "with no swing of yours just before: not the proc")
+wound(55, 1)
+on("target", 80, 32)
+assertEq(last("outgoing"), "80", "too big for it: something else")
+on("target", 40, 4)
+assertEq(last("outgoing"), "Fiery Weapon 40", "an enchant's: named after the enchant")
+on("target", 104, 16)
+assertEq(last("outgoing"), "Ice Barbed Spear 104", "one that hits for a range: up to its most")
+on("target", 150, 16, "WOUND", "")
+assertEq(last("outgoing"), "150", "over its most: not it")
+STATE.equipped[16], STATE.equipped[17], STATE.equipped[18], STATE.equipped[13] = nil, nil, nil, nil
+fire("PLAYER_EQUIPMENT_CHANGED", 16, false)
+Advance(0.5)
+wound(55, 1)
+on("target", 30, 32)
+assertEq(last("outgoing"), "30", "the weapon taken off: no proc")
+STATE.who.nameplate1 = nil
+BT.struck = nil
+BT.db.merge = true
+clear()
+
 step("ability alerts: Overpower, Revenge, Riposte")
 assertEq(BT.DEFAULTS.nAlerts, true, "on to start with")
 BT.db.nAlerts = true

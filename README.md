@@ -88,11 +88,14 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
   - hits that land the instant you cast (instant attacks and spells with no travel time);
   - spells that fly to their target and land a moment later: Fireball, Frostbolt, Pyroblast, Shadow Bolt, Soul Fire, Wrath, Starfire, Lightning Bolt, Chain Lightning, Hammer of Wrath and Arcane Shot (and the burn Fireball and Pyroblast leave);
   - the ticks of your damage-over-time spells (Rake, Rip, Rend, Moonfire, Corruption, Shadow Word: Pain and the like). Bleeds need Start BattleText clicked;
+  - channeled spells (Arcane Missiles, Mind Flay, Drain Life, Drain Soul, Blizzard, Rain of Fire, Hurricane, Volley, Hellfire, Tranquility) and spells that keep burning an area (Consecration, Flamestrike, Magma, Fire Nova and Searing Totems), on every mob they hit;
+  - explosives you throw (Engineering's dynamite, bombs and grenades, Goblin Sapper Charge), on every mob they hit;
+  - your gear's **"Chance on hit"** damage (Shadowfang, Thunderfury and the like) and weapon enchants that hurt (Fiery Weapon, Icy Chill, Lifestealing, Unholy Weapon), named after the item or enchant;
   - your **damage shields**: buffs (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen one answer two blows, and gear that hurts whoever strikes you (named after the item). Turn off **Damage shields** in the options to hide these;
   - a paladin's **seal** (Righteousness, Command): its Holy damage landing with your swing. Turn off **Name seal hits** in the options to show it as a plain number.
 
   Other hits show as a plain number in their school's color.
-- **Seals in a fight.** The game hides your buffs during a fight, so a seal coming off is worked out: Judgement uses it up, a new seal replaces it, or its 30 seconds run out.
+- **Seals in a fight.** The game hides your buffs during a fight, so a seal coming off is worked out: a new seal replaces it, or its time runs out (Judgement leaves it on).
 - **Buffs** (off unless you turn them on) show when they go on or come off. The game hides your buffs during a fight: there, a buff you put on yourself (Slice and Dice, Evasion, Sprint...) shows as you cast it, and the rest of what changed, including when those ran out, shows when the fight ends. Food, drink, and buffs with no time limit (mounts, auras, stances) aren't shown, and nothing is shown when you die.
 - **The last swing on a mob may not show**: the game stops reporting a unit the moment it dies.
 - **Damage you take has no spell names.**
