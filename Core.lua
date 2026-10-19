@@ -1018,7 +1018,8 @@ local SHIELD_SPELLS = {
 }
 
 -- A paladin's seals: { first rank's ID, English name, school of the damage it adds
--- to your swings (none for the seals that don't hurt) }. Judgement uses up the seal.
+-- to your swings (none for the seals that don't hurt) }. On Forever Judgement doesn't use
+-- up the seal (players' reports): it stays until its time runs out or another replaces it.
 local SEAL_SPELLS = {
     { 21084, "Seal of Righteousness", 2 }, { 20375, "Seal of Command", 2 },
     { 21082, "Seal of the Crusader" }, { 20164, "Seal of Justice" }, { 20165, "Seal of Light" },
@@ -1034,7 +1035,7 @@ local SELF_BUFFS = {
     { 3045, "Rapid Fire" }, { 12042, "Arcane Power" }, { 12043, "Presence of Mind" }, { 11129, "Combustion" },
     { 498, "Divine Protection" }, { 642, "Divine Shield" }, { 20216, "Divine Favor" },
 }
-local SEAL_TIME = 30   -- how long a seal lasts, in seconds
+local SEAL_TIME = 30   -- how long a seal lasts, in seconds, until a reading of your buffs says (db.sealTimes)
 -- Spells that fly to their target, so they land after the cast: { first rank's ID,
 -- English name, school, seconds between ticks of what it leaves burning (if it does) }.
 -- Fireball and Pyroblast tick from when they land, not from the cast.
@@ -1046,6 +1047,20 @@ local FLIGHT_SPELLS = {
     { 24275, "Hammer of Wrath", 2 }, { 3044, "Arcane Shot", 64 },
 }
 local FLIGHT_TIME = 2.5   -- the longest a spell can be on its way (about 40 yards)
+-- Things you throw or set off from your bags (Engineering's explosives): { the item's spell ID,
+-- English name, school }. They land on everything where they go off, which needn't be your
+-- target, a moment after the throw (or at once, for a Sapper Charge).
+local THROWN_ITEMS = {
+    { 4054, "Rough Dynamite", 4 }, { 4061, "Coarse Dynamite", 4 }, { 4062, "Heavy Dynamite", 4 },
+    { 12419, "Solid Dynamite", 4 }, { 23063, "Dense Dynamite", 4 },
+    { 8331, "Ez-Thro Dynamite", 4 }, { 23000, "Ez-Thro Dynamite II", 4 },
+    { 4064, "Rough Copper Bomb", 4 }, { 4065, "Large Copper Bomb", 4 }, { 4066, "Small Bronze Bomb", 4 },
+    { 4067, "Big Bronze Bomb", 4 }, { 4068, "Iron Grenade", 4 }, { 4069, "Big Iron Bomb", 4 },
+    { 12421, "Mithril Frag Bomb", 4 }, { 12543, "Hi-Explosive Bomb", 4 }, { 12562, "The Big One", 4 },
+    { 19769, "Thorium Grenade", 4 }, { 19784, "Dark Iron Bomb", 4 }, { 19821, "Arcane Bomb", 64 },
+    { 13241, "Goblin Sapper Charge", 4 },
+}
+local THROW_TIME = 2.5   -- the longest one can take to go off after the throw
 -- Abilities you can use only just after something happens: { first rank's ID, English
 -- name, class, what opens it, level it's learned at (none: a talent) }. What opens it:
 -- "dodged" your target dodged you; "avoided" you dodged, parried or blocked; "parried" you parried.
@@ -1084,6 +1099,10 @@ function BT:SpellLists()
     end
     for _, e in ipairs(FLIGHT_SPELLS) do
         for _, name in ipairs(names(e)) do self.flights[name] = { school = e[3], period = e[4] } end
+    end
+    self.thrownItems = {}
+    for _, e in ipairs(THROWN_ITEMS) do
+        for _, name in ipairs(names(e)) do self.thrownItems[name] = { school = e[3] } end
     end
     return self.periodic, self.shields
 end
@@ -1131,25 +1150,33 @@ end
 
 -- The seal you have on (self.seal), and a line when one goes on or comes off.
 -- Buffs can be read out of a fight only; in a fight a seal coming off is worked
--- out: Judgement uses it up, a new seal replaces it, or its time runs out.
+-- out: a new seal replaces it, or its time runs out. (Judgement leaves it on.)
 function BT:SealNotice(seal, on)
     if not self.db.nSeals then return end
     local icon = self.db.nIcons and self:IconText(seal.id) or ""
     self:Notify(icon .. (on and "+" or "-") .. seal.name, self.TEXT_COLORS.seal)
 end
 
+-- How long a seal lasts: what your buffs said it lasts, the last time it was read
+function BT:SealTime(name)
+    local t = self.db.sealTimes and Num(self.db.sealTimes[name])
+    return (t and t > 0) and t or SEAL_TIME
+end
+
+-- seal.ends: when the game says it runs out (a reading of your buffs), else from now
 function BT:SetSeal(seal, quiet)
     local old = self.seal
+    local ends = seal.ends or (GetTime() + self:SealTime(seal.name))
     if old and old.name == seal.name then
-        old.ends = GetTime() + SEAL_TIME   -- put on again: it lasts from now
+        old.ends = ends   -- put on again: it lasts from now
     else
         if old and not quiet then self:SealNotice(old, false) end
-        self.seal = { id = seal.id, name = seal.name, school = seal.school, ends = GetTime() + SEAL_TIME }
+        self.seal = { id = seal.id, name = seal.name, school = seal.school, ends = ends }
         if not quiet then self:SealNotice(self.seal, true) end
     end
     local mine = self.seal
     if C_Timer and C_Timer.After then
-        C_Timer.After(SEAL_TIME + 0.1, function()
+        C_Timer.After(math.max(0, ends - GetTime()) + 0.1, function()
             if BT.seal == mine and GetTime() >= mine.ends then BT:LoseSeal() end
         end)
     end
@@ -1167,7 +1194,16 @@ function BT:SeenSeal(found)
     local first = not self.sealRead
     self.sealRead = true
     if found then
-        if not self.seal or self.seal.name ~= found.name then self:SetSeal(found, first) end
+        -- How long it lasts on this game, for the next time it's cast in a fight
+        if found.duration and found.duration > 0 then
+            self.db.sealTimes = self.db.sealTimes or {}
+            self.db.sealTimes[found.name] = found.duration
+        end
+        if not self.seal or self.seal.name ~= found.name then
+            self:SetSeal(found, first)
+        elseif found.ends and found.ends ~= self.seal.ends then
+            self:SetSeal(found, true)   -- the game knows when it runs out
+        end
     elseif self.seal then
         self:LoseSeal(first)
     end
@@ -1388,6 +1424,14 @@ function BT:OnSpellcast(spellId)
         self.flying[#self.flying + 1] = { id = id, name = name, at = GetTime(), key = flightKey,
             school = flight.school, period = flight.period }
     end
+    -- Something thrown goes off where it lands, on whatever is there (ThrownFor)
+    local thrown = self.thrownItems[name]
+    if thrown then
+        self:ForgetOldThrows()
+        self.thrown = self.thrown or {}
+        while #self.thrown >= 10 do table.remove(self.thrown, 1) end
+        self.thrown[#self.thrown + 1] = { id = id, name = name, at = GetTime(), school = thrown.school }
+    end
     local dot = periodic[name]
     local key = dot and UnitKey("target")
     if key then
@@ -1401,7 +1445,7 @@ function BT:OnSpellcast(spellId)
         self.buffShields[name] = { name = name, id = id, school = shields[name].school }
     end
     self.lastCast = { name = name, at = GetTime() }
-    local seals, judgement = self:SealLists()
+    local seals = self:SealLists()
     -- In a fight your buffs are hidden: a buff you put on yourself shows as you cast it
     if not seals[name] and InCombatLockdown() and self:IsSelfBuffCast(id, name) then
         self.fightBuffs = self.fightBuffs or {}
@@ -1413,8 +1457,6 @@ function BT:OnSpellcast(spellId)
     end
     if seals[name] then
         self:SetSeal({ id = id, name = seals[name].name, school = seals[name].school })
-    elseif judgement[name] then
-        self:LoseSeal()
     end
 end
 
@@ -1439,7 +1481,9 @@ function BT:ScanShield()
             found[name] = { name = name, id = Num(a.spellId) or shields[name].id, school = shields[name].school }
         end
         if name and seals[name] then
-            seal = { id = Num(a.spellId) or seals[name].id, name = seals[name].name, school = seals[name].school }
+            local ends, duration = Num(a.expirationTime), Num(a.duration)
+            seal = { id = Num(a.spellId) or seals[name].id, name = seals[name].name, school = seals[name].school,
+                duration = duration, ends = (ends and ends > 0) and ends or nil }
         elseif name then
             local icon = a.icon
             buffs[name] = { name = name, icon = Num(icon) or Str(icon), duration = Num(a.duration) }
@@ -1587,6 +1631,7 @@ function BT:ForgetOldDots()
         if next(list) == nil then self.dots[key] = nil end
     end
     self:ForgetOldFlights()
+    self:ForgetOldThrows()
 end
 
 -- The damage-over-time spell of yours whose tick this hit is: one you cast on
@@ -1687,6 +1732,51 @@ function BT:ForgetOldFlights()
     end
 end
 
+-- Something you threw that this hit is: the oldest one thrown in the last THROW_TIME
+-- seconds, before this frame, of the hit's school, on any unit (it hits all those where
+-- it goes off). Once it has hit something, it's good for the rest of that frame only.
+-- A miss is one only if it's of its school or a way only spells miss.
+function BT:ThrownFor(h)
+    local list = self.thrown
+    if not list or (h.kind ~= "damage" and h.kind ~= "miss") then return nil end
+    local mask = Num(h.school)
+    local how = h.action == "WOUND" and h.flag or h.action
+    for i = #list, 1, -1 do   -- gone off in an earlier frame: done
+        if list[i].landed and list[i].landed ~= h.time then table.remove(list, i) end
+    end
+    for _, t in ipairs(list) do
+        if h.time > t.at and h.time - t.at <= THROW_TIME then
+            local fits
+            if h.kind == "damage" then
+                fits = mask ~= nil and mask == t.school and not self:KnownShield(h)
+            else
+                fits = (mask ~= nil and mask == t.school) or SPELL_MISSES[how or ""] == true
+            end
+            if fits then return t end
+        end
+    end
+    return nil
+end
+
+-- A throw named a hit in its own frame (it went off at once): it's done after this frame
+function BT:ThrowLanded(name, at)
+    for _, t in ipairs(self.thrown or {}) do
+        if t.name == name and not t.landed then
+            t.landed = at
+            return
+        end
+    end
+end
+
+-- Throws that never hit anything
+function BT:ForgetOldThrows()
+    local list, now = self.thrown, GetTime()
+    if not list then return end
+    for i = #list, 1, -1 do
+        if now - list[i].at > THROW_TIME or (list[i].landed and list[i].landed ~= now) then table.remove(list, i) end
+    end
+end
+
 -- One frame's events, in the order they came: seq[first..last]
 function BT:ResolveFrame(seq, first, last)
     local periodic = self:SpellLists()
@@ -1698,9 +1788,9 @@ function BT:ResolveFrame(seq, first, last)
     local castSchool   -- the school of the hits this frame's cast has been given
     local castStruck = {}   -- and the units they were on
     -- A spell that flies: its school is known, and a miss is its own only if a spell's
-    local castFlight = cast and self.flights[cast.name or ""]
+    local castFlight = cast and (self.flights[cast.name or ""] or self.thrownItems[cast.name or ""])
     local function schoolOf(c)
-        local f = self.flights[c.name or ""]
+        local f = self.flights[c.name or ""] or self.thrownItems[c.name or ""]
         return (f and f.school) or (self.spellSchool and self.spellSchool[c.id])
     end
     local function flightMiss(h)
@@ -1805,6 +1895,7 @@ function BT:ResolveFrame(seq, first, last)
                         self:TakeFlight(cast.name, h.key)
                         self:NoteFlightHit(cast.id, h)
                     end
+                    if self.thrownItems[cast.name or ""] then self:ThrowLanded(cast.name, h.time) end
                 end
             end
             -- In a group, a hit is yours only with a line of yours (see ClaimHit)
@@ -1821,6 +1912,16 @@ function BT:ResolveFrame(seq, first, last)
                     what, spell = "cast", f
                     self:Landed(f, at, h)
                     self:NoteFlightHit(f.id, h)
+                end
+            end
+            -- Something you threw going off. As above, a tick of yours on its beat comes first.
+            if not spell and claimed then
+                local t = self:ThrownFor(h)
+                local dot = t and self:TickFor(h)
+                if dot and not (dot.tick and h.n and h.n ~= dot.tick) then t = nil end
+                if t then
+                    what, spell = "cast", t
+                    t.landed = h.time
                 end
             end
             if not spell then
@@ -2160,6 +2261,7 @@ function BT:CheckGameData()
     for _, e in ipairs(SEAL_SPELLS) do spell(e[1], e[2], "seal") end
     for _, e in ipairs(SELF_BUFFS) do spell(e[1], e[2], "buff") end
     for _, e in ipairs(FLIGHT_SPELLS) do spell(e[1], e[2], "flies") end
+    for _, e in ipairs(THROWN_ITEMS) do spell(e[1], e[2], "thrown") end
     for _, e in ipairs(REACTIVE_SPELLS) do spell(e[1], e[2], "alert") end
     spell(JUDGEMENT[1], JUDGEMENT[2], "seal")
     local skillNames = { [2366] = "Herbalism", [2575] = "Mining", [7620] = "Fishing" }

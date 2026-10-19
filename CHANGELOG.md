@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.11.1
+
+- **Explosives are named, with their icon.** Dynamite and other thrown explosives showed only a number. Now their hits show the item's name and icon, like your abilities, on every mob they hit (your target or not). Covered: Rough, Coarse, Heavy, Solid and Dense Dynamite, Ez-Thro Dynamite and Ez-Thro Dynamite II, Rough Copper Bomb, Large Copper Bomb, Small and Big Bronze Bomb, Iron Grenade, Big Iron Bomb, Mithril Frag Bomb, Hi-Explosive Bomb, The Big One, Thorium Grenade, Dark Iron Bomb, Arcane Bomb and Goblin Sapper Charge. A resist is named too. (Thanks to prestoncr for reporting it.)
+- **Paladins: Judgement no longer takes your seal off.** On Forever a seal stays on when you cast Judgement, but BattleText showed "-Seal" at Judgement, then a "+Seal" you hadn't cast at the next look at your buffs. Now the seal stays until it runs out or another seal replaces it, and its hits beside your swing keep its name. How long a seal lasts is now taken from the game when your buffs can be read, so it goes away on time. (Thanks to anmjr757 for reporting it.)
+
 ## 1.11.0
 
 - **Spells that fly to their target are named.** Fireball, Frostbolt, Pyroblast, Shadow Bolt, Soul Fire, Wrath, Starfire, Lightning Bolt, Chain Lightning, Hammer of Wrath and Arcane Shot showed as bare numbers, because they land a moment after the cast. Now the hit of that spell's school that lands on the mob you cast it at, within a couple of seconds, is named after it, with its icon. A resist is named too ("Frostbolt Resist").

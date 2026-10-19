@@ -2575,9 +2575,22 @@ wound(30, 1)
 wound(14, 2)
 assertEq(last("outgoing"), "14", "Seal damage turned off: a plain number")
 BT.db.outSeals = true
--- Judgement uses it up
+-- On Forever Judgement leaves the seal on (issue #7: "-Seal" showed at Judgement, then
+-- "+Seal" at the next reading of your buffs, though you hadn't cast it)
+clear()
 cast(20271)
-assertEq(last("notify"), "-Seal of Righteousness", "Judgement takes the seal off")
+assertEq(last("notify"), nil, "Judgement doesn't take the seal off")
+assertEq(BT.seal and BT.seal.name, "Seal of Righteousness", "the seal is still on")
+Advance(1)
+wound(30, 1)
+wound(12, 2)
+assertEq(last("outgoing"), "Seal of Righteousness 12", "and its hits are still named after it")
+STATE.buffs = { { name = "Seal of Righteousness", spellId = 21084 } }
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), nil, "a reading of your buffs after Judgement: no new +Seal")
+STATE.buffs = {}
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), "-Seal of Righteousness", "it's gone when your buffs say so")
 Advance(1)
 wound(30, 1)
 wound(12, 2)
@@ -2623,14 +2636,35 @@ STATE.buffsHidden = false
 -- Turned off
 clear()
 BT.db.nSeals = false
-cast(20271)
+cast(20375)
 assertEq(#lines("notify"), 0, "no lines with Seals turned off")
-assertEq(BT.seal, nil, "though the seal is still followed")
+assertEq(BT.seal and BT.seal.name, "Seal of Command", "though the seal is still followed")
+BT:LoseSeal(true)
 BT.db.nSeals = true
 SetIcons(true)
 cast(21084)
 assertEq(last("notify"), "|T132325:0|t +Seal of Righteousness", "with its icon when icons are on")
-cast(20271)
+BT:LoseSeal(true)
+-- How long a seal lasts is taken from your buffs: when it runs out, and how long it
+-- lasts for the next time it's cast in a fight (Forever's may not be Classic's 30s)
+clear()
+STATE.buffs = { { name = "Seal of Command", spellId = 20375, duration = 45, expirationTime = GetTime() + 40 } }
+fire("UNIT_AURA", "player")
+assertEq(last("notify"), "+Seal of Command", "a seal seen among your buffs")
+Advance(35)
+assertEq(BT.seal and BT.seal.name, "Seal of Command", "still on: the game says it runs out in 40 seconds")
+STATE.buffsHidden = true
+Advance(5.5)
+assertEq(last("notify"), "-Seal of Command", "and it runs out then")
+clear()
+cast(20375)
+Advance(44)
+assertEq(BT.seal and BT.seal.name, "Seal of Command", "cast in a fight: it lasts what the game said, 45 seconds")
+Advance(1.5)
+assertEq(last("notify"), "-Seal of Command", "then runs out")
+STATE.buffsHidden = false
+STATE.buffs = {}
+BT.db.sealTimes = nil
 SetIcons(false)
 STATE.who.target = nil
 clear()
@@ -2839,6 +2873,85 @@ wound(56, 16)
 BT:FlushHits(true)
 assert(table.concat(BT.recorded, "\n"):find("cast of Frostbolt", 1, true), "debug names the spell")
 BT.db.debug = false
+BT.db.merge = true
+clear()
+
+step("explosives you throw (issue #6)")
+STATE.unit.mobA = { enemy = true, guid = "Creature-0-1-2-3-100-00000A", target = "me" }
+STATE.unit.mobB = { enemy = true, guid = "Creature-0-1-2-3-100-00000B", target = "me" }
+STATE.unit.mobC = { enemy = true, guid = "Creature-0-1-2-3-100-00000C" }   -- not after you
+STATE.group, STATE.who.target = false, "mobA"
+STATE.who.nameplate1, STATE.who.nameplate2, STATE.who.nameplate3 = "mobA", "mobB", "mobC"
+STATE.spellNames[4054], STATE.spellNames[13241], STATE.spellNames[19821] = "Rough Dynamite", "Goblin Sapper Charge", "Arcane Bomb"
+STATE.spellIcons[4054] = 133714
+freshFight()
+BT.thrown = nil
+SetIcons(false)
+BT.db.merge = false
+local function throw(id) fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-throw", id) end
+local function on(unit, amount, school, action, flag)
+    fire("UNIT_COMBAT", unit, action or "WOUND", flag or "", amount, school)
+end
+-- Dynamite goes off a moment after the throw, on every mob where it lands
+throw(4054)
+assertEq(#lines("outgoing"), 0, "nothing lands with the throw")
+Advance(0.9)
+on("target", 30, 4)
+on("nameplate2", 28, 4)
+on("nameplate3", 27, 4)
+assertEq(table.concat(lines("outgoing"), " / "), "Rough Dynamite 30 / Rough Dynamite 28 / Rough Dynamite 27",
+    "every mob it hits, your target or not, gets its name")
+Advance(0.3)
+on("target", 31, 4)
+assertEq(last("outgoing"), "31", "it went off: a fire hit after that is something else")
+clear()
+-- With its icon, as your spells have
+SetIcons(true)
+throw(4054)
+Advance(0.8)
+on("nameplate2", 29, 4)
+assertEq(last("outgoing"), "|T133714:0|t Rough Dynamite 29", "with the dynamite's icon")
+SetIcons(false)
+clear()
+-- Only a hit of its school, while it can still be on its way
+throw(4054)
+Advance(0.5)
+wound(25, 1)
+assertEq(last("outgoing"), "25", "a swing landing meanwhile isn't the dynamite")
+on("target", 0, 1, "DODGE")
+assertEq(last("outgoing"), "Dodge", "nor is a dodged swing")
+Advance(0.4)
+on("target", 0, 4, "RESIST")
+assertEq(last("outgoing"), "Rough Dynamite Resist", "a resist is the dynamite's")
+throw(4054)
+Advance(2.6)
+on("target", 30, 4)
+assertEq(last("outgoing"), "30", "too long after the throw: something else")
+clear()
+-- A Sapper Charge goes off at once, in the frame of its use
+throw(13241)
+on("target", 300, 4)
+on("nameplate2", 290, 4)
+assertEq(table.concat(lines("outgoing"), " / "), "Goblin Sapper Charge 300 / Goblin Sapper Charge 290",
+    "a charge that goes off at once names its hits")
+Advance(0.5)
+on("target", 31, 4)
+assertEq(last("outgoing"), "31", "and it's done after that")
+clear()
+-- Each explosive has its school: an Arcane Bomb's hit is arcane
+throw(19821)
+Advance(0.7)
+on("target", 40, 4)
+assertEq(last("outgoing"), "40", "a fire hit isn't an Arcane Bomb")
+on("target", 41, 64)
+assertEq(last("outgoing"), "Arcane Bomb 41", "an arcane one is")
+-- Never landed: forgotten when the fight ends
+throw(4054)
+Advance(5)
+fire("PLAYER_REGEN_ENABLED")
+assertEq(#BT.thrown, 0, "a throw that never hit anything is forgotten")
+STATE.who.nameplate1, STATE.who.nameplate2, STATE.who.nameplate3 = nil, nil, nil
+STATE.unit.mobC = nil
 BT.db.merge = true
 clear()
 
