@@ -31,6 +31,7 @@ BT.TEXT_COLORS = {
     seal      = { 1.00, 0.92, 0.55 },
     buff      = { 0.55, 0.85, 1.00 },
     alert     = { 1.00, 1.00, 0.20 },
+    combo     = { 1.00, 0.60, 0.20 },
 }
 -- What they start as; db.colors holds the ones you've changed (ApplyColors)
 BT.DEFAULT_COLORS = {}
@@ -45,6 +46,7 @@ BT.COLOR_CHOICES = {
     { "combat", "+Combat and killing blows" }, { "xp", "Experience" },
     { "loot", "Loot" }, { "seal", "Seals" },
     { "buff", "Buffs" }, { "alert", "Ability alerts" },
+    { "combo", "Combo points" },
 }
 -- Spell damage is tinted by its school (the game's own words for them)
 local SCHOOL_KEYS = {
@@ -104,6 +106,8 @@ local DEFAULTS = {
     nBuffs = false,           -- a line when a buff goes on or comes off (out of a fight only)
     nSummary = true,          -- at the end of a fight: your damage, DPS and healing
     nAlerts = true,           -- "Overpower!" when an ability you can use only just then opens up
+    nCombo = true,            -- "3 CP", and "5 CP: Finish it!" (rogues and cat druids)
+    spellRules = {},          -- spells you hide or recolor (Spells tab): { { name =, hide =, color = { r, g, b } } }
     soundCrit = false,        -- a sound when you crit
     soundKill = false,        -- a sound on a killing blow
     critSound = "UI_PROFESSION_CRAFTING_RESULT_CRIT",   -- which ones (keys of BT.SOUNDS)
@@ -237,6 +241,7 @@ local function Commas(n)
     end
     return tostring(n)
 end
+BT.Commas = Commas
 
 ---------------------------------------------------------------------------
 -- Scroll areas and the lines moving through them
@@ -695,17 +700,68 @@ function BT:CountFight(what, n)
     if f and type(n) == "number" and n > 0 then f[what] = f[what] + n end
 end
 
+-- The same, by spell, for /btf last. name: what the hit was named (or "Auto attack",
+-- "Unnamed Fire"); heal: a heal; icon: as text, for the window.
+function BT:CountSpell(name, n, crit, heal, icon)
+    local f = self.fight
+    if not f or type(n) ~= "number" or n <= 0 or not name then return end
+    f.spells = f.spells or {}
+    local key = (heal and "heal:" or "damage:") .. name
+    local s = f.spells[key]
+    if not s then
+        s = { name = name, heal = heal or false, icon = icon or "", hits = 0, crits = 0, total = 0, biggest = 0 }
+        f.spells[key] = s
+    end
+    s.hits, s.total = s.hits + 1, s.total + n
+    if crit then s.crits = s.crits + 1 end
+    if n > s.biggest then s.biggest = n end
+end
+
+-- What to call a hit nothing named, for /btf last: a physical one is a swing, the rest by school
+local function UnnamedHit(mask)
+    if not mask or mask == 1 then return "Auto attack" end
+    for i, school in ipairs(SCHOOL_KEYS) do
+        if 2 ^ i == mask then return "Unnamed " .. (Str(_G[school[1]]) or school[2]) end
+    end
+    return "Unnamed"
+end
+
+-- The last fight by spell: damage first, then heals, each biggest total first, with each
+-- one's share of its kind ("share", a percent). Returns the rows and the fight.
+function BT:FightBreakdown(f)
+    f = f or self.lastFight
+    if not f then return nil end
+    local rows = {}
+    for _, s in pairs(f.spells or {}) do rows[#rows + 1] = s end
+    table.sort(rows, function(a, b)
+        if a.heal ~= b.heal then return not a.heal end
+        if a.total ~= b.total then return a.total > b.total end
+        return a.name < b.name
+    end)
+    for _, s in ipairs(rows) do
+        local all = s.heal and f.heal or f.damage
+        s.share = all > 0 and math.floor(s.total * 100 / all + 0.5) or 0
+    end
+    return rows, f
+end
+
+-- "4,820 damage (127 DPS), 1,200 healed in 38s"
+function BT:FightLine(f)
+    local parts = {}
+    if f.damage > 0 then
+        parts[#parts + 1] = Commas(f.damage) .. " damage (" .. Commas(math.floor(f.damage / f.secs + 0.5)) .. " DPS)"
+    end
+    if f.heal > 0 then parts[#parts + 1] = Commas(f.heal) .. " healed" end
+    return table.concat(parts, ", ") .. " in " .. f.secs .. "s"
+end
+
 function BT:FightSummary()
     local f = self.fight
     self.fight = nil
-    if not f or not self.db.nSummary or (f.damage == 0 and f.heal == 0) then return end
-    local secs = math.max(1, math.floor(GetTime() - f.start + 0.5))
-    local parts = {}
-    if f.damage > 0 then
-        parts[#parts + 1] = Commas(f.damage) .. " damage (" .. Commas(math.floor(f.damage / secs + 0.5)) .. " DPS)"
-    end
-    if f.heal > 0 then parts[#parts + 1] = Commas(f.heal) .. " healed" end
-    self:Notify(table.concat(parts, ", ") .. " in " .. secs .. "s", self.TEXT_COLORS.notify)
+    if not f or (f.damage == 0 and f.heal == 0) then return end
+    f.secs = math.max(1, math.floor(GetTime() - f.start + 0.5))
+    self.lastFight = f
+    if self.db.nSummary then self:Notify(self:FightLine(f), self.TEXT_COLORS.notify) end
 end
 
 -- The game's sounds you can pick for a crit or a killing blow, by their SOUNDKIT
@@ -791,11 +847,15 @@ function BT:ShowCombat(info)
             return true
         elseif (mine or pet) and not info.split then
             self:CountFight("damage", info.amount)
+            self:CountSpell((pet and "(Pet) " or "") .. (info.spell or "Auto attack"), info.amount, info.crit, false,
+                spellIcon)
             if pet and not db.outPet then return true end
             if mine and info.melee and not db.outSwings then return true end
             if not db.outDamage or info.amount < db.minDamage then return true end
+            local rule = self:SpellRule(info.spell)
+            if rule and rule.hide then return true end
             if info.crit and db.soundCrit then self:PlayAlert("crit") end
-            local color = (info.spell and (self:SchoolColor(info.unit) or C.spell)) or C.melee
+            local color = (rule and rule.color) or (info.spell and (self:SchoolColor(info.unit) or C.spell)) or C.melee
             self:Emit("outgoing", outLabel .. Commas(info.amount) .. Partials(info), color, {
                 crit = info.crit,
                 key = (pet and "pet:" or "") .. (info.periodic and "tick:" or "") .. (info.spellId or info.spell or "melee"),
@@ -811,27 +871,33 @@ function BT:ShowCombat(info)
         if not info.amount then return false end
         local over = (db.healOver and info.overheal) and (" |cffb0b0b0(" .. Commas(info.overheal) .. " over)|r") or ""
         local nothing = info.amount == 0 and info.overheal   -- all of it was overhealing
+        local rule = (mine or pet) and self:SpellRule(info.spell) or nil
+        local healColor = rule and rule.color or C.heal
         if info.toMe then
             if mine then
                 self:NoteSelfHeal(info.amount, info.overheal)
                 self:CountFight("heal", info.amount)
+                self:CountSpell(info.spell or "Unnamed heal", info.amount, info.crit, true, spellIcon)
             else
                 self:NoteLogIncoming("heal")
             end
-            if nothing or not self:HealShown(info.amount) then return true end
+            if nothing or not self:HealShown(info.amount) or (rule and rule.hide) then return true end
             if db.inHeals then
                 self:Emit(self:HealArea("incoming"), "+" .. Commas(info.amount) .. SpellAfter(icon, name) .. over,
-                    C.heal, { crit = info.crit, amount = info.amount })
+                    healColor, { crit = info.crit, amount = info.amount })
             elseif mine and db.outHeals then
-                self:Emit(self:HealArea("outgoing"), outLabel .. "+" .. Commas(info.amount) .. over, C.heal,
+                self:Emit(self:HealArea("outgoing"), outLabel .. "+" .. Commas(info.amount) .. over, healColor,
                     { crit = info.crit, amount = info.amount })
             end
             return true
         elseif mine or pet then
             self:CountFight("heal", info.amount)
+            self:CountSpell((pet and "(Pet) " or "") .. (info.spell or "Unnamed heal"), info.amount, info.crit, true,
+                spellIcon)
             if pet and not db.outPet then return true end
+            if rule and rule.hide then return true end
             if db.outHeals and not nothing and self:HealShown(info.amount) then
-                self:Emit(self:HealArea("outgoing"), outLabel .. "+" .. Commas(info.amount) .. over, C.heal,
+                self:Emit(self:HealArea("outgoing"), outLabel .. "+" .. Commas(info.amount) .. over, healColor,
                     { crit = info.crit, amount = info.amount })
             end
             return true
@@ -848,6 +914,8 @@ function BT:ShowCombat(info)
             if mine and info.missType == "DODGE" then self:React("dodged") end   -- (Overpower)
             if pet and not db.outPet then return true end
             if mine and info.melee and not db.outSwings then return true end
+            local rule = self:SpellRule(info.spell)
+            if rule and rule.hide then return true end
             if db.outMisses then self:Emit("outgoing", outLabel .. word, C.miss) end
             return true
         end
@@ -1077,12 +1145,15 @@ local AREA_SPELLS = {
 local AREA_SLACK = 1   -- what's still on its way when a channel stops (Arcane Missiles) lands this late
 -- Abilities you can use only just after something happens: { first rank's ID, English
 -- name, class, what opens it, level it's learned at (none: a talent) }. What opens it:
--- "dodged" your target dodged you; "avoided" you dodged, parried or blocked; "parried" you parried.
+-- "dodged" your target dodged you; "avoided" you dodged, parried or blocked; "parried" you parried;
+-- "usable" the game says it can be cast (Execute, Hammer of Wrath: the target is low on health).
 local REACTIVE_SPELLS = {
     { 7384, "Overpower", "WARRIOR", "dodged", 12 },
     { 6572, "Revenge", "WARRIOR", "avoided", 14 },
     { 14251, "Riposte", "ROGUE", "parried" },
     { 19306, "Counterattack", "HUNTER", "parried" },
+    { 5308, "Execute", "WARRIOR", "usable", 24 },
+    { 24275, "Hammer of Wrath", "PALADIN", "usable", 44 },
 }
 local REACT_GAP = 1   -- seconds before the same alert shows again
 
@@ -1291,15 +1362,130 @@ end
 -- as in REACTIVE_SPELLS): "Overpower!" in Notifications
 function BT:React(what)
     if not self.db.nAlerts then return end
+    for _, e in ipairs(REACTIVE_SPELLS) do
+        if e[4] == what and self:HasReactive(e) then self:Alert(e[1], SpellName(e[1]) or e[2]) end
+    end
+end
+
+-- "<name>!" in Notifications, once per REACT_GAP for each name
+function BT:Alert(id, name)
     local now = GetTime()
     self.reactAt = self.reactAt or {}
+    if self.reactAt[name] and now - self.reactAt[name] < REACT_GAP then return end
+    self.reactAt[name] = now
+    local icon = self.db.nIcons and self:IconText(id) or ""
+    self:Notify(icon .. name .. "!", self.TEXT_COLORS.alert, { crit = true })
+end
+
+-- The "usable" ones of REACTIVE_SPELLS (Execute, Hammer of Wrath): an alert when the game
+-- starts saying one can be cast on your enemy target. Only once the game has been seen to
+-- say no with power to spare (otherwise its answer doesn't depend on the target's health,
+-- and an alert would mean nothing). Not enough rage or mana keeps it waiting: the alert
+-- comes when it can really be pressed.
+function BT:CheckUsable(newTarget)
+    local usable = (C_Spell and C_Spell.IsSpellUsable) or IsUsableSpell
+    if not self.db.nAlerts or not usable then return end
+    self.usableNow, self.usableLearned = self.usableNow or {}, self.usableLearned or {}
+    local enemy = Flag(UnitCanAttack, "player", "target") and not Flag(UnitIsDeadOrGhost, "target")
     for _, e in ipairs(REACTIVE_SPELLS) do
-        if e[4] == what and not (self.reactAt[e[2]] and now - self.reactAt[e[2]] < REACT_GAP) and self:HasReactive(e) then
-            self.reactAt[e[2]] = now
-            local icon = self.db.nIcons and self:IconText(e[1]) or ""
-            self:Notify(icon .. (SpellName(e[1]) or e[2]) .. "!", self.TEXT_COLORS.alert, { crit = true })
+        if e[4] == "usable" and self:HasReactive(e) then
+            local name = SpellName(e[1]) or e[2]
+            if newTarget or not enemy then self.usableNow[name] = nil end
+            local ok, yes, noPower = pcall(usable, name)
+            if enemy and ok and not IsSecret(yes) and not IsSecret(noPower) then
+                yes, noPower = yes == true or yes == 1, noPower == true or noPower == 1
+                if yes then
+                    if not self.usableNow[name] and self.usableLearned[name] then self:Alert(e[1], name) end
+                    self.usableNow[name] = true
+                elseif not noPower then
+                    self.usableLearned[name] = true
+                    self.usableNow[name] = nil
+                end
+            end
         end
     end
+end
+
+-- A spell button lights up, or a proc shows its overlay (Clearcasting): "<name>!".
+-- glow: the button lighting up, which a proc's own overlay has already said.
+function BT:OnSpellOverlay(spellId, glow)
+    if not self.db.nAlerts then return end
+    local id = Num(spellId)
+    local name = id and SpellName(id)
+    if not name then return end
+    local now = GetTime()
+    if glow and self.overlayAt and now - self.overlayAt < 0.2 then return end
+    if not glow then self.overlayAt = now end
+    self:Alert(id, name)
+end
+
+-- Combo points: "2 CP" as they go up, "5 CP: Finish it!" at the most you can have
+local function ComboPoints()
+    local kind = Enum and Enum.PowerType and Enum.PowerType.ComboPoints or 4
+    local n, most
+    if UnitPower then
+        local ok, v = pcall(UnitPower, "player", kind)
+        n = ok and Num(v) or nil
+    end
+    if n == nil and GetComboPoints then
+        local ok, v = pcall(GetComboPoints, "player", "target")
+        n = ok and Num(v) or nil
+    end
+    if UnitPowerMax then
+        local ok, v = pcall(UnitPowerMax, "player", kind)
+        most = ok and Num(v) or nil
+    end
+    return n, (most and most > 0) and most or 5
+end
+
+function BT:OnComboPoints()
+    local n, most = ComboPoints()
+    if n == nil then return end
+    local was = self.combo or 0
+    self.combo = n
+    if not self.db.nCombo or n <= was then return end
+    if n >= most then
+        self:Notify(n .. " CP: Finish it!", self.TEXT_COLORS.combo, { crit = true })
+    else
+        self:Notify(n .. " CP", self.TEXT_COLORS.combo)
+    end
+end
+
+-- Your choices for a spell on the Spells tab (hide it, or a color of your own), by the
+-- name it shows with, whatever its case
+function BT:SpellRule(name)
+    if type(name) ~= "string" then return nil end
+    local by = self.rulesByName
+    if not by then
+        by = {}
+        for _, r in ipairs(self.db.spellRules) do
+            if type(r) == "table" and type(r.name) == "string" then by[r.name:lower()] = r end
+        end
+        self.rulesByName = by
+    end
+    return by[name:lower()]
+end
+
+-- Adds a spell to the Spells tab's list. Returns the rule, or nil and why not.
+function BT:AddSpellRule(name)
+    name = type(name) == "string" and name:match("^%s*(.-)%s*$") or ""
+    if name == "" then return nil, "type a spell's name first" end
+    if #name > 60 then return nil, "that name is too long" end
+    if self:SpellRule(name) then return nil, name .. " is already on the list" end
+    local rule = { name = name, hide = false }
+    table.insert(self.db.spellRules, rule)
+    self.rulesByName = nil
+    return rule
+end
+
+function BT:RemoveSpellRule(i)
+    table.remove(self.db.spellRules, i)
+    self.rulesByName = nil
+end
+
+function BT:SetSpellRule(rule, field, value)
+    rule[field] = value
+    self.rulesByName = nil
 end
 
 -- A Holy hit that lands with your swing on the same unit, while a seal that adds
@@ -2149,19 +2335,25 @@ end
 -- area: one of the hits of an area spell. Returns why not, if a setting hides it.
 function BT:ShowUnitHit(h, what, spell, area)
     local db, C = self.db, self.TEXT_COLORS
-    if h.kind == "damage" or h.kind == "heal" then self:CountFight(h.kind, h.n) end
-    -- Nothing to name it by: a swing (a physical hit, or a plain miss)
-    if what == "hit" and not spell and not db.outSwings
-            and (h.kind == "miss" or (h.kind == "damage" and Num(h.school) == 1)) then
-        return "auto attacks are turned off"
-    end
+    local spellName = spell and spell.name
     local icon = ""
     if spell and spell.id then
         icon = self:IconText(spell.id)
     elseif spell and spell.icon then
         icon = "|T" .. spell.icon .. ":0|t "   -- an item's
     end
-    local spellName = spell and spell.name
+    if h.kind == "damage" or h.kind == "heal" then
+        self:CountFight(h.kind, h.n)
+        self:CountSpell(spellName or (h.kind == "heal" and "Unnamed heal") or UnnamedHit(Num(h.school)), h.n, h.crit,
+            h.kind == "heal", icon)
+    end
+    -- Nothing to name it by: a swing (a physical hit, or a plain miss)
+    if what == "hit" and not spell and not db.outSwings
+            and (h.kind == "miss" or (h.kind == "damage" and Num(h.school) == 1)) then
+        return "auto attacks are turned off"
+    end
+    local rule = self:SpellRule(spellName)
+    if rule and rule.hide then return "hidden on the Spells tab" end
     local name
     icon, name = self:SpellParts(h.kind == "heal" and "heal" or "out", icon, spellName)
     local label = icon .. (name and (name .. " ") or "")
@@ -2170,7 +2362,8 @@ function BT:ShowUnitHit(h, what, spell, area)
         if not db.outDamage then return "damage is turned off" end
         if h.n and h.n < db.minDamage then return "below \"Hide hits below\"" end
         local mask = Num(h.school)
-        local color = MASK_COLORS[mask or 1] or ((spellName or (mask and mask ~= 1)) and C.spell) or C.melee
+        local color = (rule and rule.color) or MASK_COLORS[mask or 1]
+            or ((spellName or (mask and mask ~= 1)) and C.spell) or C.melee
         local note = FLAG_NOTES[h.flag or ""]
         note = note and (" |cffb0b0b0(" .. note .. ")|r") or ""
         if h.crit and db.soundCrit then self:PlayAlert("crit") end
@@ -2190,11 +2383,12 @@ function BT:ShowUnitHit(h, what, spell, area)
     elseif h.kind == "heal" then
         if not db.outHeals then return "heals are turned off" end
         local who = self:HealedName(h.unit)
+        local healColor = rule and rule.color or C.heal
         if h.secret then
-            self:Emit(self:HealArea("outgoing"), label .. "+", C.heal, { crit = h.crit, secret = h.amount, after = who })
+            self:Emit(self:HealArea("outgoing"), label .. "+", healColor, { crit = h.crit, secret = h.amount, after = who })
         else
             if not self:HealShown(h.n) then return "below \"Hide heals below\"" end
-            self:Emit(self:HealArea("outgoing"), label .. "+" .. Commas(h.n) .. who, C.heal, { crit = h.crit, amount = h.n })
+            self:Emit(self:HealArea("outgoing"), label .. "+" .. Commas(h.n) .. who, healColor, { crit = h.crit, amount = h.n })
         end
     else
         if not db.outMisses then return "misses are turned off" end
@@ -2631,6 +2825,7 @@ end
 
 function BT:ApplySettings()
     self:ApplyColors()
+    self.rulesByName = nil   -- (the spell list may be another one now)
     if not self.built then return end
     self:ApplyAreas()
     self:UpdateStartButton()
@@ -2852,6 +3047,18 @@ function BT:ReadSettings(text)
                         break
                     end
                 end
+            elseif k == "spellRules" then
+                -- (a list of { name =, hide =, color = }: anything else in it is left out)
+                took = {}
+                for _, r in ipairs(v) do
+                    if type(r) == "table" and type(r.name) == "string" and r.name ~= "" and #r.name <= 60 then
+                        local c = r.color
+                        local color = type(c) == "table" and type(c[1]) == "number" and type(c[2]) == "number"
+                            and type(c[3]) == "number"
+                            and { Clamp(c[1], { 0, 1 }), Clamp(c[2], { 0, 1 }), Clamp(c[3], { 0, 1 }) } or nil
+                        took[#took + 1] = { name = r.name, hide = r.hide == true, color = color }
+                    end
+                end
             elseif k == "areas" then
                 for name, pos in pairs(v) do
                     if DEFAULTS.areas[name] and type(pos) == "table" and type(pos.x) == "number" and type(pos.y) == "number" then
@@ -3055,6 +3262,7 @@ local function Help()
     print("  |cffffd100/btf reset|r  put the text areas back where they started")
     print("  |cffffd100/btf on|r, |cffffd100/btf off|r  turn the text on or off")
     print("  |cffffd100/btf debug|r  record the combat lines the game sends; |cffffd100/btf copy|r shows them (for bug reports)")
+    print("  |cffffd100/btf last|r  your last fight, spell by spell")
     print("  |cffffd100/btf check|r  check the spells, texts and icons BattleText uses against this game")
     print("  |cffffd100/btf export|r, |cffffd100/btf import|r  share your settings as text, or take someone else's")
 end
@@ -3090,6 +3298,8 @@ SlashCmdList.BATTLETEXTFOREVER = function(msg)
         BT:OpenCopyWindow()
     elseif cmd == "check" then
         BT:CheckGameData()
+    elseif cmd == "last" then
+        BT:OpenLastFight()
     elseif cmd == "export" or cmd == "import" then
         BT:OpenShareWindow(cmd)
     else
@@ -3117,6 +3327,13 @@ pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_CHANNEL_START", "player"
 pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
 pcall(events.RegisterUnitEvent, events, "UNIT_AURA", "player")
 pcall(events.RegisterEvent, events, "PLAYER_EQUIPMENT_CHANGED")
+-- Ability alerts that the game's own buttons know about, and combo points
+for _, e in ipairs({ "SPELL_UPDATE_USABLE", "PLAYER_TARGET_CHANGED", "SPELL_ACTIVATION_OVERLAY_SHOW",
+    "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW" }) do
+    pcall(events.RegisterEvent, events, e)
+end
+pcall(events.RegisterUnitEvent, events, "UNIT_HEALTH", "target")
+pcall(events.RegisterUnitEvent, events, "UNIT_POWER_UPDATE", "player")
 
 events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
     if event == "ADDON_LOADED" then
@@ -3173,6 +3390,14 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         BT:ScanShield()
     elseif event == "PLAYER_EQUIPMENT_CHANGED" then
         BT:ScanItemShields()
+    elseif event == "SPELL_UPDATE_USABLE" or event == "UNIT_HEALTH" then
+        BT:CheckUsable()
+    elseif event == "PLAYER_TARGET_CHANGED" then
+        BT:CheckUsable(true)
+    elseif event == "SPELL_ACTIVATION_OVERLAY_SHOW" or event == "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW" then
+        BT:OnSpellOverlay(a1, event == "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
+    elseif event == "UNIT_POWER_UPDATE" then
+        if Str(a2) == "COMBO_POINTS" then BT:OnComboPoints() end
     elseif event == "PLAYER_REGEN_DISABLED" then
         BT:ScanShield()      -- last look at your buffs and gear before the fight hides them
         BT:ScanItemShields()

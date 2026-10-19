@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.13.0
+
+- **More ability alerts** (Notifications tab, with Ability alerts):
+  - **Execute!** (warriors) and **Hammer of Wrath!** (paladins) when your target is low enough to use them. The game hides your target's health, so BattleText goes by the game's own "can you cast it" answer. Short on rage or mana, the alert waits until you can press it.
+  - **Spells the game lights up** on your action bars, and procs it shows on screen, like Clearcasting: "Clearcasting!". Overpower from a dodge and from its button lighting up shows once.
+- **Combo points** (Notifications tab, on): rogues and cat druids see "2 CP" as they build, and "5 CP: Finish it!" when they have them all. They have their own color on the Colors tab.
+- **Hide or recolor a spell** (new Spells tab): type a spell's name, then hide it (its hits, heals and misses don't show) or give it a color of its own. Hidden ones still count in the fight summary. They go with your settings when you share them.
+- **Your last fight, spell by spell**: type `/btf last` for a table of each spell's hits, crits, total, share of your damage or healing, and biggest hit.
+
 ## 1.12.0
 
 - **Channeled spells are named.** Arcane Missiles, Mind Flay, Drain Life, Drain Soul, Blizzard, Rain of Fire, Hurricane, Volley, Hellfire and Tranquility showed their first hit at most, then bare numbers. Now every hit while you channel is named, with its icon, on every mob it hits (Arcane Missiles, Mind Flay and the drains on the mob you channel at only). What was already on its way when you stop still counts.

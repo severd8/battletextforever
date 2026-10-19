@@ -14,8 +14,10 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 - **What happens to you**, in its own area: the damage you take, and the attacks you dodge, parry, block or resist.
 - **Heals**, the ones you get and the ones you do, in their own Healing area under your character (or with the damage, if you prefer).
 - **Notifications**: combat, experience, reputation, honor, loot, money, skill ups, a paladin's seals going on and coming off, and (if you turn it on) your buffs.
-- **Ability alerts**: "Overpower!" when your target dodges you, "Revenge!" when you dodge, parry or block, "Riposte!" and "Counterattack!" when you parry (with the talent).
-- **Fight summary**: when a fight ends, your damage, DPS and healing ("4,820 damage (127 DPS), 1,200 healed in 38s").
+- **Ability alerts**: "Overpower!" when your target dodges you, "Revenge!" when you dodge, parry or block, "Riposte!" and "Counterattack!" when you parry (with the talent), "Execute!" and "Hammer of Wrath!" when your target is low enough, and procs the game lights up on your action bars (like Clearcasting).
+- **Combo points**: "2 CP" as they build, "5 CP: Finish it!" when you have them all.
+- **Fight summary**: when a fight ends, your damage, DPS and healing ("4,820 damage (127 DPS), 1,200 healed in 38s"). Type `/btf last` to see that fight spell by spell: hits, crits, total, share and biggest hit.
+- **Your own rules for a spell**: hide a spell you don't want to see, or give it a color of its own (Spells tab).
 - **Four text areas** you can drag anywhere on screen, each with its own movement: Scroll, Pop, Fountain or Horizontal.
 - **Your look**: 23 fonts, an outline (thin or thick) or a drop shadow, text and crit size, bigger text for bigger hits, short numbers (12.3k), scroll speed and distance, your own colors, and for each area its own size, opacity and direction (up or down, straight or curved).
 - **Your choice of what's shown.** Turn any kind of text off, hide your auto attacks, icons and spell names per area, hide small hits and heals, and hide the game's own numbers so nothing shows twice.
@@ -49,8 +51,9 @@ The options have the same look as TauntMaster Forever, ToppedOff Forever and Out
 | **Outgoing** | Damage, misses, auto attacks, pet, damage shields, name seal hits, icons, names, hide hits below a number; Appearance: size, opacity, movement, scroll upward and curved scrolling |
 | **Incoming** | Damage, avoids, power gains, icons, names; Appearance: size, opacity, movement, scroll upward and curved scrolling |
 | **Healing** | Own area for heals, show overhealing, heals you get, heals you do, icons, names, show who you healed, hide heals below a number; Appearance: size, opacity, movement and scroll upward |
-| **Notifications** | Show: combat, killing blows, experience, reputation, honor, loot, money, skill ups, seals, buffs, ability alerts. Extras: fight summary, icons, crit sound and kill sound (each with its own pick of sound). Appearance: size, opacity, movement and scroll upward |
-| **Colors** | The color of your hits, spells, misses, damage you take, avoids, power gains, heals, notifications, combat and killing blows, experience, loot, seals, buffs and ability alerts; reset colors |
+| **Notifications** | Show: combat, killing blows, experience, reputation, honor, loot, money, skill ups, seals, buffs, ability alerts, combo points. Extras: fight summary, icons, crit sound and kill sound (each with its own pick of sound). Appearance: size, opacity, movement and scroll upward |
+| **Spells** | Type a spell's name to put it on your list, then hide it or give it its own color |
+| **Colors** | The color of your hits, spells, misses, damage you take, avoids, power gains, heals, notifications, combat and killing blows, experience, loot, seals, buffs, ability alerts and combo points; reset colors |
 
 ### Keybindings
 
@@ -72,6 +75,7 @@ Go to **Options → Keybindings → BattleText Forever**:
 | `/btf on` · `/btf off` | Turn the text on or off |
 | `/btf debug` | Start or stop recording the combat lines the game sends (for bug reports) |
 | `/btf copy` | Show the recorded lines in a box you can copy from |
+| `/btf last` | Your last fight, spell by spell |
 | `/btf check` | Check the spells, texts and icons BattleText uses against your game, and report anything missing |
 | `/btf export` · `/btf import` | Share your settings as a line of text, or take someone else's |
 

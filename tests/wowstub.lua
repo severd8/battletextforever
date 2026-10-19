@@ -230,7 +230,10 @@ STATE = {
         [467] = "Thorns", [782] = "Thorns", [1075] = "Thorns", [324] = "Lightning Shield", [5570] = "Insect Swarm",
         [768] = "Cat Form", [5185] = "Healing Touch", [774] = "Rejuvenation",
         [133] = "Fireball", [11366] = "Pyroblast", [116] = "Frostbolt", [2136] = "Fire Blast", [5176] = "Wrath",
-        [7384] = "Overpower", [6572] = "Revenge", [14251] = "Riposte", [19306] = "Counterattack" },
+        [7384] = "Overpower", [6572] = "Revenge", [14251] = "Riposte", [19306] = "Counterattack",
+        [5308] = "Execute", [24275] = "Hammer of Wrath", [16870] = "Clearcasting" },
+    usable = {},                  -- what C_Spell.IsSpellUsable says, by spell name: { usable, notEnoughPower }
+    combo = 0,                    -- your combo points
     class = "DRUID", level = 20,  -- yours: the game's class word (UnitClass's second answer) and level
     knownSpells = {},             -- talents you have, by spell ID (IsPlayerSpell)
     buffs = {},                   -- your buffs: { name = "Thorns", spellId = 782 }
@@ -298,6 +301,13 @@ function IsInGroup() return STATE.group end
 function UnitIsDeadOrGhost(unit) return unit == "player" and STATE.dead == true end
 function IsInRaid() return false end
 function UnitPowerType() return 1, "RAGE" end
+-- Combo points (power type 4) are STATE.combo, out of 5; STATE.comboHidden hides them
+function UnitPower(unit, kind)
+    if unit ~= "player" then return 0 end
+    if kind == 4 then return STATE.comboHidden and Secret(STATE.combo) or STATE.combo end
+    return 50
+end
+function UnitPowerMax(unit, kind) return kind == 4 and 5 or 100 end
 function GetCVar(name) return STATE.cvars[name] end
 function SetCVar(name, value) STATE.cvars[name] = tostring(value) end
 function GetCursorPosition() return 10, 10 end
@@ -352,12 +362,17 @@ C_CombatLog = {
     AreFilteredEventsEnabled = function() return STATE.filteredEvents end,
     ApplyFilterSettings = ApplyFilterSettings,
 }
-Enum = { CombatLogMessageOrder = { Newest = 0, Oldest = 1 } }
+Enum = { CombatLogMessageOrder = { Newest = 0, Oldest = 1 }, PowerType = { ComboPoints = 4 } }
 C_Spell = {
     GetSpellTexture = function(spell) return STATE.spellIcons[spell] end,
     GetSpellName = function(id) return STATE.spellNames[id] end,
     GetSpellDescription = function(id) return STATE.spellDescriptions[id] end,
     IsSelfBuff = function(id) return (STATE.selfBuffs or {})[id] == true end,
+    IsSpellUsable = function(spell)
+        local u = STATE.usable[spell]
+        if not u then return false, false end
+        return u[1], u[2]
+    end,
 }
 C_UnitAuras = {
     GetAuraDataByIndex = function(unit, i, filter)

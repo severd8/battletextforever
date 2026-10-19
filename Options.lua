@@ -1,6 +1,6 @@
 -- BattleText Forever: options window (/btf), in the shared look (Theme.lua).
 -- Tabs down the left: General, then how the text looks (Text, Motion), then
--- one tab per text area (Outgoing, Incoming, Healing, Notifications), then Colors.
+-- one tab per text area (Outgoing, Incoming, Healing, Notifications), then Spells and Colors.
 --
 -- Layout rules: two columns (12 and COL2); rows 26 apart; a dropdown after a
 -- row label starts at DROP_X; a note explaining a card is its last line, full
@@ -414,12 +414,16 @@ local function BuildNotifications(p, refs)
     Setting(card, "Ability alerts", 12, -160, "nAlerts",
         "A line when an ability you can use only just then opens up: \"Overpower!\" when your target dodges you, "
         .. "\"Revenge!\" when you dodge, parry or block (warriors), \"Riposte!\" or \"Counterattack!\" when you "
-        .. "parry (rogues and hunters with the talent).")
+        .. "parry (rogues and hunters with the talent), \"Execute!\" and \"Hammer of Wrath!\" when your target is "
+        .. "low enough, and procs and spells the game lights up on your action bars (like Clearcasting).")
+    Setting(card, "Combo points", COL2, -160, "nCombo",
+        "Rogues and cat druids: \"2 CP\" as your combo points go up, and \"5 CP: Finish it!\" when you have "
+        .. "them all.")
 
     local extras = Card(p, "Extras", 0, -196, PAGE_W, 86)
     Setting(extras, "Fight summary", 12, -30, "nSummary",
         "When a fight ends: your damage, damage per second and healing, like \"4,820 damage (127 DPS) in 38s\". "
-        .. "Only counts numbers the game lets BattleText read.")
+        .. "Only counts numbers the game lets BattleText read. Type /btf last for that fight spell by spell.")
     Setting(extras, "Icons", COL2, -30, "nIcons",
         "Shows the icon beside loot, skill ups, seals, buffs and ability alerts.",
         Either("nLoot", "nSkill", "nSeals", "nBuffs", "nAlerts"))
@@ -459,6 +463,129 @@ local function BuildColors(p)
         -72 - rows * 26)
 end
 
+-- Spells you hide or recolor: type a name and Add; each one on the list has Hide,
+-- a color square (right-click: its usual color again) and Remove
+local RULE_ROW = 28
+local function BuildSpells(p, refs)
+    local card = Card(p, "Add a spell", 0, 0, PAGE_W, 92)
+    T.RowLabel(card, "Spell", 12, -32)
+    local box = T.EditBox(card, 220)
+    box:SetPoint("TOPLEFT", DROP_X, -30)
+    box:SetMaxLetters(60)
+    local add = FlatButton(card, "Add", 80)
+    add:SetPoint("LEFT", box, "RIGHT", 8, 0)
+    T.Tooltip(add, nil, "Puts the spell on the list below. Then hide it, or give it a color of its own.")
+    CardNote(card, "Type the name as it shows on your hits and heals, like Ferocious Bite. It works on what you do, "
+        .. "and your pet.", -62)
+    refs.spellBox, refs.spellAdd = box, add
+
+    local listH = T.WINDOW.BODY_H - 102
+    local list = Card(p, "Your spells", 0, -102, PAGE_W, listH)
+    local holder = CreateFrame("Frame", nil, list)
+    holder:SetPoint("TOPLEFT", 12, -30)
+    holder:SetPoint("BOTTOMRIGHT", -6, 10)
+    local viewH = listH - 40
+    local scroll = T.ScrollArea(holder, viewH)
+    local empty = Text(list, "Nothing on the list yet.", "GameFontHighlightSmall", C.muted)
+    empty:SetPoint("TOPLEFT", 12, -34)
+    local rows = {}
+    refs.spellRows = rows
+
+    local render
+    local function Row(i)
+        local row = CreateFrame("Frame", nil, scroll.child)
+        row:SetSize(PAGE_W - 40, RULE_ROW)
+        row:SetPoint("TOPLEFT", 0, -(i - 1) * RULE_ROW)
+        row.name = Text(row, "", "GameFontHighlight")
+        row.name:SetPoint("LEFT", 2, 0)
+        row.name:SetWidth(220)
+        row.name:SetJustifyH("LEFT")
+        row.hide = T.LabeledSwitch(row, "Hide", 232, -4)
+        row.hide:SetScript("OnClick", function(self)
+            BT:SetSpellRule(row.rule, "hide", not self:IsOn())
+            self:SetOn(row.rule.hide)
+            row.swatch:SetAlpha(row.rule.hide and 0.4 or 1)
+        end)
+        T.Tooltip(row.hide, "Hide", "Its hits, heals and misses aren't shown. They still count in the fight summary.")
+        local sw = CreateFrame("Button", nil, row)
+        sw:SetSize(30, 16)
+        sw:SetPoint("LEFT", 330, 0)
+        sw.fill = T.Fill(sw, { 1, 1, 1, 1 }, "ARTWORK")
+        T.Border(sw, C.edge)
+        sw.label = Text(row, "Color", "GameFontHighlight")
+        sw.label:SetPoint("LEFT", sw, "RIGHT", 8, 0)
+        T.ClickableLabel(sw, sw.label)
+        sw:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        sw:SetScript("OnClick", function(_, button)
+            local rule = row.rule
+            if button == "RightButton" then
+                BT:SetSpellRule(rule, "color", nil)
+                render()
+                return
+            end
+            local picker = ColorPickerFrame
+            if not (picker and picker.SetupColorPickerAndShow) then return end
+            local c = rule.color or BT.TEXT_COLORS.spell
+            local before = rule.color
+            picker:SetupColorPickerAndShow({
+                r = c[1], g = c[2], b = c[3], hasOpacity = false,
+                swatchFunc = function()
+                    local r, g, bl = picker:GetColorRGB()
+                    BT:SetSpellRule(rule, "color", { r, g, bl })
+                    render()
+                end,
+                cancelFunc = function()
+                    BT:SetSpellRule(rule, "color", before)
+                    render()
+                end,
+            })
+        end)
+        T.Tooltip(sw, "Color", "Click to pick this spell's own color. Right-click: its usual color again.")
+        row.swatch = sw
+        row.remove = FlatButton(row, "Remove", 70)
+        row.remove:SetPoint("RIGHT", -4, 0)
+        row.remove:SetScript("OnClick", function()
+            for j, r in ipairs(BT.db.spellRules) do
+                if r == row.rule then BT:RemoveSpellRule(j) break end
+            end
+            render()
+        end)
+        rows[i] = row
+        return row
+    end
+
+    function render()
+        local rules = BT.db.spellRules
+        for i, rule in ipairs(rules) do
+            local row = rows[i] or Row(i)
+            row.rule = rule
+            row.name:SetText(rule.name)
+            row.hide:SetOn(rule.hide == true)
+            local c = rule.color or BT.TEXT_COLORS.spell
+            row.swatch.fill:SetColorTexture(c[1], c[2], c[3], 1)
+            row.swatch:SetAlpha(rule.hide and 0.4 or 1)
+            row.swatch.label:SetText(rule.color and "Color" or "Usual color")
+            row:Show()
+        end
+        for i = #rules + 1, #rows do rows[i]:Hide() end
+        empty:SetShown(#rules == 0)
+        scroll:SetContent(PAGE_W - 40, math.max(1, #rules) * RULE_ROW, true)
+    end
+    local function addIt()
+        local rule, why = BT:AddSpellRule(box:GetText())
+        if not rule then
+            Print(why .. ".")
+            return
+        end
+        box:SetText("")
+        box:ClearFocus()
+        render()
+    end
+    add:SetScript("OnClick", addIt)
+    box:SetScript("OnEnterPressed", addIt)
+    AddRefresher(render)
+end
+
 -- Tab icons are the game's own icon files
 local TABS = {
     { key = "general",  label = "General",       icon = "Interface\\Icons\\INV_Misc_Gear_01",                build = BuildGeneral },
@@ -468,6 +595,7 @@ local TABS = {
     { key = "incoming", label = "Incoming",      icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance", build = BuildIncoming },
     { key = "healing",  label = "Healing",       icon = "Interface\\Icons\\Spell_Holy_Heal",                 build = BuildHealing },
     { key = "notify",   label = "Notifications", icon = "Interface\\Icons\\INV_Misc_Bag_08",                 build = BuildNotifications },
+    { key = "spells",   label = "Spells",        icon = "Interface\\Icons\\INV_Misc_Book_09",                build = BuildSpells },
     { key = "colors",   label = "Colors",        icon = "Interface\\Icons\\INV_Misc_Gem_Variety_01",         build = BuildColors },
 }
 BT.CONFIG_TABS = TABS
@@ -513,15 +641,16 @@ end
 ---------------------------------------------------------------------------
 local COPY_W, COPY_H, COPY_HEADER = 640, 380, 40
 
-local function TextWindow()
-    local f = CreateFrame("Frame", "BattleTextForeverCopy", UIParent)
-    f:SetSize(COPY_W, COPY_H)
+-- A window in the shared look with a header bar (logo, f.title, X); Escape closes it
+local function Popup(name, w, h)
+    local f = CreateFrame("Frame", name, UIParent)
+    f:SetSize(w, h)
     f:SetPoint("CENTER")
     f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
     f:EnableMouse(true)
     f:Hide()
-    table.insert(UISpecialFrames, "BattleTextForeverCopy")   -- Escape closes it
+    table.insert(UISpecialFrames, name)
     T.Fill(f, C.win)
     T.Border(f, C.edge)
 
@@ -541,6 +670,13 @@ local function TextWindow()
     local close = FlatButton(header, "X", 24, 24)
     close:SetPoint("RIGHT", -8, 0)
     close:SetScript("OnClick", function() f:Hide() end)
+    f.header, f.close = header, close
+    return f
+end
+
+local function TextWindow()
+    local f = Popup("BattleTextForeverCopy", COPY_W, COPY_H)
+    local header, close = f.header, f.close
     -- Share settings' Import: takes what's in the box, and whether to take their area positions too
     f.action = FlatButton(header, "Import", 80, 24)
     f.action:SetPoint("RIGHT", close, "LEFT", -8, 0)
@@ -626,4 +762,96 @@ function BT:OpenShareWindow(mode)
             f:Hide()
         end)
     end)
+end
+
+---------------------------------------------------------------------------
+-- /btf last: the last fight, spell by spell
+---------------------------------------------------------------------------
+local LAST_W, LAST_H, LAST_ROW = 620, 420, 20
+-- The columns after the spell's name: heading, the row's field, where its right edge is
+local LAST_COLUMNS = {
+    { "Hits", "hits", 340 }, { "Crits", "crits", 395 }, { "Total", "total", 470 },
+    { "Share", "share", 520 }, { "Biggest", "biggest", 578 },
+}
+
+function BT:OpenLastFight()
+    local f = self.lastWindow
+    if not f then
+        f = Popup("BattleTextForeverLast", LAST_W, LAST_H)
+        local box = CreateFrame("Frame", nil, f)
+        box:SetPoint("TOPLEFT", 12, -(COPY_HEADER + 10))
+        box:SetPoint("BOTTOMRIGHT", -12, 12)
+        T.Fill(box, C.field)
+        T.Border(box, C.fieldEdge)
+        f.scroll = T.ScrollArea(box, LAST_H - COPY_HEADER - 22)
+        f.rows = {}
+        self.lastWindow = f
+    end
+    local child = f.scroll.child
+    local function cell(row, i, justify)
+        row.cells[i] = row.cells[i] or Text(child, "", "GameFontHighlightSmall")
+        local fs = row.cells[i]
+        fs:SetJustifyH(justify)
+        return fs
+    end
+    local list = {}
+    local rows, fight = self:FightBreakdown()
+    if fight then
+        f.title:SetText("Last fight: " .. self:FightLine(fight))
+        local kind
+        for _, s in ipairs(rows) do
+            if s.heal ~= kind then
+                kind = s.heal
+                list[#list + 1] = { heading = kind and "Healing" or "Damage" }
+            end
+            list[#list + 1] = s
+        end
+        if #rows == 0 then list[1] = { note = "No numbers the game let BattleText read." } end
+    else
+        f.title:SetText("Last fight")
+        list[1] = { note = "No fight yet. Fight something, then type /btf last again." }
+    end
+    for i, item in ipairs(list) do
+        local row = f.rows[i] or { cells = {} }
+        f.rows[i] = row
+        local y = -6 - (i - 1) * LAST_ROW
+        local first = cell(row, 1, "LEFT")
+        first:ClearAllPoints()
+        first:SetPoint("TOPLEFT", 6, y)
+        first:SetWidth(260)
+        first:Show()
+        if item.heading then
+            first:SetText(item.heading)
+            first:SetTextColor(C.gold[1], C.gold[2], C.gold[3])
+        else
+            first:SetText(item.note or (item.icon .. item.name))
+            local c = item.note and C.muted or { 1, 1, 1 }
+            first:SetTextColor(c[1], c[2], c[3])
+        end
+        for j, col in ipairs(LAST_COLUMNS) do
+            local fs = cell(row, j + 1, "RIGHT")
+            fs:ClearAllPoints()
+            fs:SetPoint("TOPRIGHT", child, "TOPLEFT", col[3], y)
+            if item.heading then
+                fs:SetText(col[1])
+                fs:SetTextColor(C.gold[1], C.gold[2], C.gold[3])
+            elseif item.note then
+                fs:SetText("")
+            else
+                local v = item[col[2]]
+                fs:SetText(col[2] == "share" and (v .. "%") or BT.Commas(v))
+                fs:SetTextColor(1, 1, 1)
+            end
+            fs:Show()
+        end
+        row.item = item
+    end
+    for i = #list + 1, #f.rows do
+        for _, fs in pairs(f.rows[i].cells) do fs:Hide() end
+        f.rows[i].item = nil
+    end
+    f.scroll:SetContent(LAST_W - 48, #list * LAST_ROW + 12)
+    f.shown = list
+    f:Show()
+    return f
 end

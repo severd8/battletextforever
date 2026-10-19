@@ -2191,7 +2191,7 @@ for _, t in ipairs(BT.CONFIG_TABS) do
     tabNames[#tabNames + 1] = t.label
     assert(win.pages[t.key] and win.tabButtons[t.key], "a tab and its page: " .. t.label)
 end
-assertEq(table.concat(tabNames, ", "), "General, Text, Motion, Outgoing, Incoming, Healing, Notifications, Colors", "the tabs")
+assertEq(table.concat(tabNames, ", "), "General, Text, Motion, Outgoing, Incoming, Healing, Notifications, Spells, Colors", "the tabs")
 assertEq(win.currentTab, "general", "it opens on General")
 -- Every page's cards fit above the footer
 for _, t in ipairs(BT.CONFIG_TABS) do
@@ -2238,7 +2238,7 @@ for _, f in ipairs(ALL_FRAMES) do
         end
     end
 end
-assertEq(switches, 50, "the switches are there")
+assertEq(switches, 51, "the switches are there")
 -- A switch's label is part of it: its click area stretches over the text
 for _, f in ipairs(ALL_FRAMES) do
     if f.isSwitch and f.key and inWindow(f) then
@@ -3195,6 +3195,305 @@ STATE.class = "DRUID"
 STATE.who.target, STATE.who.nameplate1, STATE.who.nameplate2 = nil, nil, nil
 clear()
 BT.Notify, clear = notifyWas, clearWas
+
+step("ability alerts: Execute, Hammer of Wrath, lit-up spells")
+do
+    local shown = {}
+    local notifyWas = BT.Notify
+    BT.Notify = function(self, text, ...)
+        if text:find("!$") then shown[#shown + 1] = text end
+        return notifyWas(self, text, ...)
+    end
+    local function alerts()
+        local s = table.concat(shown, " / ")
+        shown = {}
+        return s
+    end
+    local function usable(name, yes, noPower) STATE.usable[name] = { yes, noPower or false } end
+    local function check() fire("SPELL_UPDATE_USABLE") end
+    BT.reactAt, BT.usableNow, BT.usableLearned = nil, nil, nil
+    STATE.class, STATE.level = "WARRIOR", 30
+    STATE.unit.mobE = { enemy = true, guid = "Creature-0-1-2-3-100-0000E1", target = "me" }
+    STATE.unit.mobF = { enemy = true, guid = "Creature-0-1-2-3-100-0000F1", target = "me" }
+    STATE.who.target = "mobE"
+    usable("Execute", true)
+    check()
+    assertEq(alerts(), "", "usable from the start: the game's answer may not depend on the target, so no alert yet")
+    usable("Execute", false)
+    check()
+    assertEq(alerts(), "", "not usable with rage to spare: the target is too healthy")
+    usable("Execute", true)
+    fire("UNIT_HEALTH", "target")
+    assertEq(alerts(), "Execute!", "it turns usable: Execute!")
+    assert(isColor(BT.areas.notify.active[#BT.areas.notify.active], BT.TEXT_COLORS.alert), "in the alerts' color")
+    Advance(2)
+    check()
+    assertEq(alerts(), "", "once, not every time the game asks")
+    usable("Execute", false, true)
+    check()
+    usable("Execute", true)
+    Advance(2)
+    check()
+    assertEq(alerts(), "", "rage spent and back on the same mob: not again")
+    -- A new target that's already low
+    Advance(2)
+    STATE.who.target = "mobF"
+    fire("PLAYER_TARGET_CHANGED")
+    assertEq(alerts(), "Execute!", "a new target that's already low")
+    -- Low, but not enough rage: the alert waits until it can be pressed
+    Advance(2)
+    STATE.who.target = "mobE"
+    usable("Execute", false, true)
+    fire("PLAYER_TARGET_CHANGED")
+    assertEq(alerts(), "", "not enough rage yet")
+    usable("Execute", true)
+    check()
+    assertEq(alerts(), "Execute!", "the rage is there: now")
+    -- Not on a friend or nothing, not before level 24, not turned off, not other classes
+    Advance(2)
+    STATE.who.target = nil
+    fire("PLAYER_TARGET_CHANGED")
+    assertEq(alerts(), "", "no target")
+    STATE.unit.friend = { enemy = false, guid = "Player-1-0000F0" }
+    STATE.who.target = "friend"
+    fire("PLAYER_TARGET_CHANGED")
+    assertEq(alerts(), "", "a friendly target")
+    STATE.who.target = "mobE"
+    STATE.level = 20
+    fire("PLAYER_TARGET_CHANGED")
+    assertEq(alerts(), "", "not learned yet (level 24)")
+    STATE.level = 30
+    BT.db.nAlerts = false
+    fire("PLAYER_TARGET_CHANGED")
+    assertEq(alerts(), "", "Ability alerts turned off")
+    BT.db.nAlerts = true
+    STATE.class, STATE.level = "PALADIN", 50
+    fire("PLAYER_TARGET_CHANGED")
+    assertEq(alerts(), "", "a paladin has no Execute")
+    usable("Hammer of Wrath", false)
+    check()
+    usable("Hammer of Wrath", true)
+    check()
+    assertEq(alerts(), "Hammer of Wrath!", "and has Hammer of Wrath")
+    -- A hidden answer is no answer
+    Advance(2)
+    STATE.usable["Hammer of Wrath"] = { Secret(true), Secret(false) }
+    fire("PLAYER_TARGET_CHANGED")
+    assertEq(alerts(), "", "the game hides it: nothing")
+    STATE.usable = {}
+
+    -- Procs and lit-up buttons
+    STATE.class, STATE.level = "DRUID", 30
+    clear()
+    shown = {}
+    fire("SPELL_ACTIVATION_OVERLAY_SHOW", 16870)
+    assertEq(alerts(), "Clearcasting!", "a proc's overlay")
+    fire("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", 5221)
+    assertEq(alerts(), "", "the button it lights up at the same moment says nothing more")
+    Advance(0.5)
+    fire("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", 5221)
+    assertEq(alerts(), "Shred!", "a button lighting up on its own")
+    fire("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", 5221)
+    assertEq(alerts(), "", "not twice in a second")
+    fire("SPELL_ACTIVATION_OVERLAY_SHOW", Secret(16870))
+    fire("SPELL_ACTIVATION_OVERLAY_SHOW", 999999)
+    assertEq(alerts(), "", "a hidden or unknown spell: nothing")
+    BT.db.nAlerts = false
+    Advance(2)
+    fire("SPELL_ACTIVATION_OVERLAY_SHOW", 16870)
+    assertEq(alerts(), "", "turned off")
+    BT.db.nAlerts = true
+    -- Overpower from a dodge and from its button lighting up: once
+    STATE.class, STATE.level = "WARRIOR", 30
+    Advance(2)
+    fire("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
+    BT:FlushHits(true)
+    fire("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW", 7384)
+    assertEq(alerts(), "Overpower!", "a dodge and the button lighting up: one Overpower")
+    STATE.class = "DRUID"
+    STATE.who.target = nil
+    BT.Notify = notifyWas
+    clear()
+end
+
+step("combo points")
+do
+    assertEq(BT.DEFAULTS.nCombo, true, "on to start with")
+    local function cp(n, kind)
+        STATE.combo = n
+        fire("UNIT_POWER_UPDATE", "player", kind or "COMBO_POINTS")
+        return table.concat(lines("notify"), " / ")
+    end
+    BT.combo = nil
+    assertEq(cp(1), "1 CP", "the first one")
+    assert(isColor(BT.areas.notify.active[1], BT.TEXT_COLORS.combo), "in the combo points' color")
+    assertEq(cp(2), "1 CP / 2 CP", "the next")
+    assertEq(cp(5), "1 CP / 2 CP / 5 CP: Finish it!", "all five: finish it")
+    assertEq(BT.areas.notify.active[3].sticky, true, "and that one stands out, like a crit")
+    assertEq(cp(0), "1 CP / 2 CP / 5 CP: Finish it!", "spending them shows nothing")
+    clear()
+    assertEq(cp(1), "1 CP", "building again")
+    STATE.combo = 3
+    fire("UNIT_POWER_UPDATE", "player", "ENERGY")
+    assertEq(table.concat(lines("notify"), " / "), "1 CP", "energy isn't combo points")
+    STATE.comboHidden = true
+    assertEq(cp(4), "1 CP", "hidden by the game: nothing")
+    STATE.comboHidden = nil
+    BT.db.nCombo = false
+    assertEq(cp(4), "1 CP", "turned off")
+    BT.db.nCombo = true
+    assertEq(cp(4), "1 CP", "turned back on: the count was kept, so the same 4 doesn't show")
+    assertEq(cp(5), "1 CP / 5 CP: Finish it!", "and the next one does")
+    STATE.combo, BT.combo = 0, 0
+    clear()
+end
+
+step("hide or recolor a spell")
+do
+    STATE.unit.mobR = { enemy = true, guid = "Creature-0-1-2-3-100-0000R1", target = "me" }
+    STATE.who.target = "mobR"
+    assertEq(#BT.DEFAULTS.spellRules, 0, "nothing on the list to start with")
+    assert(flowing(), "(the combat lines are arriving)")
+    local rule = assert(BT:AddSpellRule("  Claw "), "added")
+    assertEq(rule.name, "Claw", "without the spaces round it")
+    assertEq(select(2, BT:AddSpellRule("claw")), "claw is already on the list", "once only, whatever the case")
+    assertEq(select(2, BT:AddSpellRule("   ")), "type a spell's name first", "a name is needed")
+    log(hit("Claw", 16827, 50))
+    assertEq(last("outgoing"), "Claw 50", "on the list but nothing chosen: as usual")
+    BT:SetSpellRule(rule, "hide", true)
+    log(hit("Claw", 16827, 51))
+    log(swing(30))
+    assertEq(table.concat(lines("outgoing"), " / "), "Claw 50 / 30", "hidden: its hits don't show, others do")
+    -- From UNIT_COMBAT, named by the cast
+    clear()
+    BT:SetSpellRule(rule, "hide", false)
+    BT:SetSpellRule(rule, "color", { 0.1, 0.2, 0.3 })
+    log(hit("Claw", 16827, 52))
+    assert(isColor(newest(), { 0.1, 0.2, 0.3 }), "its own color")
+    log(hit("Shred", 5221, 70))
+    assert(not isColor(newest(), { 0.1, 0.2, 0.3 }), "other spells keep theirs")
+    log(hit("Claw", 16827, 1, "Physical", "(Critical)"))
+    assert(isColor(newest(), { 0.1, 0.2, 0.3 }), "crits too")
+    clear()
+    -- A heal
+    local heal = assert(BT:AddSpellRule("Healing Touch"))
+    BT:SetSpellRule(heal, "hide", true)
+    log(healMe("Healing Touch", 5185, 250))
+    assertEq(#lines("heal"), 0, "a hidden heal on you")
+    -- Hidden hits still count in the fight
+    fire("PLAYER_REGEN_DISABLED")
+    BT:SetSpellRule(rule, "hide", true)
+    log(hit("Claw", 16827, 60))
+    log(healMe("Healing Touch", 5185, 100))
+    Advance(10)
+    fire("PLAYER_REGEN_ENABLED")
+    assertEq(last("notify"), "60 damage (6 DPS), 100 healed in 10s", "hidden, but counted in the summary")
+    -- Shared with Export and Import, checked on the way in
+    local text = BT:ExportSettings()
+    local t = assert(BT:ReadSettings(text))
+    assertEq(#t.spellRules, 2, "both spells go with the settings")
+    assertEq(t.spellRules[1].name .. " " .. tostring(t.spellRules[1].hide) .. " " .. t.spellRules[1].color[3],
+        "Claw true 0.3", "with what was chosen")
+    local junk = BT.Serialize({ spellRules = { { name = "Fireball", color = { 5, -1, 0.5 } }, { hide = true },
+        "Frostbolt", { name = string.rep("x", 80) } } })
+    t = assert(BT:ReadSettings("BTF1:" .. junk))
+    assertEq(#t.spellRules, 1, "only real entries come in")
+    assertEq(table.concat(t.spellRules[1].color, ","), "1,0,0.5", "a color kept to its range")
+    assertEq(t.spellRules[1].hide, false, "hide only when it says so")
+    -- The Spells tab
+    BT:RemoveSpellRule(2)
+    BT:RemoveSpellRule(1)
+    clear()
+    BT:OpenConfig()
+    local win = BT.config
+    win:ShowTab("spells")
+    assertEq(win.spellRows[1] == nil or not win.spellRows[1]:IsShown(), true, "an empty list")
+    win.spellBox:SetText("Rake")
+    win.spellAdd.__scripts.OnClick(win.spellAdd)
+    assertEq(BT.db.spellRules[1].name, "Rake", "typed and added")
+    assertEq(win.spellBox:GetText(), "", "the box empties")
+    local row = win.spellRows[1]
+    assertEq(row.name:GetText(), "Rake", "on the list")
+    assertEq(row.hide:IsOn(), false, "not hidden yet")
+    row.hide.__scripts.OnClick(row.hide)
+    assertEq(BT.db.spellRules[1].hide, true, "Hide switched on")
+    assertEq(row.hide:IsOn(), true, "and it shows")
+    STATE.picked = { 0.4, 0.5, 0.6 }
+    row.swatch.__scripts.OnClick(row.swatch, "LeftButton")
+    ColorPickerFrame.info.swatchFunc()
+    assertEq(table.concat(BT.db.spellRules[1].color, ","), "0.4,0.5,0.6", "a color picked")
+    row.swatch.__scripts.OnClick(row.swatch, "RightButton")
+    assertEq(BT.db.spellRules[1].color, nil, "right-click: its usual color again")
+    win.spellBox:SetText("rake")
+    win.spellAdd.__scripts.OnClick(win.spellAdd)
+    assertEq(#BT.db.spellRules, 1, "the same spell isn't added twice")
+    row.remove.__scripts.OnClick(row.remove)
+    assertEq(#BT.db.spellRules, 0, "removed")
+    assertEq(row:IsShown(), false, "and off the list")
+    for i = 1, 14 do BT:AddSpellRule("Spell " .. i) end
+    BT:RefreshConfig()
+    assertEq(win.spellRows[14]:IsShown(), true, "a long list scrolls")
+    wipe(BT.db.spellRules)
+    BT.rulesByName = nil
+    BT:RefreshConfig()
+    win:Hide()
+    STATE.who.target = nil
+    clear()
+end
+
+step("the last fight, spell by spell")
+do
+    STATE.unit.mobL = { enemy = true, guid = "Creature-0-1-2-3-100-0000L1", target = "me" }
+    STATE.who.target = "mobL"
+    BT.lastFight = nil
+    local f = BT:OpenLastFight()
+    assertEq(f.title:GetText(), "Last fight", "before any fight")
+    assert(f.shown[1].note:find("No fight yet", 1, true), "says so")
+    f:Hide()
+    fire("PLAYER_REGEN_DISABLED")
+    log(hit("Claw", 16827, 50, "Physical", "(Critical)"))
+    Advance(1)
+    log(hit("Claw", 16827, 30))
+    log(swing(20))
+    BT:ShowUnitHit({ kind = "damage", n = 15, school = 4, unit = "target" }, "hit", nil)   -- a fire hit nothing names
+    log(healMe("Healing Touch", 5185, 200))
+    Advance(9)
+    fire("PLAYER_REGEN_ENABLED")
+    local rows, fight = BT:FightBreakdown()
+    local got = {}
+    for _, r in ipairs(rows) do
+        got[#got + 1] = ("%s %d %d %d %d %d%%"):format(r.name, r.hits, r.crits, r.total, r.biggest, r.share)
+    end
+    assertEq(table.concat(got, " / "), "Claw 2 1 80 50 70% / Auto attack 1 0 20 20 17% / Unnamed Fire 1 0 15 15 13%"
+        .. " / Healing Touch 1 0 200 200 100%", "by spell: damage first, biggest first, then heals")
+    assertEq(fight.damage, 115, "the fight's damage")
+    SlashCmdList.BATTLETEXTFOREVER("last")
+    f = BT.lastWindow
+    assertEq(f:IsShown(), true, "/btf last opens it")
+    assertEq(f.title:GetText(), "Last fight: 115 damage (12 DPS), 200 healed in 10s", "with the fight's line")
+    assertEq(#f.shown, 6, "a heading for damage and one for healing, and four spells")
+    assertEq(f.rows[2].cells[1]:GetText(), "|T132140:0|t Claw", "the spell, with its icon")
+    assertEq(f.rows[2].cells[4]:GetText(), "80", "its total")
+    assertEq(f.rows[2].cells[5]:GetText(), "70%", "its share")
+    assertEq(f.rows[5].cells[1]:GetText(), "Healing", "heals after damage")
+    -- A fight with nothing done keeps the one before
+    fire("PLAYER_REGEN_DISABLED")
+    Advance(3)
+    fire("PLAYER_REGEN_ENABLED")
+    assertEq(BT.lastFight, fight, "an empty fight doesn't replace it")
+    -- With the summary off, it's still kept
+    BT.db.nSummary = false
+    fire("PLAYER_REGEN_DISABLED")
+    log(swing(40))
+    fire("PLAYER_REGEN_ENABLED")
+    assertEq(BT.lastFight.damage, 40, "kept with the summary off")
+    BT:OpenLastFight()
+    assertEq(f.rows[3].cells[1]:IsShown(), false, "fewer rows: the old ones are hidden")
+    BT.db.nSummary = true
+    f:Hide()
+    STATE.who.target = nil
+    clear()
+end
 
 step("buffs gained and lost")
 local INTELLECT = { name = "Arcane Intellect", spellId = 1459, icon = 135932, duration = 1800 }
