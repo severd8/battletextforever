@@ -2358,15 +2358,46 @@ assert(not pkgmeta:find("Fonts", 1, true), "the Fonts folder isn't left out of t
 
 -- The font dropdown, in the shared look: it shows the font in use and opens a menu of them all
 local dropdown = BT.config.fontDropdown
+-- Its list is a frame of our own: the game's menus are shared with its unit
+-- menus, and opening one from an addon got the raid markers blocked (issue #9)
+local List = ns.Theme.List
 local function openMenu(d)
-    MENU_OPENED = nil
+    if List():IsShown() then List():Hide() end
     d.__scripts.OnClick(d)
-    return MENU_OPENED
+    assertEq(List():IsShown(), true, "the dropdown's list opens")
+    assertEq(List().owner, d, "under that dropdown")
+    assertClean("opening a dropdown")
+    return List().items
 end
 assertEq(dropdown:GetText(), "Default", "it shows the font in use")
 local menu = openMenu(dropdown)
 assertEq(#menu, 23, "every font is in the list")
-assertEq(menu.scroll, 240, "a long list scrolls")
+assertEq(List().visible, 12, "a long list shows twelve rows and scrolls")
+assertEq(List().rows[1].label:GetText(), BT.FONTS[1].name, "the first row shows the first font")
+List().__scripts.OnMouseWheel(List(), -1)
+assertEq(List().rows[1].label:GetText(), BT.FONTS[4].name, "the mouse wheel scrolls it")
+for _ = 1, 10 do List().__scripts.OnMouseWheel(List(), -1) end
+assertEq(List().rows[12].label:GetText(), BT.FONTS[23].name, "to the last font and no further")
+assertEq(List().rows[12]:IsShown(), true, "every row in use")
+dropdown.__scripts.OnClick(dropdown)
+assertEq(List():IsShown(), false, "a second click on the dropdown closes it")
+openMenu(dropdown)
+List().catcher.__scripts.OnClick(List().catcher)
+assertEq(List():IsShown(), false, "so does a click anywhere else")
+openMenu(dropdown)
+BT.config:Hide()
+List().__scripts.OnUpdate(List())
+assertEq(List():IsShown(), false, "and closing the options window")
+BT.config:Show()
+openMenu(dropdown)
+local row = List().rows[2]
+row.__scripts.OnClick(row)
+assertEq(BT.db.font, BT.FONTS[2].name, "clicking a row picks it")
+assertEq(List():IsShown(), false, "and closes the list")
+assertClean("picking from a dropdown")
+BT.db.font = "Default"
+BT:RefreshConfig()
+menu = openMenu(dropdown)
 for i, row in ipairs(menu) do
     assertEq(row.text, BT.FONTS[i].name, "in order")
     assertEq(row.isSelected(), i == 1, "only the font in use is ticked")
@@ -2391,17 +2422,6 @@ BT.db.font = "A font that's gone"
 assertEq(BT:FontPath(), STANDARD_TEXT_FONT, "an unknown font falls back to the game's")
 BT.db.font = "Default"
 BT:RefreshConfig()
-clear()
--- With no menus at all, each click moves to the next font
-WithoutMenus(function()
-    BT.db.font = "Archivo Black"
-    dropdown.__scripts.OnClick(dropdown)
-    assertEq(BT.db.font, "Bangers", "the next font")
-    BT.db.font = "Ubuntu"
-    dropdown.__scripts.OnClick(dropdown)
-    assertEq(BT.db.font, "Default", "round to the start")
-    assertEq(dropdown:GetText(), "Default", "shown on the dropdown")
-end)
 clear()
 
 -- The outlines: normal lines and crits each have their own
@@ -2466,16 +2486,6 @@ assertEq(shadowed.__shadow[1] > 0 and shadowed.__shadow[2] < 0, true, "down and 
 clear()
 outlineMenu[2].pick()
 assertEq(BT.areas.notify.active[1].text.__shadow[1], 0, "an outlined line has no shadow")
-WithoutMenus(function()
-    BT.db.critOutline = "OUTLINE"
-    critDropdown.__scripts.OnClick(critDropdown)
-    assertEq(BT.db.critOutline, "THICKOUTLINE", "with no menus, a click steps to the next outline")
-    critDropdown.__scripts.OnClick(critDropdown)
-    assertEq(BT.db.critOutline, "SHADOW", "and the next")
-    critDropdown.__scripts.OnClick(critDropdown)
-    assertEq(BT.db.critOutline, "", "round to the start")
-    assertEq(critDropdown:GetText(), "None", "shown on the dropdown")
-end)
 BT.db.outline, BT.db.critOutline = "OUTLINE", "OUTLINE"
 BT:RefreshConfig()
 clear()
@@ -3065,8 +3075,8 @@ end
 SetIcons(true)
 wound(55, 1)
 on("target", 30, 32)
-assertEq(table.concat(lines("outgoing"), " / "), "55 / |T135315:0|t Shadowfang 30",
-    "the proc beside your swing is named after the weapon, with its icon")
+assertEq(table.concat(lines("outgoing"), " / "), "|T135315:0|t 55 / |T135315:0|t Shadowfang 30",
+    "the proc beside your swing is named after the weapon, with its icon (and the swing has the weapon's)")
 SetIcons(false)
 Advance(1)
 on("target", 29, 32)
@@ -3092,6 +3102,80 @@ assertEq(last("outgoing"), "30", "the weapon taken off: no proc")
 STATE.who.nameplate1 = nil
 BT.struck = nil
 BT.db.merge = true
+clear()
+
+step("icons for swings and ranged attacks (issue #8)")
+STATE.who.target, STATE.who.nameplate1 = "mobA", "mobA"
+freshFight()
+BT.flying = nil
+BT.db.merge = false
+STATE.spellNames[75], STATE.spellNames[3018], STATE.spellNames[2764], STATE.spellNames[5019] =
+    "Auto Shot", "Shoot", "Throw", "Shoot"
+STATE.spellIcons[75], STATE.spellIcons[3018], STATE.spellIcons[2764], STATE.spellIcons[5019] = 132369, 132222, 135427, 135463
+STATE.spellIcons[6603] = 135274
+BT.iconCache = nil
+local namesWere = BT.db.outNames
+local function cast(id) fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-ranged", id) end
+SetIcons(true)
+BT.db.outNames = true
+-- A swing has your main hand weapon's icon, or the game's Attack with nothing in your hands
+wound(55, 1)
+assertEq(last("outgoing"), "|T135274:0|t 55", "a swing, bare handed: the Attack icon")
+STATE.equipped[16] = { name = "Sword", icon = 135321, lines = {} }
+Advance(2)
+wound(56, 1)
+assertEq(last("outgoing"), "|T135321:0|t 56", "with a sword: the sword's icon")
+wound(0, 1, "DODGE")
+assertEq(last("outgoing"), "|T135321:0|t Dodge", "a swing dodged, too")
+fire("UNIT_COMBAT", "target", "WOUND", "", 40, 4)
+assertEq(last("outgoing"), "40", "a hit nothing named of another school: no icon (not a swing)")
+log(swing(27))
+assertEq(last("outgoing"), "|T135321:0|t 27", "a swing read from the combat log, too")
+clear()
+-- Ranged attacks fly to the target: the hit that lands after one is it
+Advance(2)
+cast(75)
+Advance(0.5)
+wound(70, 1)
+assertEq(last("outgoing"), "|T132369:0|t Auto Shot 70", "Auto Shot, by name and icon")
+Advance(2)
+wound(71, 1)
+assertEq(last("outgoing"), "|T135321:0|t 71", "one hit for one shot: the next is a swing")
+cast(3018)
+Advance(0.6)
+wound(30, 1, "CRITICAL")
+assertEq(last("outgoing"), "|T132222:0|t Shoot 30", "a bow's Shoot")
+cast(2764)
+Advance(0.6)
+wound(0, 1, "DODGE")
+assertEq(last("outgoing"), "|T135427:0|t Throw Dodge", "a Throw dodged")
+-- A wand's Shoot is of the wand's school: anything but physical
+cast(5019)
+Advance(0.6)
+wound(20, 1)
+assertEq(last("outgoing"), "|T135321:0|t 20", "a physical hit isn't the wand's")
+fire("UNIT_COMBAT", "target", "WOUND", "", 21, 32)
+assertEq(last("outgoing"), "|T135463:0|t Shoot 21", "a shadow wand's")
+clear()
+-- They're auto attacks: the "Auto attacks" switch hides them with the swings
+BT.db.outSwings = false
+Advance(2)
+cast(75)
+Advance(0.5)
+wound(72, 1)
+wound(57, 1)
+assertEq(#lines("outgoing"), 0, "Auto Shot and the swing are hidden")
+log(hit("Auto Shot", 75, 44))
+assertEq(#lines("outgoing"), 0, "Auto Shot read from the combat log too")
+log(hit("Claw", 16827, 50))
+assertEq(last("outgoing"), "|T132140:0|t Claw 50", "a spell still shows")
+BT.db.outSwings = true
+STATE.equipped[16] = nil
+STATE.who.nameplate1 = nil
+BT.flying = nil
+BT.db.merge = true
+SetIcons(false)
+BT.db.outNames = namesWere
 clear()
 
 step("ability alerts: Overpower, Revenge, Riposte")

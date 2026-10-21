@@ -90,6 +90,7 @@ WoW: Forever doesn't let addons read the combat log. The game tells an addon **w
   - the ticks of your damage-over-time spells (Rake, Rip, Rend, Moonfire, Corruption, Shadow Word: Pain and the like). Bleeds need Start BattleText clicked;
   - channeled spells (Arcane Missiles, Mind Flay, Drain Life, Drain Soul, Blizzard, Rain of Fire, Hurricane, Volley, Hellfire, Tranquility) and spells that keep burning an area (Consecration, Flamestrike, Magma, Fire Nova and Searing Totems), on every mob they hit;
   - explosives you throw (Engineering's dynamite, bombs and grenades, Goblin Sapper Charge), on every mob they hit;
+  - your ranged attacks: Auto Shot, Shoot (bow, gun, crossbow or wand) and Throw, as they land. Your swings get your main hand weapon's icon (or the Attack icon with nothing in your hands);
   - your gear's **"Chance on hit"** damage (Shadowfang, Thunderfury and the like) and weapon enchants that hurt (Fiery Weapon, Icy Chill, Lifestealing, Unholy Weapon), named after the item or enchant;
   - your **damage shields**: buffs (Thorns, Lightning Shield, Retribution Aura, Fire Shield), once BattleText has seen one answer two blows, and gear that hurts whoever strikes you (named after the item). Turn off **Damage shields** in the options to hide these;
   - a paladin's **seal** (Righteousness, Command): its Holy damage landing with your swing. Turn off **Name seal hits** in the options to show it as a plain number.

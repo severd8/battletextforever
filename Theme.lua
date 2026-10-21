@@ -257,9 +257,124 @@ function T.LabeledSwitch(parent, text, x, y, labelWidth)
     return b, label
 end
 
--- Dropdown: shows the current choice; click for a menu of the choices (or step
--- to the next one where the game has no menus). labels[key] is the text shown.
--- Set b.menuScroll to a height to make a long menu scroll.
+-- The list a dropdown opens: a frame of our own, never the game's menus. The
+-- game's menu system is shared with its own menus (the unit menus, where raid
+-- markers are set), and a menu opened by an addon can leave it tainted, so the
+-- game then blocks the marker picked from its own menu and blames the addon.
+-- One list, made on first use. T.List() returns it: .items are the rows shown
+-- ({ text, isSelected(), pick() }), .owner the dropdown that opened it.
+local LIST_ROW = 20
+local list
+function T.List()
+    if list then return list end
+    -- A click anywhere else closes it
+    local catcher = CreateFrame("Button", nil, UIParent)
+    catcher:SetAllPoints(UIParent)
+    catcher:SetFrameStrata("FULLSCREEN_DIALOG")
+    catcher:RegisterForClicks("AnyUp")
+    catcher:Hide()
+
+    local name = tostring(ADDON) .. "DropdownList"
+    list = CreateFrame("Frame", name, UIParent)
+    list:SetFrameStrata("FULLSCREEN_DIALOG")
+    list:SetFrameLevel(catcher:GetFrameLevel() + 10)
+    list:SetClampedToScreen(true)
+    list:EnableMouse(true)
+    list:Hide()
+    table.insert(UISpecialFrames, name)   -- Escape closes it
+    Fill(list, C.field)
+    Border(list, C.fieldEdge)
+    catcher:SetScript("OnClick", function() list:Hide() end)
+    list.catcher, list.rows, list.items, list.offset = catcher, {}, {}, 0
+
+    list.title = Text(list, "", "GameFontNormalSmall", C.gold)
+    list.title:SetPoint("TOPLEFT", 8, -5)
+    -- Where a long list is scrolled to
+    list.thumb = list:CreateTexture(nil, "ARTWORK")
+    list.thumb:SetWidth(3)
+    list.thumb:SetColorTexture(unpack(C.btnEdge))
+
+    function list:Paint()
+        local top = self.title:IsShown() and LIST_ROW or 0
+        for i, row in ipairs(self.rows) do
+            local item = self.items[i + self.offset]
+            row.item = item
+            row:SetShown(item ~= nil and i <= self.visible)
+            if item then
+                row.label:SetText(item.text)
+                local on = item.isSelected()
+                row.dot:SetShown(on)
+                local c = on and C.gold or C.title
+                row.label:SetTextColor(c[1], c[2], c[3])
+            end
+            row:SetPoint("TOPLEFT", 1, -(top + 4 + (i - 1) * LIST_ROW))
+        end
+        local n = #self.items
+        self.thumb:SetShown(n > self.visible)
+        if n > self.visible then
+            local trackH = self.visible * LIST_ROW
+            local h = math.max(12, trackH * self.visible / n)
+            self.thumb:SetHeight(h)
+            self.thumb:SetPoint("TOPRIGHT", -3, -(top + 4 + (trackH - h) * self.offset / (n - self.visible)))
+        end
+    end
+    list:EnableMouseWheel(true)
+    list:SetScript("OnMouseWheel", function(self, delta)
+        local most = math.max(0, #self.items - self.visible)
+        self.offset = math.max(0, math.min(most, self.offset - delta * 3))
+        self:Paint()
+    end)
+    -- Closes with the window the dropdown is in
+    list:SetScript("OnUpdate", function(self)
+        if not (self.owner and self.owner:IsVisible()) then self:Hide() end
+    end)
+    list:SetScript("OnShow", function(self) self.catcher:Show() end)
+    list:SetScript("OnHide", function(self) self.catcher:Hide() end)
+    return list
+end
+
+-- Opens the list under owner. items: { { text =, isSelected = fn, pick = fn }, ... }
+-- scroll: the most height its rows take (a longer list scrolls); title: optional.
+function T.OpenList(owner, items, scroll, title)
+    local l = T.List()
+    l.owner, l.items, l.offset = owner, items, 0
+    l.visible = scroll and math.max(1, math.floor(scroll / LIST_ROW)) or #items
+    local width = math.max(owner:GetWidth() or 0, 120)
+    while #l.rows < math.min(#items, l.visible) do
+        local row = CreateFrame("Button", nil, l)
+        row:SetSize(width - 2, LIST_ROW)
+        local hl = row:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetAllPoints()
+        hl:SetColorTexture(1, 1, 1, 0.08)
+        row.dot = row:CreateTexture(nil, "ARTWORK")
+        row.dot:SetSize(6, 6)
+        row.dot:SetPoint("LEFT", 8, 0)
+        row.dot:SetColorTexture(unpack(C.gold))
+        row.label = Text(row, "", "GameFontHighlightSmall")
+        row.label:SetPoint("LEFT", 20, 0)
+        row.label:SetPoint("RIGHT", -8, 0)
+        row:SetScript("OnClick", function(self)
+            local item = self.item
+            l:Hide()
+            if item then item.pick() end
+        end)
+        l.rows[#l.rows + 1] = row
+    end
+    for _, row in ipairs(l.rows) do row:SetWidth(width - 2) end
+    l.title:SetText(title or "")
+    l.title:SetShown(title ~= nil)
+    local shown = math.min(#items, l.visible)
+    l:SetSize(width, shown * LIST_ROW + 8 + (title and LIST_ROW or 0))
+    l:ClearAllPoints()
+    l:SetPoint("TOPLEFT", owner, "BOTTOMLEFT", 0, -2)
+    l:Paint()
+    l:Show()
+    return l
+end
+
+-- Dropdown: shows the current choice; click for a list of the choices.
+-- labels[key] is the text shown. Set b.menuScroll to a height to make a long
+-- list scroll, b.menuTitle for a title, b.menuLabels for other text in the list.
 function T.Dropdown(parent, width, keys, labels, getter, setter)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(width, 22)
@@ -281,22 +396,14 @@ function T.Dropdown(parent, width, keys, labels, getter, setter)
     Disabler(b, { b })
     b:SetScript("OnClick", function(self)
         if self.disabled then return end
-        if MenuUtil and MenuUtil.CreateContextMenu then
-            MenuUtil.CreateContextMenu(self, function(_, root)
-                if self.menuTitle then root:CreateTitle(self.menuTitle) end
-                if self.menuScroll and root.SetScrollMode then root:SetScrollMode(self.menuScroll) end
-                for _, k in ipairs(self.keys) do
-                    root:CreateRadio(self.menuLabels and self.menuLabels[k] or label(k),
-                        function() return self.getter() == k end, function() choose(k) end)
-                end
-            end)
-        else
-            local cur, nextIdx = self.getter(), 1
-            for i, k in ipairs(self.keys) do
-                if k == cur then nextIdx = (i % #self.keys) + 1 break end
-            end
-            if self.keys[nextIdx] ~= nil then choose(self.keys[nextIdx]) end
+        local open = T.List()
+        if open:IsShown() and open.owner == self then open:Hide() return end
+        local items = {}
+        for _, k in ipairs(self.keys) do
+            items[#items + 1] = { text = self.menuLabels and self.menuLabels[k] or label(k),
+                isSelected = function() return self.getter() == k end, pick = function() choose(k) end }
         end
+        T.OpenList(self, items, self.menuScroll, self.menuTitle)
     end)
     b.Refresh = refresh
     b.Choose = choose

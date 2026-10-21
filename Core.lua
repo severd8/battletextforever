@@ -828,6 +828,7 @@ end
 function BT:ShowCombat(info)
     local db, C = self.db, self.TEXT_COLORS
     local spellIcon = self:IconText(info.spellId or info.spell)
+    if info.melee and info.fromMe and not info.toMe then spellIcon = self:SwingIcon() end
     local section = info.kind == "heal" and "heal" or info.toMe and "in" or "out"
     local icon, name = self:SpellParts(section, spellIcon, info.spell)
     local mine = info.fromMe == true
@@ -850,7 +851,7 @@ function BT:ShowCombat(info)
             self:CountSpell((pet and "(Pet) " or "") .. (info.spell or "Auto attack"), info.amount, info.crit, false,
                 spellIcon)
             if pet and not db.outPet then return true end
-            if mine and info.melee and not db.outSwings then return true end
+            if mine and (info.melee or self:IsRangedName(info.spell)) and not db.outSwings then return true end
             if not db.outDamage or info.amount < db.minDamage then return true end
             local rule = self:SpellRule(info.spell)
             if rule and rule.hide then return true end
@@ -913,7 +914,7 @@ function BT:ShowCombat(info)
         elseif mine or pet then
             if mine and info.missType == "DODGE" then self:React("dodged") end   -- (Overpower)
             if pet and not db.outPet then return true end
-            if mine and info.melee and not db.outSwings then return true end
+            if mine and (info.melee or self:IsRangedName(info.spell)) and not db.outSwings then return true end
             local rule = self:SpellRule(info.spell)
             if rule and rule.hide then return true end
             if db.outMisses then self:Emit("outgoing", outLabel .. word, C.miss) end
@@ -1115,6 +1116,16 @@ local FLIGHT_SPELLS = {
     { 24275, "Hammer of Wrath", 2 }, { 3044, "Arcane Shot", 64 },
 }
 local FLIGHT_TIME = 2.5   -- the longest a spell can be on its way (about 40 yards)
+-- Your ranged attacks, by spell ID (wands and bows both cast "Shoot"): { English name, school }.
+-- No school: a wand's, which is its own (any but physical). They fly like spells and count as
+-- auto attacks (the "Auto attacks" switch hides them too).
+local RANGED_SPELLS = {
+    [75] = { "Auto Shot", 1 }, [3018] = { "Shoot", 1 }, [7918] = { "Shoot Gun", 1 },
+    [7919] = { "Shoot Crossbow", 1 }, [2764] = { "Throw", 1 }, [5019] = { "Shoot" },
+}
+-- Your swings' icon: the weapon in your main hand (which hand a swing was can't be told),
+-- else the game's Attack
+local MAIN_HAND, ATTACK_SPELL = 16, 6603
 -- Things you throw or set off from your bags (Engineering's explosives): { the item's spell ID,
 -- English name, school }. They land on everything where they go off, which needn't be your
 -- target, a moment after the throw (or at once, for a Sapper Charge).
@@ -1587,6 +1598,42 @@ function BT:FlushHits(all)
     if #left > 0 then self:FlushSoon() end
 end
 
+-- One of your ranged attacks (RANGED_SPELLS), by the cast's spell ID: { school, wand, auto }
+function BT:RangedSpell(id)
+    local e = id and RANGED_SPELLS[id]
+    if not e then return nil end
+    return { school = e[2], wand = e[2] == nil, auto = true }
+end
+
+-- A readable line's spell that's one of your ranged attacks (in English or the game's language)
+function BT:IsRangedName(name)
+    if not name then return false end
+    if not self.rangedNames then
+        self.rangedNames = {}
+        for id, e in pairs(RANGED_SPELLS) do
+            self.rangedNames[e[1]] = true
+            local own = SpellName(id)
+            if own then self.rangedNames[own] = true end
+        end
+    end
+    return self.rangedNames[name] == true
+end
+
+-- A spell on its way (or a ranged attack) and a hit's school: a wand's is any but physical
+local function FlightSchool(f, mask)
+    if mask == nil then return false end
+    if f.wand then return mask ~= 1 end
+    return mask == f.school
+end
+
+-- The icon for a swing of yours, as text: your main hand weapon's, else the game's Attack
+function BT:SwingIcon()
+    local ok, tex = pcall(GetInventoryItemTexture or function() end, "player", MAIN_HAND)
+    tex = ok and (Num(tex) or Str(tex)) or nil
+    if tex then return "|T" .. tex .. ":0|t " end
+    return self:IconText(ATTACK_SPELL)
+end
+
 -- In a group, a hit on a mob could be anyone's. The combat log lines can't be
 -- read, but with the "My actions" filter each one is something you did. So a
 -- hit is taken for yours only if a line came with it or shortly before it,
@@ -1621,14 +1668,14 @@ function BT:OnSpellcast(spellId)
     if not name then return end
     local periodic, shields = self:SpellLists()
     -- A spell that flies is on its way to your target: its hit comes later (FlightFor)
-    local flight = self.flights[name]
+    local flight = self.flights[name] or self:RangedSpell(id)
     local flightKey = flight and UnitKey("target")
     if flightKey then
         self:ForgetOldFlights()
         self.flying = self.flying or {}
         while #self.flying >= 10 do table.remove(self.flying, 1) end
         self.flying[#self.flying + 1] = { id = id, name = name, at = GetTime(), key = flightKey,
-            school = flight.school, period = flight.period }
+            school = flight.school, period = flight.period, wand = flight.wand, auto = flight.auto }
     end
     -- A spell that keeps hitting for a while (AreaFor)
     if self.areaSpells[name] then self:StartArea(name, id) end
@@ -1919,8 +1966,8 @@ function BT:FlightFor(h)
                 -- (what a damage shield of yours does is the shield's)
                 local least = self.flightLeast and self.flightLeast[f.id]
                 local short = least and h.n and PlainHit(h) and h.n < least * FLIGHT_SHORT
-                if mask ~= nil and mask == f.school and not short and not self:KnownShield(h) then return f, i end
-            elseif (mask ~= nil and mask == f.school) or SPELL_MISSES[how or ""] then
+                if FlightSchool(f, mask) and not short and not self:KnownShield(h) then return f, i end
+            elseif FlightSchool(f, mask) or SPELL_MISSES[how or ""] then
                 return f, i
             end
         end
@@ -2097,14 +2144,15 @@ function BT:ResolveFrame(seq, first, last)
     local castSchool   -- the school of the hits this frame's cast has been given
     local castStruck = {}   -- and the units they were on
     -- A spell that flies: its school is known, and a miss is its own only if a spell's
-    local castFlight = cast and (self.flights[cast.name or ""] or self.thrownItems[cast.name or ""])
+    local castFlight = cast and (self.flights[cast.name or ""] or self.thrownItems[cast.name or ""]
+        or self:RangedSpell(cast.id))
     local function schoolOf(c)
-        local f = self.flights[c.name or ""] or self.thrownItems[c.name or ""]
+        local f = self.flights[c.name or ""] or self.thrownItems[c.name or ""] or self:RangedSpell(c.id)
         return (f and f.school) or (self.spellSchool and self.spellSchool[c.id])
     end
     local function flightMiss(h)
         local mask, how = Num(h.school), h.action == "WOUND" and h.flag or h.action
-        return (mask ~= nil and mask == castFlight.school) or SPELL_MISSES[how or ""] == true
+        return FlightSchool(castFlight, mask) or SPELL_MISSES[how or ""] == true
     end
     -- While the lines are arriving, a tick is known by its line: it comes right behind the hit
     local linesFlow = self.hiddenAt ~= nil and seq[first].time - self.hiddenAt < 10
@@ -2342,14 +2390,15 @@ function BT:ShowUnitHit(h, what, spell, area)
     elseif spell and spell.icon then
         icon = "|T" .. spell.icon .. ":0|t "   -- an item's
     end
+    -- Nothing to name it by: a swing (a physical hit, or a plain miss)
+    local swing = what == "hit" and not spell and (h.kind == "miss" or (h.kind == "damage" and Num(h.school) == 1))
+    if swing then icon = self:SwingIcon() end
     if h.kind == "damage" or h.kind == "heal" then
         self:CountFight(h.kind, h.n)
         self:CountSpell(spellName or (h.kind == "heal" and "Unnamed heal") or UnnamedHit(Num(h.school)), h.n, h.crit,
             h.kind == "heal", icon)
     end
-    -- Nothing to name it by: a swing (a physical hit, or a plain miss)
-    if what == "hit" and not spell and not db.outSwings
-            and (h.kind == "miss" or (h.kind == "damage" and Num(h.school) == 1)) then
+    if (swing or (spell and spell.auto)) and not db.outSwings then
         return "auto attacks are turned off"
     end
     local rule = self:SpellRule(spellName)
@@ -2596,6 +2645,9 @@ function BT:CheckGameData()
     for _, e in ipairs(SEAL_SPELLS) do spell(e[1], e[2], "seal") end
     for _, e in ipairs(SELF_BUFFS) do spell(e[1], e[2], "buff") end
     for _, e in ipairs(FLIGHT_SPELLS) do spell(e[1], e[2], "flies") end
+    for id, e in pairs(RANGED_SPELLS) do spell(id, e[1], "ranged") end
+    line(self:IconText(ATTACK_SPELL) ~= "", "swing icon " .. ATTACK_SPELL .. " (no weapon): "
+        .. (self:IconText(ATTACK_SPELL) ~= "" and "found" or "missing"))
     for _, e in ipairs(THROWN_ITEMS) do spell(e[1], e[2], "thrown") end
     for _, e in ipairs(AREA_SPELLS) do spell(e[1], e[2], "keeps hitting") end
     for _, e in ipairs(REACTIVE_SPELLS) do spell(e[1], e[2], "alert") end

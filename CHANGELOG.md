@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.14.0
+
+- **Setting a raid marker no longer gets BattleText blocked.** After you had picked something from one of BattleText's dropdowns (a font, an outline, a sound), choosing a target marker from the game's right-click menu on a unit frame could say "BattleTextForever has been blocked from an action only available to the Blizzard UI". BattleText's dropdowns used the game's own menus, which the game shares with its unit menus. They now open a list of BattleText's own, so the game's menus are left alone. (Thanks to darrell-cmyk for reporting it.)
+- **Icons for your auto attacks.** Your swings now show your main hand weapon's icon (the Attack icon with nothing in your hands). Which hand a swing came from can't be told, so off hand swings show the main hand's icon too. (Thanks to prestoncr for the idea.)
+- **Ranged attacks are named, with their icon.** Auto Shot, Shoot (bow, gun, crossbow or wand) and Throw showed as plain numbers, because they land a moment after you fire. Now the hit that lands on your target after one is named after it. They count as auto attacks: turning off Auto attacks hides them with your swings.
+- The dropdowns' lists scroll with the mouse wheel and close when you click anywhere else or close the options.
+
 ## 1.13.0
 
 - **More ability alerts** (Notifications tab, with Ability alerts):

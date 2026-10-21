@@ -344,7 +344,8 @@ local function BuildOutgoing(p)
     Setting(card, "Misses", COL2, -30, "outMisses",
         "Your attacks that miss, or are dodged, parried, fully blocked or resisted.")
     Setting(card, "Auto attacks", 12, -56, "outSwings",
-        "Your white swings and their misses. Off: only your spells and abilities. Without the game's combat "
+        "Your white swings, your ranged attacks (Auto Shot, Shoot, Throw) and their misses. Off: only your "
+        .. "spells and abilities. Without the game's combat "
         .. "lines, a physical hit BattleText can't name counts as a swing.", Either("outDamage", "outMisses"))
     Setting(card, "Pet", COL2, -56, "outPet",
         "Your pet's hits and heals, marked (Pet). This only works when the game lets BattleText read its combat "

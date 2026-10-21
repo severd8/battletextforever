@@ -8,7 +8,7 @@
 --   * a secure button's macro runs on mouse down or up (a game setting decides)
 --   * anything an addon must never do is recorded in VIOLATIONS: replacing one of
 --     the game's globals or a script on one of its frames, asking for the combat
---     log events, calling a Blizzard-only function
+--     log events, calling a Blizzard-only function, opening one of the game's menus
 
 local STANDARD = {}   -- what Lua itself provides (everything else below is "the game")
 for k in pairs(_G) do STANDARD[k] = true end
@@ -175,37 +175,13 @@ function Methods:StartMoving() protectedCheck(self, "StartMoving") self.__moving
 function Methods:StopMovingOrSizing() protectedCheck(self, "StopMovingOrSizing") self.__moving = false end
 
 function CreateFrame(kind, name, parent, template)
-    if kind == "DropdownButton" and STATE.noDropdown then error("Unknown frame type: DropdownButton") end
     return newObj(kind, name, parent, template)
 end
 
--- The game's menus. A menu is described by a function that's handed a "root"
--- to add rows to; here the rows are just collected: { text, isSelected, pick }.
-local function describeMenu(generator, owner)
-    local rows = { scroll = nil }
-    local root = {}
-    function root:SetScrollMode(extent) rows.scroll = extent end
-    function root:CreateRadio(text, isSelected, setSelected)
-        rows[#rows + 1] = { text = text, isSelected = isSelected, pick = setSelected }
-    end
-    generator(owner, root)
-    return rows
-end
--- The game's dropdown button shows whichever row is ticked
-function Methods:SetupMenu(generator)
-    assert(self.__kind == "DropdownButton", "SetupMenu is the dropdown button's")
-    self.__generator = generator
-    if self:IsVisible() then self:GenerateMenu() end
-end
-function Methods:GenerateMenu()
-    self.__menu = describeMenu(self.__generator, self)
-    for _, row in ipairs(self.__menu) do
-        if row.isSelected() then self.__text = row.text end
-    end
-end
--- A menu opened from any other button: the test looks at MENU_OPENED
+-- The game's menus are shared with its own unit menus (raid markers...): a
+-- menu an addon opens can taint them, so the game blocks the marker (issue #9)
 MenuUtil = {
-    CreateContextMenu = function(owner, generator) MENU_OPENED = describeMenu(generator, owner) end,
+    CreateContextMenu = function() violation("opened one of the game's menus (MenuUtil.CreateContextMenu)") end,
 }
 UIParent = newObj("Frame", "UIParent")
 Minimap = newObj("Frame", "Minimap")
@@ -244,7 +220,6 @@ STATE = {
     -- unit: what's known about each (enemy, guid, target = the unit it's targeting; "me" and "pet" are yours).
     who = {}, unit = {},
     group = false,                -- you're in a party
-    noDropdown = false,           -- a client without the game's dropdown button
 }
 
 FAKE_TIME = 1000
@@ -514,7 +489,7 @@ dofile((ADDON_DIR or ".") .. "/tests/strings_enus.lua")
 -- may read it and add to its tables, but never replace it.
 local TEST = { LOG = 1, ALL_FRAMES = 1, BLOCKED = 1, VIOLATIONS = 1, COMBAT = 1, SECRET_MODE = 1, SECURE = 1,
     STUB_METHODS = 1, STATE = 1, FAKE_TIME = 1, TIMERS = 1, TICKERS = 1, Advance = 1, Secret = 1, newObj = 1,
-    ClickButton = 1, ClickTab = 1, WithoutGameText = 1, MENU_OPENED = 1 }
+    ClickButton = 1, ClickTab = 1, WithoutGameText = 1 }
 GAME = {}
 for k, v in pairs(_G) do
     if not STANDARD[k] and not TEST[k] then GAME[k] = v end
@@ -541,14 +516,6 @@ function WithoutGameText(fn)
     end
     local ok, err = pcall(fn)
     for k, v in pairs(hidden) do GAME[k] = v end
-    if not ok then error(err, 0) end
-end
--- Runs fn on a client that has no menus to open
-function WithoutMenus(fn)
-    local menus = GAME.MenuUtil
-    GAME.MenuUtil = nil
-    local ok, err = pcall(fn)
-    GAME.MenuUtil = menus
     if not ok then error(err, 0) end
 end
 -- Runs fn on a client that has no timers
