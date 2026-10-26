@@ -133,6 +133,7 @@ BattleText Forever is free. If you enjoy it, you can [leave a small tip on Ko-fi
 - **ToppedOff Forever**: reminds you when buffs, food, reagents, ammo or gear need topping off. Free on CurseForge.
 - **Outfitter Forever**: the classic Outfitter gear manager, ported to WoW Forever. Free on CurseForge.
 - **AuctionHouse Forever**: a bigger Auction House window, so long item names stop getting cut off and you see more results at once. Free on CurseForge.
+- **ARS Forever (Azeroth Revenue Service)**: keeps the books on your gold, so you can see what you earned, what you spent and where it went. Free on CurseForge.
 
 ## License
 
