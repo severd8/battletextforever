@@ -1081,6 +1081,10 @@ local PERIODIC_SPELLS = {
     { 8050, "Flame Shock", 3, 4, true },
     { 774, "Rejuvenation", 3, 8, false, true }, { 8936, "Regrowth", 3, 8, true, true }, { 139, "Renew", 3, 2, false, true },
 }
+-- Attacks on your next swing, which replace it: { first rank's ID, English name }
+local NEXT_SWING_SPELLS = {
+    { 6807, "Maul" }, { 78, "Heroic Strike" }, { 845, "Cleave" }, { 2973, "Raptor Strike" },
+}
 -- Buffs on you that hurt whoever hits you: { first rank's ID, English name, school }
 local SHIELD_SPELLS = {
     { 467, "Thorns", 8 }, { 324, "Lightning Shield", 8 }, { 7294, "Retribution Aura", 2 }, { 2947, "Fire Shield", 4 },
@@ -1207,6 +1211,19 @@ function BT:SpellLists()
         end
     end
     return self.periodic, self.shields
+end
+
+-- Attacks on your next swing, by name (English, and the game's language)
+function BT:NextSwing(name)
+    if not self.nextSwing then
+        self.nextSwing = {}
+        for _, e in ipairs(NEXT_SWING_SPELLS) do
+            self.nextSwing[e[2]] = true
+            local local_ = SpellName(e[1])
+            if local_ then self.nextSwing[local_] = true end
+        end
+    end
+    return name ~= nil and self.nextSwing[name] == true
 end
 
 -- Buffs you cast on yourself, by name (English, and the game's language)
@@ -2204,6 +2221,28 @@ function BT:ResolveFrame(seq, first, last)
             end
         end
     end
+    -- An attack on your next swing (Maul, Heroic Strike...) replaces the swing, yet the game can
+    -- send two physical hits on the mob with it: the attack, and a part for nothing whose amount
+    -- it hides (and draws as "0"). On each mob, every such hit but the attack's is that part.
+    local emptyPart = {}
+    if cast and self:NextSwing(cast.name) then
+        local onUnit = {}
+        for i = first, last do
+            local h = seq[i]
+            local mask = Num(h.school)
+            if h.hit and not h.splash and h.key and h.kind == "damage" and h.secret and (mask == nil or mask == 1) then
+                onUnit[h.key] = onUnit[h.key] or {}
+                table.insert(onUnit[h.key], i)
+            end
+        end
+        for _, list in pairs(onUnit) do
+            if #list > 1 then
+                local keep = list[#list]   -- the attack: the one its line vouches for, else the last
+                for _, i in ipairs(list) do if byLine and byLine[i] then keep = i end end
+                for _, i in ipairs(list) do if i ~= keep then emptyPart[i] = true end end
+            end
+        end
+    end
     for i = first, last do
         local h = seq[i]
         if h.nothing and not blowInFrame then
@@ -2218,7 +2257,7 @@ function BT:ResolveFrame(seq, first, last)
                 if j ~= i and o.hit and o.kind == "damage" and o.key == h.key then otherPart = true break end
             end
         end
-        if otherPart then
+        if otherPart or emptyPart[i] then
             if self.db.debug then
                 self:Record(("  %s for nothing: the other part of a blow that landed"):format(h.unit), h.time)
             end
@@ -2644,6 +2683,7 @@ function BT:CheckGameData()
     for _, e in ipairs(SHIELD_SPELLS) do spell(e[1], e[2], "shield") end
     for _, e in ipairs(SEAL_SPELLS) do spell(e[1], e[2], "seal") end
     for _, e in ipairs(SELF_BUFFS) do spell(e[1], e[2], "buff") end
+    for _, e in ipairs(NEXT_SWING_SPELLS) do spell(e[1], e[2], "next swing") end
     for _, e in ipairs(FLIGHT_SPELLS) do spell(e[1], e[2], "flies") end
     for id, e in pairs(RANGED_SPELLS) do spell(id, e[1], "ranged") end
     line(self:IconText(ATTACK_SPELL) ~= "", "swing icon " .. ATTACK_SPELL .. " (no weapon): "

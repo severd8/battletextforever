@@ -204,7 +204,7 @@ STATE = {
     spellIcons = { [16827] = 132140, [8921] = 136096 },   -- by spell ID
     spellNames = { [16827] = "Claw", [8921] = "Moonfire", [1082] = "Claw", [1822] = "Rake", [1079] = "Rip", [5221] = "Shred",
         [467] = "Thorns", [782] = "Thorns", [1075] = "Thorns", [324] = "Lightning Shield", [5570] = "Insect Swarm",
-        [768] = "Cat Form", [5185] = "Healing Touch", [774] = "Rejuvenation",
+        [768] = "Cat Form", [6807] = "Maul", [5185] = "Healing Touch", [774] = "Rejuvenation",
         [133] = "Fireball", [11366] = "Pyroblast", [116] = "Frostbolt", [2136] = "Fire Blast", [5176] = "Wrath",
         [7384] = "Overpower", [6572] = "Revenge", [14251] = "Riposte", [19306] = "Counterattack",
         [5308] = "Execute", [24275] = "Hammer of Wrath", [16870] = "Clearcasting" },

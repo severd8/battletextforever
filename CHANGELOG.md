@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.14.1
+
+- **Maul no longer shows a "0" under its hit.** When the game hides the numbers, Maul (and Heroic Strike, Cleave, Raptor Strike) arrive with an empty part the game draws as "0". It's now left out, as the readable "Miss" already was. (Thanks to the druid who sent the debug lines.)
+
 ## 1.14.0
 
 - **Setting a raid marker no longer gets BattleText blocked.** After you had picked something from one of BattleText's dropdowns (a font, an outline, a sound), choosing a target marker from the game's right-click menu on a unit frame could say "BattleTextForever has been blocked from an action only available to the Blizzard UI". BattleText's dropdowns used the game's own menus, which the game shares with its unit menus. They now open a list of BattleText's own, so the game's menus are left alone. (Thanks to darrell-cmyk for reporting it.)

@@ -1804,6 +1804,22 @@ Advance(1)
 fire("UNIT_COMBAT", "target", "WOUND", "PARRY", 0, 1)
 fire("UNIT_COMBAT", "target", "WOUND", "", 30, 1)
 assertEq(table.concat(lines("outgoing"), " / "), "Claw 37 / Miss / Parry / 30", "a parry says so, whatever lands with it")
+-- With the amounts hidden the empty part can't be read as 0 (the game draws "0"). Two frames from
+-- a player's /btf debug: Maul, a hit, a line, a crit; and Maul with Thorns answering in between.
+local function maulFrame(...)
+    fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-m-" .. GetTime(), 6807)
+    for _, step in ipairs({ ... }) do
+        if step == "line" then hidden(1668) else fire("UNIT_COMBAT", "target", "WOUND", step[2] or "", Secret(step[1]), step[3] or 1) end
+    end
+    return lines("outgoing")
+end
+clear()
+local got = maulFrame({ 0 }, "line", { 43, "CRITICAL" })
+assertEq(#got, 1, "Maul with hidden amounts: one line, no \"0\"")
+assertEq(BT.areas.outgoing.active[1].sticky, true, "and it's the crit")
+clear()
+got = maulFrame({ 0 }, { 11, "", 8 }, "line", { 40 })
+assertEq(#got, 2, "Maul and Thorns: two lines, no \"0\"")
 STATE.who = {}
 
 step("a fourth real fight: Shred, whose hit comes ahead of its cast")
