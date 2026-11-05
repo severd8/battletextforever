@@ -387,6 +387,12 @@ C_TooltipInfo = {
     end,
 }
 function GetInventoryItemTexture(unit, slot) return STATE.equipped[slot] and STATE.equipped[slot].icon end
+-- Your shapeshift form: STATE.form = { icon =, spellId = } (none: no form)
+function GetShapeshiftForm() return STATE.form and 1 or 0 end
+function GetShapeshiftFormInfo(i)
+    if i ~= 1 or not STATE.form then return nil end
+    return STATE.form.icon, true, true, STATE.form.spellId
+end
 C_Item = { GetItemIconByID = function(id) return 134000 + id end }
 
 -- The chat tabs (General, Combat Log, Loot), and the Combat Log window behind the second one

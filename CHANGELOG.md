@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.14.2
+
+- **Swings in Bear and Cat Form show the form's icon**, not your weapon's: a druid fights with claws there. (Thanks to the druid who asked.)
+
 ## 1.14.1
 
 - **Maul no longer shows a "0" under its hit.** When the game hides the numbers, Maul (and Heroic Strike, Cleave, Raptor Strike) arrive with an empty part the game draws as "0". It's now left out, as the readable "Miss" already was. (Thanks to the druid who sent the debug lines.)

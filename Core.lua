@@ -1643,8 +1643,29 @@ local function FlightSchool(f, mask)
     return mask == f.school
 end
 
--- The icon for a swing of yours, as text: your main hand weapon's, else the game's Attack
+-- Forms that fight with claws, not the weapon: their own icon goes on your swings
+local CLAW_FORMS = { [5487] = "Bear Form", [9634] = "Dire Bear Form", [768] = "Cat Form" }
+function BT:ClawFormIcon()
+    if not (GetShapeshiftForm and GetShapeshiftFormInfo) then return nil end
+    local ok, index = pcall(GetShapeshiftForm)
+    index = ok and Num(index) or nil
+    if not index or index == 0 then return nil end
+    local ok2, tex, _, _, spellId = pcall(GetShapeshiftFormInfo, index)
+    spellId = ok2 and Num(spellId) or nil
+    if not spellId then return nil end
+    local name = SpellName(spellId)
+    local claws = CLAW_FORMS[spellId] ~= nil
+    for _, formName in pairs(CLAW_FORMS) do if name == formName then claws = true end end
+    if not claws then return nil end
+    tex = Num(tex) or Str(tex)
+    return tex and ("|T" .. tex .. ":0|t ") or self:IconText(spellId)
+end
+
+-- The icon for a swing of yours, as text: a druid's form in Bear or Cat Form, else your main
+-- hand weapon's, else the game's Attack
 function BT:SwingIcon()
+    local claws = self:ClawFormIcon()
+    if claws and claws ~= "" then return claws end
     local ok, tex = pcall(GetInventoryItemTexture or function() end, "player", MAIN_HAND)
     tex = ok and (Num(tex) or Str(tex)) or nil
     if tex then return "|T" .. tex .. ":0|t " end

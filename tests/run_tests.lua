@@ -3147,6 +3147,20 @@ fire("UNIT_COMBAT", "target", "WOUND", "", 40, 4)
 assertEq(last("outgoing"), "40", "a hit nothing named of another school: no icon (not a swing)")
 log(swing(27))
 assertEq(last("outgoing"), "|T135321:0|t 27", "a swing read from the combat log, too")
+-- In Bear or Cat Form a druid fights with claws: the form's icon, not the weapon's
+STATE.form = { icon = 132276, spellId = 5487 }
+Advance(2)
+wound(28, 1)
+assertEq(last("outgoing"), "|T132276:0|t 28", "Bear Form: the form's icon")
+STATE.form = { icon = 132115, spellId = 768 }
+Advance(2)
+wound(29, 1)
+assertEq(last("outgoing"), "|T132115:0|t 29", "Cat Form too")
+STATE.form = { icon = 136036, spellId = 24858 }
+Advance(2)
+wound(30, 1)
+assertEq(last("outgoing"), "|T135321:0|t 30", "another form (Moonkin) swings the weapon")
+STATE.form = nil
 clear()
 -- Ranged attacks fly to the target: the hit that lands after one is it
 Advance(2)
