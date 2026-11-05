@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.14.3
+
+- **Bear and Cat Form swings show the right icon.** 1.14.2 showed a blue star instead of the form: the game gives that "form is on" icon for the form you're in. The icon now comes from the form itself.
+
 ## 1.14.2
 
 - **Swings in Bear and Cat Form show the form's icon**, not your weapon's: a druid fights with claws there. (Thanks to the druid who asked.)

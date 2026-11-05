@@ -1650,15 +1650,16 @@ function BT:ClawFormIcon()
     local ok, index = pcall(GetShapeshiftForm)
     index = ok and Num(index) or nil
     if not index or index == 0 then return nil end
-    local ok2, tex, _, _, spellId = pcall(GetShapeshiftFormInfo, index)
+    -- (the texture this gives for the form you're in is the stance bar's "on" star, not the
+    -- form's: the icon comes from the form's spell instead)
+    local ok2, _, _, _, spellId = pcall(GetShapeshiftFormInfo, index)
     spellId = ok2 and Num(spellId) or nil
     if not spellId then return nil end
     local name = SpellName(spellId)
     local claws = CLAW_FORMS[spellId] ~= nil
     for _, formName in pairs(CLAW_FORMS) do if name == formName then claws = true end end
     if not claws then return nil end
-    tex = Num(tex) or Str(tex)
-    return tex and ("|T" .. tex .. ":0|t ") or self:IconText(spellId)
+    return self:IconText(spellId)
 end
 
 -- The icon for a swing of yours, as text: a druid's form in Bear or Cat Form, else your main
