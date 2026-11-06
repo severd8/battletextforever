@@ -3909,5 +3909,54 @@ for _, junk in ipairs({ "|H", "|Hunit:|h", "|Haction:SPELL_DAMAGE|hhit|h", "|Hsp
     assert(not (info and info.kind == "damage" and info.amount), "and isn't read as a hit: " .. junk)
 end
 
+step("each side area lines up left, centered or right")
+clear()
+assertEq(BT.DEFAULTS.outAlign .. "," .. BT.DEFAULTS.inAlign, "LEFT,RIGHT", "as before to start with")
+BT.db.outAlign = "RIGHT"
+BT:Emit("outgoing", "12", { 1, 1, 1 })
+BT:Emit("outgoing", "34", { 1, 1, 1 }, { crit = true })
+local byText = {}
+for _, o in ipairs(BT.areas.outgoing.active) do byText[o.text:GetText()] = o end
+assertEq(byText["12"].anchor, "RIGHT", "Right: lines line up on the right")
+assertEq(byText["12"].text.__justify, "RIGHT", "and the text with them")
+assertEq(byText["34"].anchor, "LEFT", "a crit that stays in place, on the other side")
+clear()
+BT.db.outAlign = "CENTER"
+BT:Emit("outgoing", "56", { 1, 1, 1 }, { crit = true })
+assertEq(BT.areas.outgoing.active[1].anchor, "CENTER", "Center: crits too")
+clear()
+BT.db.inAlign = "SIDEWAYS"
+BT:Emit("incoming", "-7", { 1, 1, 1 })
+assertEq(BT.areas.incoming.active[1].anchor, "RIGHT", "an unknown setting: the area's own")
+BT.db.outAlign, BT.db.inAlign = "LEFT", "RIGHT"
+clear()
+
+step("fonts other addons share (LibSharedMedia)")
+local shared = { ["Avant Garde"] = "Interface\\AddOns\\SomeUI\\Fonts\\AvantGarde.ttf",
+    ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF" }
+local callback
+local lib = {
+    List = function() return { "Friz Quadrata", "Avant Garde" } end,
+    Fetch = function(_, kind, name) return kind == "font" and shared[name] or nil end,
+    RegisterCallback = function(_, _, fn) callback = fn end,
+}
+rawset(_G, "LibStub", function(name, silent) return name == "LibSharedMedia-3.0" and lib or nil end)
+local before = #BT.FONTS
+BT:AddSharedFonts()
+assertEq(#BT.FONTS, before + 1, "a shared font is added, one BattleText has already isn't twice")
+assertEq(BT.FONTS[#BT.FONTS].name, "Avant Garde", "under the name it's shared as")
+local keys = BT.config.fontDropdown.keys
+assertEq(keys[#keys], "Avant Garde", "and it's in the font list")
+BT.db.font = "Avant Garde"
+assertEq(BT:FontPath(), shared["Avant Garde"], "picking it uses that addon's file")
+shared["Later Font"] = "Interface\\AddOns\\SomeUI\\Fonts\\Later.ttf"
+lib.List = function() return { "Avant Garde", "Later Font" } end
+callback(nil, "font", "Later Font")
+assertEq(BT.FONTS[#BT.FONTS].name, "Later Font", "a font shared later is added when it's shared")
+BT.db.font = "Default"
+while #BT.FONTS > before do table.remove(BT.FONTS) table.remove(keys) end
+rawset(_G, "LibStub", nil)
+BT.sharedFontsHooked = nil
+
 assertClean("by the end")
 print("ALL TESTS PASSED")

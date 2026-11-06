@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.15.0
+
+- **Alignment for the side areas** (Outgoing and Incoming tabs, under Appearance): line their text up on the left, in the center or on the right. They start as before: outgoing on the left, incoming on the right. (Thanks to cloaken for asking.)
+- **Fonts from your other addons.** Fonts that your other addons share through LibSharedMedia (many UI packs do) now show at the end of the font list on the Text tab. (Thanks to Venemar89 for asking.)
+
 ## 1.14.3
 
 - **Bear and Cat Form swings show the right icon.** 1.14.2 showed a blue star instead of the form: the game gives that "form is on" icon for the form you're in. The icon now comes from the form itself.
