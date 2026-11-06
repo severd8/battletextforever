@@ -128,6 +128,14 @@ local function AreaLook(p, y, prefix, curved, enabledIf, offNote)
     if curved then
         Setting(card, "Curved scrolling", COL2, -110, prefix .. "Curved",
             "Lines bow outward as they scroll. Off: straight lines. Only with Scroll movement.", scrolling)
+        -- (the side areas: their lines can line up left, centered or right)
+        local aligns = {}
+        for _, al in ipairs(BT.ALIGNS) do aligns[#aligns + 1] = al.key end
+        T.RowLabel(card, "Alignment", 12, -110)
+        Dropdown(card, DROP_X, -110, 150, aligns, function(k) return BT:AlignName(k) end, prefix .. "Align",
+            function(k) BT.db[prefix .. "Align"] = k end,
+            "Which side this area's lines line up on. Crits that stay in place line up on the other side, "
+            .. "so they don't sit on top of the rest.", enabledIf)
     end
     if offNote then
         local note = T.Note(card, offNote, 0, 0)
@@ -295,7 +303,8 @@ local function BuildText(p, refs)
 
     T.RowLabel(card, "Font", 12, -30)
     refs.fontDropdown = Dropdown(card, DROP_X, -30, 220, fontKeys, function(k) return k end, "font",
-        function(name) BT:SetFont(name) end, "The letters of every line. Picking one shows a sample line in it.")
+        function(name) BT:SetFont(name) end, "The letters of every line. Picking one shows a sample line in it. "
+        .. "Fonts your other addons share (through LibSharedMedia, like many UI packs) are at the end of the list.")
     refs.fontDropdown.menuScroll = 20 * 12   -- twelve rows, then it scrolls
     T.RowLabel(card, "Outline", 12, -60)
     refs.outlineDropdown = Dropdown(card, DROP_X, -60, 220, outlineKeys, outlineName, "outline",

@@ -94,6 +94,8 @@ local DEFAULTS = {
     -- Each area's scrolling: up instead of down, and (the side areas) bowing outward
     outScrollUp = false, inScrollUp = false, healScrollUp = false, nScrollUp = false,
     outCurved = true, inCurved = true,
+    -- The side areas' text: which side its lines line up on (one of BT.ALIGNS)
+    outAlign = "LEFT", inAlign = "RIGHT",
     -- Each area's way of moving its lines (one of BT.STYLES)
     outStyle = "scroll", inStyle = "scroll", healStyle = "scroll", nStyle = "scroll",
     outDamage = true, outHeals = true, outMisses = true, outPet = true, outShields = true,
@@ -165,6 +167,11 @@ BT.OUTLINES = {
 }
 
 -- How the lines in an area move
+-- Which side the lines in an area line up on
+BT.ALIGNS = {
+    { key = "LEFT", name = "Left" }, { key = "CENTER", name = "Center" }, { key = "RIGHT", name = "Right" },
+}
+
 BT.STYLES = {
     { key = "scroll", name = "Scroll" },           -- up or down the area, one after another
     { key = "pop", name = "Pop" },                 -- jump out somewhere in the area and fade
@@ -246,6 +253,34 @@ BT.Commas = Commas
 ---------------------------------------------------------------------------
 -- Scroll areas and the lines moving through them
 ---------------------------------------------------------------------------
+-- Fonts other addons share through LibSharedMedia (UI packs like ElvUI or EllesmereUI often
+-- do): added to the list after BattleText's own, by the name they're shared under
+function BT:AddSharedFonts()
+    local lib = LibStub and LibStub("LibSharedMedia-3.0", true)
+    if not lib then return end
+    if not self.sharedFontsHooked and lib.RegisterCallback then
+        self.sharedFontsHooked = true
+        pcall(lib.RegisterCallback, self, "LibSharedMedia_Registered", function(_, kind)
+            if kind == "font" then BT:AddSharedFonts() end
+        end)
+    end
+    local ok, names = pcall(lib.List, lib, "font")
+    if not ok or type(names) ~= "table" then return end
+    local have = {}
+    for _, f in ipairs(self.FONTS) do have[f.name] = true end
+    for _, name in ipairs(names) do
+        if type(name) == "string" and not have[name] then
+            local okPath, path = pcall(lib.Fetch, lib, "font", name, true)
+            if okPath and type(path) == "string" and path ~= "" then
+                self.FONTS[#self.FONTS + 1] = { name = name, path = path, shared = true }
+                have[name] = true
+                local d = self.config and self.config.fontDropdown
+                if d and d.keys then d.keys[#d.keys + 1] = name end
+            end
+        end
+    end
+end
+
 function BT:FontPath()
     for _, f in ipairs(self.FONTS) do
         if f.name == self.db.font and f.path then return f.path end
@@ -314,6 +349,22 @@ function BT:StyleName(key)
 end
 
 -- How an area's lines move: a key of BT.STYLES
+-- Which side an area's lines line up on: its setting, else the area's own
+function BT:AreaJustify(a)
+    local align = self:AreaSetting(a, "Align")
+    for _, al in ipairs(self.ALIGNS) do
+        if al.key == align then return align end
+    end
+    return a.def.justify
+end
+
+function BT:AlignName(key)
+    for _, al in ipairs(self.ALIGNS) do
+        if al.key == key then return al.name end
+    end
+    return key
+end
+
 function BT:AreaStyle(a)
     local style = self:AreaSetting(a, "Style")
     for _, s in ipairs(self.STYLES) do
@@ -466,8 +517,11 @@ function BT:Emit(areaKey, text, color, opts)
     o.key, o.style = nil, nil
     -- Scrolling lines grow away from the middle of the screen. A crit that holds
     -- grows the other way, so it never sits on top of them.
-    local anchor = a.def.justify
-    if o.sticky and a.def.dir ~= 0 then anchor = a.def.dir > 0 and "RIGHT" or "LEFT" end
+    local justify = self:AreaJustify(a)
+    local anchor = justify
+    if o.sticky and a.def.dir ~= 0 then
+        anchor = (justify == "LEFT" and "RIGHT") or (justify == "RIGHT" and "LEFT") or "CENTER"
+    end
     if o.anchor ~= anchor then
         o.anchor = anchor
         o.text:ClearAllPoints()
@@ -3129,6 +3183,7 @@ function BT:Choices(key)
     elseif key == "outline" or key == "critOutline" then list, field = self.OUTLINES, "flags"
     elseif key == "critSound" or key == "killSound" then list, field = self.SOUNDS, "key"
     elseif key:match("Style$") then list, field = self.STYLES, "key"
+    elseif key:match("Align$") then list, field = self.ALIGNS, "key"
     else return nil end
     local keys = {}
     for _, item in ipairs(list) do keys[item[field]] = true end
@@ -3468,6 +3523,7 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         BT:ApplyColors()
         return
     elseif event == "PLAYER_LOGIN" then
+        BT:AddSharedFonts()   -- (other addons have loaded by now)
         Parser:Init()
         BT:BuildAreas()
         BT:BuildStartButton()
