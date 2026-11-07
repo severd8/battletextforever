@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.15.1
+
+- **Turn off DoT and area spell ticks** (Outgoing tab, "DoTs and area spells"): hides the ticks of your damage-over-time spells and of spells that keep hitting an area, like Consecration, Blizzard and Rain of Fire. The spell's own first hit still shows. (Thanks to Dethkloch for asking.)
+
 ## 1.15.0
 
 - **Alignment for the side areas** (Outgoing and Incoming tabs, under Appearance): line their text up on the left, in the center or on the right. They start as before: outgoing on the left, incoming on the right. (Thanks to cloaken for asking.)

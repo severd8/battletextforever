@@ -421,6 +421,12 @@ local function tick(spell, id, amount, school)   -- the same line, from a damage
     return (hit(spell, id, amount, school):gsub("SPELL_DAMAGE", "SPELL_PERIODIC_DAMAGE"))
 end
 assertEq(BT.DEFAULTS.tickMerge, 0, "off to start with: ticks add up as quickly as other hits")
+BT.db.outTicks = false
+log(tick("Rake", 1822, 12))
+log(hit("Rake", 1822, 30))
+assertEq(table.concat(lines("outgoing"), " / "), "Rake 30", "DoTs off: a tick from the log is hidden, the spell's own hit isn't")
+BT.db.outTicks = true
+clear()
 log(tick("Rake", 1822, 12))
 Advance(0.9)
 log(tick("Rake", 1822, 12))
@@ -2254,7 +2260,7 @@ for _, f in ipairs(ALL_FRAMES) do
         end
     end
 end
-assertEq(switches, 51, "the switches are there")
+assertEq(switches, 52, "the switches are there")
 -- A switch's label is part of it: its click area stretches over the text
 for _, f in ipairs(ALL_FRAMES) do
     if f.isSwitch and f.key and inWindow(f) then
@@ -3061,6 +3067,13 @@ assertEq(table.concat(lines("outgoing"), " / "), "Consecration 12 / Consecration
 Advance(7)
 on("target", 13, 2)
 assertEq(last("outgoing"), "Consecration 13", "for its 8 seconds")
+-- "DoTs and area spells" off: its ticks are hidden
+BT.db.outTicks = false
+Advance(0.5)
+local before = #lines("outgoing")
+on("target", 13, 2)
+assertEq(#lines("outgoing"), before, "turned off: Consecration's ticks are hidden")
+BT.db.outTicks = true
 Advance(2.1)
 on("target", 14, 2)
 assertEq(last("outgoing"), "14", "and no longer")

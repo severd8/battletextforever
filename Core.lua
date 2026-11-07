@@ -101,6 +101,7 @@ local DEFAULTS = {
     outDamage = true, outHeals = true, outMisses = true, outPet = true, outShields = true,
     outSeals = true,          -- name a seal's hit beside your swing
     outSwings = true,         -- your auto attacks (white swings)
+    outTicks = true,          -- the ticks of your DoTs and lingering area spells (Consecration, Blizzard...)
     shieldAmounts = {},       -- learned: what each damage shield of yours hits for (by its name)
     inDamage = true, inHeals = true, inMisses = true, inPower = false,
     nCombat = true, nKill = true, nXP = true, nRep = true, nHonor = true,
@@ -906,6 +907,7 @@ function BT:ShowCombat(info)
                 spellIcon)
             if pet and not db.outPet then return true end
             if mine and (info.melee or self:IsRangedName(info.spell)) and not db.outSwings then return true end
+            if info.periodic and not db.outTicks then return true end
             if not db.outDamage or info.amount < db.minDamage then return true end
             local rule = self:SpellRule(info.spell)
             if rule and rule.hide then return true end
@@ -2515,6 +2517,9 @@ function BT:ShowUnitHit(h, what, spell, area)
     end
     if (swing or (spell and spell.auto)) and not db.outSwings then
         return "auto attacks are turned off"
+    end
+    if what == "tick" and h.kind ~= "heal" and not db.outTicks then
+        return "DoT and area spell ticks are turned off"
     end
     local rule = self:SpellRule(spellName)
     if rule and rule.hide then return "hidden on the Spells tab" end
