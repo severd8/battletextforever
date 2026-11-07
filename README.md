@@ -21,7 +21,7 @@ BattleText Forever puts the fight on your screen: your hits scroll on one side, 
 - **Four text areas** you can drag anywhere on screen, each with its own movement: Scroll, Pop, Fountain or Horizontal.
 - **Your look**: 23 fonts (plus any your other addons share through LibSharedMedia), an outline (thin or thick) or a drop shadow, text and crit size, bigger text for bigger hits, short numbers (12.3k), scroll speed and distance, your own colors, and for each area its own size, opacity and direction (up or down, straight or curved), and left, centered or right text for the side areas.
 - **Your choice of what's shown.** Turn any kind of text off, hide your auto attacks, icons and spell names per area, hide small hits and heals, and hide the game's own numbers so nothing shows twice.
-- **Sounds** if you want them, on your crits and killing blows: pick from 18 of the game's sounds (Crit, Impact, Anvil, Battle horn, Boss defeated, Cheers, Epic loot...).
+- **Sounds** if you want them, on your crits and killing blows: pick from 18 of the game's sounds (Crit, Impact, Anvil, Battle horn, Boss defeated, Cheers, Epic loot...), or any your other addons share through LibSharedMedia.
 - **Settings per character** if you want them, starting from a copy of your shared ones, and **share your settings** with a friend as a line of text.
 
 ## Installation

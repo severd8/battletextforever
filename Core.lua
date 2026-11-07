@@ -262,9 +262,10 @@ function BT:AddSharedFonts()
     if not self.sharedFontsHooked and lib.RegisterCallback then
         self.sharedFontsHooked = true
         pcall(lib.RegisterCallback, self, "LibSharedMedia_Registered", function(_, kind)
-            if kind == "font" then BT:AddSharedFonts() end
+            if kind == "font" or kind == "sound" then BT:AddSharedFonts() end
         end)
     end
+    self:AddSharedSounds(lib)
     local ok, names = pcall(lib.List, lib, "font")
     if not ok or type(names) ~= "table" then return end
     local have = {}
@@ -277,6 +278,27 @@ function BT:AddSharedFonts()
                 have[name] = true
                 local d = self.config and self.config.fontDropdown
                 if d and d.keys then d.keys[#d.keys + 1] = name end
+            end
+        end
+    end
+end
+
+-- Sounds other addons share through LibSharedMedia: added to the crit and kill sound lists,
+-- keyed "lsm:<name>" and played from their file
+function BT:AddSharedSounds(lib)
+    local ok, names = pcall(lib.List, lib, "sound")
+    if not ok or type(names) ~= "table" then return end
+    local have = {}
+    for _, s in ipairs(self.SOUNDS) do have[s.key] = true end
+    for _, name in ipairs(names) do
+        local key = type(name) == "string" and ("lsm:" .. name)
+        if key and not have[key] and name ~= "None" then
+            local okPath, file = pcall(lib.Fetch, lib, "sound", name, true)
+            if okPath and (type(file) == "string" and file ~= "" or type(file) == "number") then
+                self.SOUNDS[#self.SOUNDS + 1] = { key = key, name = name, file = file, shared = true }
+                have[key] = true
+                local d = self.config and self.config.critSoundDropdown
+                if d and d.keys then d.keys[#d.keys + 1] = key end   -- (the kill sound list shares it)
             end
         end
     end
@@ -853,6 +875,17 @@ end
 
 -- Plays a sound by its SOUNDKIT name; true if the game has it
 local function PlayKit(key)
+    -- A sound another addon shares: played from its file
+    if type(key) == "string" and key:sub(1, 4) == "lsm:" then
+        if not PlaySoundFile then return false end
+        for _, s in ipairs(BT.SOUNDS) do
+            if s.key == key and s.file then
+                local ok, played = pcall(PlaySoundFile, s.file, "Master")
+                return ok and played ~= false and not IsSecret(played)
+            end
+        end
+        return false
+    end
     local kit = key and SOUNDKIT and SOUNDKIT[key]
     if not PlaySound or type(kit) ~= "number" or kit == 0 then return false end
     local ok, played = pcall(PlaySound, kit, "Master", true)

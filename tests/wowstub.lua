@@ -481,6 +481,12 @@ function Methods:GetStringWidth() return #tostring(self.__text or "") * 7 end
 -- (STATE.missingSounds[kit]: a sound this client doesn't have, which doesn't play)
 SOUNDKIT = { MAP_PING = 3175, IG_QUEST_LIST_COMPLETE = 878, RAID_WARNING = 8959, READY_CHECK = 8960,
     UI_PROFESSION_CRAFTING_RESULT_CRIT = 208810, UI_RAID_BOSS_DEFEATED = 50111, UI_EPICLOOT_TOAST = 31578 }
+-- Sound files played (another addon's, shared through LibSharedMedia)
+function PlaySoundFile(file, channel)
+    STATE.soundFiles = STATE.soundFiles or {}
+    STATE.soundFiles[#STATE.soundFiles + 1] = file
+    return true
+end
 function PlaySound(kit, channel)
     if STATE.missingSounds and STATE.missingSounds[kit] then return false end
     STATE.sounds = STATE.sounds or {}

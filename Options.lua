@@ -444,7 +444,8 @@ local function BuildNotifications(p, refs)
     local soundKeys = {}
     for _, s in ipairs(BT.SOUNDS) do soundKeys[#soundKeys + 1] = s.key end
     local function soundName(k) return BT:SoundName(k) end
-    local pickTip = "Picking a sound plays it. If this game doesn't have it, chat says so."
+    local pickTip = "Picking a sound plays it. If this game doesn't have it, chat says so. Sounds your other addons share "
+        .. "(through LibSharedMedia) are at the end of the list."
     Setting(extras, "Crit sound", 12, -56, "soundCrit", "A sound when you crit. Pick it in the list beside it.")
     refs.critSoundDropdown = Dropdown(extras, 130, -54, 126, soundKeys, soundName, "critSound",
         function(k) BT:SetAlertSound("crit", k) end, pickTip)

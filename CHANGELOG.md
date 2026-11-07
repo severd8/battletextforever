@@ -3,6 +3,7 @@
 ## 1.15.1
 
 - **Turn off DoT and area spell ticks** (Outgoing tab, "DoTs and area spells"): hides the ticks of your damage-over-time spells and of spells that keep hitting an area, like Consecration, Blizzard and Rain of Fire. The spell's own first hit still shows. (Thanks to Dethkloch for asking.)
+- **Sounds from your other addons.** Sounds that your other addons share through LibSharedMedia now show at the end of the crit and kill sound lists (Notifications tab). (Thanks to hyperdrivex for asking.)
 
 ## 1.15.0
 

@@ -3949,8 +3949,14 @@ local shared = { ["Avant Garde"] = "Interface\\AddOns\\SomeUI\\Fonts\\AvantGarde
     ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF" }
 local callback
 local lib = {
-    List = function() return { "Friz Quadrata", "Avant Garde" } end,
-    Fetch = function(_, kind, name) return kind == "font" and shared[name] or nil end,
+    List = function(_, kind)
+        if kind == "sound" then return { "None", "Air Horn" } end
+        return { "Friz Quadrata", "Avant Garde" }
+    end,
+    Fetch = function(_, kind, name)
+        if kind == "sound" then return name == "Air Horn" and "Interface\\AddOns\\SomeUI\\Sounds\\AirHorn.ogg" or nil end
+        return kind == "font" and shared[name] or nil
+    end,
     RegisterCallback = function(_, _, fn) callback = fn end,
 }
 rawset(_G, "LibStub", function(name, silent) return name == "LibSharedMedia-3.0" and lib or nil end)
@@ -3962,6 +3968,17 @@ local keys = BT.config.fontDropdown.keys
 assertEq(keys[#keys], "Avant Garde", "and it's in the font list")
 BT.db.font = "Avant Garde"
 assertEq(BT:FontPath(), shared["Avant Garde"], "picking it uses that addon's file")
+-- And sounds: at the end of the crit and kill sound lists, played from their file
+assertEq(BT.SOUNDS[#BT.SOUNDS].name, "Air Horn", "a shared sound is in the sound list")
+for _, snd in ipairs(BT.SOUNDS) do assert(snd.key ~= "lsm:None", "LibSharedMedia's \"None\" isn't") end
+local soundKeys = BT.config.critSoundDropdown.keys
+assertEq(soundKeys[#soundKeys], "lsm:Air Horn", "the crit sound list has it")
+assertEq(BT.config.killSoundDropdown.keys[#BT.config.killSoundDropdown.keys], "lsm:Air Horn", "and the kill sound list")
+STATE.soundFiles = {}
+BT:SetAlertSound("crit", "lsm:Air Horn")
+assertEq(STATE.soundFiles[1], "Interface\\AddOns\\SomeUI\\Sounds\\AirHorn.ogg", "picking it plays its file")
+BT.db.critSound = BT.DEFAULTS.critSound
+table.remove(BT.SOUNDS) table.remove(soundKeys)
 shared["Later Font"] = "Interface\\AddOns\\SomeUI\\Fonts\\Later.ttf"
 lib.List = function() return { "Avant Garde", "Later Font" } end
 callback(nil, "font", "Later Font")
