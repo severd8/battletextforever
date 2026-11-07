@@ -3339,7 +3339,7 @@ do
         return s
     end
     local function usable(name, yes, noPower) STATE.usable[name] = { yes, noPower or false } end
-    local function check() fire("SPELL_UPDATE_USABLE") end
+    local function check() fire("SPELL_UPDATE_USABLE") Advance(0.05) end   -- (looked at once the frame is over)
     BT.reactAt, BT.usableNow, BT.usableLearned = nil, nil, nil
     STATE.class, STATE.level = "WARRIOR", 30
     STATE.unit.mobE = { enemy = true, guid = "Creature-0-1-2-3-100-0000E1", target = "me" }
@@ -3352,8 +3352,23 @@ do
     check()
     assertEq(alerts(), "", "not usable with rage to spare: the target is too healthy")
     usable("Execute", true)
-    fire("UNIT_HEALTH", "target")
+    fire("UNIT_HEALTH", "target") Advance(0.05)
     assertEq(alerts(), "Execute!", "it turns usable: Execute!")
+    -- A burst of the game's "usable" events (crafting, bags changing): one look, once the frame is over
+    local asked, realUsable = 0, C_Spell.IsSpellUsable
+    C_Spell.IsSpellUsable = function(...) asked = asked + 1 return realUsable(...) end
+    for _ = 1, 20 do fire("SPELL_UPDATE_USABLE") end
+    assertEq(asked, 0, "nothing asked while the burst arrives")
+    Advance(0.05)
+    assertEq(asked, 1, "one look for twenty events")
+    STATE.class = "MAGE"
+    asked = 0
+    for _ = 1, 20 do fire("SPELL_UPDATE_USABLE") end
+    Advance(0.05)
+    assertEq(asked, 0, "a class with no such ability isn't asked at all")
+    STATE.class = "WARRIOR"
+    C_Spell.IsSpellUsable = realUsable
+    alerts()
     assert(isColor(BT.areas.notify.active[#BT.areas.notify.active], BT.TEXT_COLORS.alert), "in the alerts' color")
     Advance(2)
     check()
@@ -3367,13 +3382,13 @@ do
     -- A new target that's already low
     Advance(2)
     STATE.who.target = "mobF"
-    fire("PLAYER_TARGET_CHANGED")
+    fire("PLAYER_TARGET_CHANGED") Advance(0.05)
     assertEq(alerts(), "Execute!", "a new target that's already low")
     -- Low, but not enough rage: the alert waits until it can be pressed
     Advance(2)
     STATE.who.target = "mobE"
     usable("Execute", false, true)
-    fire("PLAYER_TARGET_CHANGED")
+    fire("PLAYER_TARGET_CHANGED") Advance(0.05)
     assertEq(alerts(), "", "not enough rage yet")
     usable("Execute", true)
     check()
@@ -3381,23 +3396,23 @@ do
     -- Not on a friend or nothing, not before level 24, not turned off, not other classes
     Advance(2)
     STATE.who.target = nil
-    fire("PLAYER_TARGET_CHANGED")
+    fire("PLAYER_TARGET_CHANGED") Advance(0.05)
     assertEq(alerts(), "", "no target")
     STATE.unit.friend = { enemy = false, guid = "Player-1-0000F0" }
     STATE.who.target = "friend"
-    fire("PLAYER_TARGET_CHANGED")
+    fire("PLAYER_TARGET_CHANGED") Advance(0.05)
     assertEq(alerts(), "", "a friendly target")
     STATE.who.target = "mobE"
     STATE.level = 20
-    fire("PLAYER_TARGET_CHANGED")
+    fire("PLAYER_TARGET_CHANGED") Advance(0.05)
     assertEq(alerts(), "", "not learned yet (level 24)")
     STATE.level = 30
     BT.db.nAlerts = false
-    fire("PLAYER_TARGET_CHANGED")
+    fire("PLAYER_TARGET_CHANGED") Advance(0.05)
     assertEq(alerts(), "", "Ability alerts turned off")
     BT.db.nAlerts = true
     STATE.class, STATE.level = "PALADIN", 50
-    fire("PLAYER_TARGET_CHANGED")
+    fire("PLAYER_TARGET_CHANGED") Advance(0.05)
     assertEq(alerts(), "", "a paladin has no Execute")
     usable("Hammer of Wrath", false)
     check()
@@ -3407,7 +3422,7 @@ do
     -- A hidden answer is no answer
     Advance(2)
     STATE.usable["Hammer of Wrath"] = { Secret(true), Secret(false) }
-    fire("PLAYER_TARGET_CHANGED")
+    fire("PLAYER_TARGET_CHANGED") Advance(0.05)
     assertEq(alerts(), "", "the game hides it: nothing")
     STATE.usable = {}
 

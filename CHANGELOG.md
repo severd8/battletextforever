@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.15.2
+
+- **Less work during crafting and bag changes.** The game sends a burst of "spells usable" events then; BattleText looked at its ability alerts (Execute, Hammer of Wrath) for every one. It now looks once per frame, and not at all for a class or level without those abilities. (Thanks to voxan-dev for the report.)
+
 ## 1.15.1
 
 - **Turn off DoT and area spell ticks** (Outgoing tab, "DoTs and area spells"): hides the ticks of your damage-over-time spells and of spells that keep hitting an area, like Consecration, Blizzard and Rain of Fire. The spell's own first hit still shows. (Thanks to Dethkloch for asking.)

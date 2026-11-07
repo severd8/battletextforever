@@ -1502,6 +1502,27 @@ end
 function BT:CheckUsable(newTarget)
     local usable = (C_Spell and C_Spell.IsSpellUsable) or IsUsableSpell
     if not self.db.nAlerts or not usable then return end
+    -- Nothing to look at without an ability of this kind (most classes and levels)
+    local any = false
+    for _, e in ipairs(REACTIVE_SPELLS) do
+        if e[4] == "usable" and self:HasReactive(e) then any = true break end
+    end
+    if not any then return end
+    -- The game sends SPELL_UPDATE_USABLE in bursts (crafting, bags changing): look once, at the
+    -- end of the frame, at how things stand by then
+    if newTarget then self.usableNewTarget = true end
+    if not (C_Timer and C_Timer.After) then return self:LookUsable(newTarget) end
+    if self.usablePending then return end
+    self.usablePending = true
+    C_Timer.After(0, function()
+        local fresh = BT.usableNewTarget
+        BT.usablePending, BT.usableNewTarget = nil, nil
+        BT:LookUsable(fresh)
+    end)
+end
+
+function BT:LookUsable(newTarget)
+    local usable = (C_Spell and C_Spell.IsSpellUsable) or IsUsableSpell
     self.usableNow, self.usableLearned = self.usableNow or {}, self.usableLearned or {}
     local enemy = Flag(UnitCanAttack, "player", "target") and not Flag(UnitIsDeadOrGhost, "target")
     for _, e in ipairs(REACTIVE_SPELLS) do
