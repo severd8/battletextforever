@@ -414,6 +414,8 @@ end
 ChatFrame2.__scripts.OnHide = function() C_CombatLog.SetFilteredEventsEnabled(false) end
 -- Clicking a tab shows its window and hides the others
 local GAME   -- the game's globals (filled in at the end of this file)
+-- Tests change one of the game's texts (another language's) with SetGameText(key, text)
+function SetGameText(key, text) GAME[key] = text end
 function FCFDock_GetSelectedWindow() return GAME.SELECTED_DOCK_FRAME end
 local function TabClick(tab, button)
     if button ~= "LeftButton" then return end
@@ -501,7 +503,7 @@ dofile((ADDON_DIR or ".") .. "/tests/strings_enus.lua")
 -- may read it and add to its tables, but never replace it.
 local TEST = { LOG = 1, ALL_FRAMES = 1, BLOCKED = 1, VIOLATIONS = 1, COMBAT = 1, SECRET_MODE = 1, SECURE = 1,
     STUB_METHODS = 1, STATE = 1, FAKE_TIME = 1, TIMERS = 1, TICKERS = 1, Advance = 1, Secret = 1, newObj = 1,
-    ClickButton = 1, ClickTab = 1, WithoutGameText = 1 }
+    ClickButton = 1, ClickTab = 1, WithoutGameText = 1, SetGameText = 1 }
 GAME = {}
 for k, v in pairs(_G) do
     if not STANDARD[k] and not TEST[k] then GAME[k] = v end

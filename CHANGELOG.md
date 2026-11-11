@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.15.3
+
+- **No more error on skill ups in German (and other languages that number their sentences).** "Eure Fertigkeit 'Erste Hilfe' hat sich auf 101 erhöht." caused an "invalid capture index" error when BattleText looked for the skill's icon. The skill up now shows with its icon. (Thanks to the player who sent the BugGrabber report.)
+
 ## 1.15.2
 
 - **Less work during crafting and bag changes.** The game sends a burst of "spells usable" events then; BattleText looked at its ability alerts (Execute, Hammer of Wrath) for every one. It now looks once per frame, and not at all for a class or level without those abilities. (Thanks to voxan-dev for the report.)

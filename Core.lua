@@ -2786,9 +2786,14 @@ local SKILL_SPELLS = { Herbalism = 2366, Mining = 2575, Fishing = 7620 }
 -- A skill-up's icon: the skill's spell, when the game has one ("Your skill in Cooking has increased to 5")
 function BT:SkillIcon(message)
     if not self.db.nIcons then return "" end
-    local pattern = Str(SKILL_RANK_UP) or "Your skill in %s has increased to %d."
-    pattern = pattern:gsub("([%.%(%)%-%+%*%?%[%]%^%$])", "%%%1"):gsub("%%s", "(.-)"):gsub("%%d", "%%d+")
-    local skill = message:match(pattern)
+    -- (the game's sentence can number its parts, as German does: "Eure Fertigkeit '%1$s' hat sich
+    -- auf %2$d erhöht.", and a language may put the number first)
+    if not self.skillPattern then
+        self.skillPattern = SentencePattern(Str(SKILL_RANK_UP) or "Your skill in %s has increased to %d.")
+    end
+    local ok, a, b = pcall(string.match, message, self.skillPattern)
+    if not ok or not a then return "" end
+    local skill = tonumber(a) and b or a
     if not skill then return "" end
     return self:IconText(SKILL_SPELLS[skill] or skill)
 end

@@ -1986,6 +1986,15 @@ fire("CHAT_MSG_SKILL", "Your skill in Herbalism has increased to 3.")
 assertEq(last("notify"), "|T136065:0|t Your skill in Herbalism has increased to 3", "Herbalism, by its spell's ID")
 fire("CHAT_MSG_SKILL", "Your skill in Swords has increased to 12.")
 assertEq(last("notify"), "Your skill in Swords has increased to 12", "a skill with no icon")
+-- A German client numbers the sentence's parts ("%1$s", "%2$d"): no error, and the icon still found
+local englishSkill = SKILL_RANK_UP
+SetGameText("SKILL_RANK_UP", "Eure Fertigkeit '%1$s' hat sich auf %2$d erhöht.")
+BT.skillPattern = nil
+STATE.spellIcons["Erste Hilfe"] = 135966
+fire("CHAT_MSG_SKILL", "Eure Fertigkeit 'Erste Hilfe' hat sich auf 101 erhöht.")
+assertEq(last("notify"), "|T135966:0|t Eure Fertigkeit 'Erste Hilfe' hat sich auf 101 erhöht", "German: the skill up, with its icon")
+SetGameText("SKILL_RANK_UP", englishSkill)
+BT.skillPattern, STATE.spellIcons["Erste Hilfe"] = nil, nil
 SetIcons(false)
 fire("CHAT_MSG_SKILL", "Your skill in First Aid has increased to 13.")
 assertEq(last("notify"), "Your skill in First Aid has increased to 13", "icons off")
