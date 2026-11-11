@@ -3163,6 +3163,11 @@ STATE.equipped[16] = { name = "Sword", icon = 135321, lines = {} }
 Advance(2)
 wound(56, 1)
 assertEq(last("outgoing"), "|T135321:0|t 56", "with a sword: the sword's icon")
+STATE.offSpeed = 1.4
+Advance(2)
+wound(57, 1)
+assertEq(last("outgoing"), "|T135274:0|t 57", "two weapons: which hand isn't known, so the Attack icon")
+STATE.offSpeed = nil
 wound(0, 1, "DODGE")
 assertEq(last("outgoing"), "|T135321:0|t Dodge", "a swing dodged, too")
 fire("UNIT_COMBAT", "target", "WOUND", "", 40, 4)

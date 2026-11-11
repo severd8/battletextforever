@@ -1777,6 +1777,11 @@ end
 function BT:SwingIcon()
     local claws = self:ClawFormIcon()
     if claws and claws ~= "" then return claws end
+    -- Two weapons: the game doesn't say which hand a swing was, so neither weapon's icon (the
+    -- off hand's speed is there only while it holds a weapon)
+    local okSpeed, _, offSpeed = pcall(UnitAttackSpeed or function() end, "player")
+    offSpeed = okSpeed and Num(offSpeed) or nil
+    if offSpeed and offSpeed > 0 then return self:IconText(ATTACK_SPELL) end
     local ok, tex = pcall(GetInventoryItemTexture or function() end, "player", MAIN_HAND)
     tex = ok and (Num(tex) or Str(tex)) or nil
     if tex then return "|T" .. tex .. ":0|t " end

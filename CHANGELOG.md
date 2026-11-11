@@ -3,6 +3,7 @@
 ## 1.15.3
 
 - **No more error on skill ups in German (and other languages that number their sentences).** "Eure Fertigkeit 'Erste Hilfe' hat sich auf 101 erhöht." caused an "invalid capture index" error when BattleText looked for the skill's icon. The skill up now shows with its icon. (Thanks to the player who sent the BugGrabber report.)
+- **Dual-wielding: swings show the Attack icon.** The game doesn't say which hand a swing came from, so off-hand swings showed the main-hand weapon's icon. With a weapon in each hand, swings now show the neutral Attack icon.
 
 ## 1.15.2
 
