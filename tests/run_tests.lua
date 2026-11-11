@@ -241,7 +241,7 @@ for _, name in ipairs(bindingNames) do
 end
 assertClean("after logging in")
 assert(BT.areas.heal, "and a fourth for heals")
-assertEq(BT.db.healArea, true, "heals have their own area by default")
+assertEq(BT:HealArea("outgoing") .. "," .. BT:HealArea("incoming"), "heal,heal", "heals have their own area by default")
 -- The older checks read heals where they were before the Healing area: on the
 -- left (on you) and on the right (yours). The Healing area has its own steps.
 BT.db.healArea = false
@@ -2222,7 +2222,7 @@ for _, t in ipairs(BT.CONFIG_TABS) do
     tabNames[#tabNames + 1] = t.label
     assert(win.pages[t.key] and win.tabButtons[t.key], "a tab and its page: " .. t.label)
 end
-assertEq(table.concat(tabNames, ", "), "General, Text, Motion, Outgoing, Incoming, Healing, Notifications, Spells, Colors", "the tabs")
+assertEq(table.concat(tabNames, ", "), "General, Text, Motion, Outgoing, Incoming, Healing, Notifications, Layout, Spells, Colors", "the tabs")
 assertEq(win.currentTab, "general", "it opens on General")
 -- Every page's cards fit above the footer
 for _, t in ipairs(BT.CONFIG_TABS) do
@@ -2269,7 +2269,7 @@ for _, f in ipairs(ALL_FRAMES) do
         end
     end
 end
-assertEq(switches, 52, "the switches are there")
+assertEq(switches, 51, "the switches are there")
 -- A switch's label is part of it: its click area stretches over the text
 for _, f in ipairs(ALL_FRAMES) do
     if f.isSwitch and f.key and inWindow(f) then
@@ -2281,13 +2281,16 @@ end
 local function control(key)
     for _, f in ipairs(ALL_FRAMES) do if f.key == key and inWindow(f) then return f end end
 end
-local savedLook = { merge = BT.db.merge, outStyle = BT.db.outStyle, healArea = BT.db.healArea, outDamage = BT.db.outDamage }
-BT.db.merge, BT.db.outStyle, BT.db.healArea, BT.db.outDamage = true, "scroll", true, true
+local savedLook = { merge = BT.db.merge, outStyle = BT.db.outStyle, outDamage = BT.db.outDamage,
+    routeOutHeals = BT.db.routeOutHeals, routeInHeals = BT.db.routeInHeals }
+BT.db.merge, BT.db.outStyle, BT.db.outDamage = true, "scroll", true
+BT.db.routeOutHeals, BT.db.routeInHeals = "heal", "heal"
 BT:RefreshConfig()
 assertEq(control("tickMerge").disabled, false, "the tick window, with Add up rapid hits on")
 assertEq(control("outScrollUp").disabled, false, "Scroll upward, with Scroll movement")
 assertEq(control("healSize").disabled, false, "the Healing area's look, with its own area")
-BT.db.merge, BT.db.outStyle, BT.db.healArea, BT.db.outDamage = false, "pop", false, false
+BT.db.merge, BT.db.outStyle, BT.db.outDamage = false, "pop", false
+BT.db.routeOutHeals, BT.db.routeInHeals = "outgoing", "incoming"   -- (nothing left in the Healing area)
 BT:RefreshConfig()
 assertEq(control("tickMerge").disabled, true, "greyed out with Add up rapid hits off")
 assertEq(control("tickMerge").__alpha, 0.4, "and looks it")
@@ -4016,6 +4019,59 @@ BT.db.font = "Default"
 while #BT.FONTS > before do table.remove(BT.FONTS) table.remove(keys) end
 rawset(_G, "LibStub", nil)
 BT.sharedFontsHooked = nil
+
+step("Layout: each kind of text in the area you pick")
+clear()
+local wasRoutes = {}
+for _, r in ipairs(BT.ROUTES) do wasRoutes[r.key] = BT.db["route" .. r.key] end
+local healWas = BT.db.healArea
+BT.db.healArea = nil
+-- To start with: as before
+assertEq(BT:Area("OutDamage") .. "," .. BT:Area("InDamage") .. "," .. BT:Area("OutHeals") .. "," .. BT:Area("Notify"),
+    "outgoing,incoming,heal,notify", "each in its usual area")
+-- The player's own wish: heals with damage, notifications in the Outgoing area
+BT.db.routeOutHeals, BT.db.routeInHeals, BT.db.routeNotify = "outgoing", "incoming", "outgoing"
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 2)
+Advance(0.3)
+assertEq(last("incoming"), "+120", "heals you get, in the Incoming area")
+assertEq(#lines("heal"), 0, "none in the Healing area")
+BT:Notify("+103 XP", BT.TEXT_COLORS.xp)
+assertEq(last("outgoing"), "+103 XP", "notifications where they were sent")
+assertEq(#lines("notify"), 0, "and not in their usual area")
+fire("UNIT_COMBAT", "player", "WOUND", "", 40, 1)
+assertEq(last("incoming"), "-40", "damage you take stays where it was")
+clear()
+BT.db.routeInDamage = "notify"
+fire("UNIT_COMBAT", "player", "WOUND", "", 41, 1)
+assertEq(last("notify"), "-41", "any kind can go to any area")
+BT.db.routeInDamage = "nowhere"
+fire("UNIT_COMBAT", "player", "WOUND", "", 42, 1)
+assertEq(last("incoming"), "-42", "an area that doesn't exist: the usual one")
+clear()
+-- The Layout tab: a dropdown for each kind
+local dropdowns = BT.config.routeDropdowns
+assertEq(dropdowns.OutDamage:GetText(), "Outgoing (right)", "areas named for where they start")
+local menu = openMenu(dropdowns.InPower)
+for _, item in ipairs(menu) do if item.text == "Notifications (top)" then item.pick() end end
+assertEq(BT.db.routeInPower, "notify", "picking one sets it")
+-- An area nothing is sent to: its look greyed out, saying why
+BT:RefreshConfig()
+for _, f in ipairs(ALL_FRAMES) do
+    if f.key == "healSize" then assertEq(f.disabled, true, "the Healing area's look, with nothing sent there") end
+end
+-- Saved settings from before 1.16.0: "Own area for heals" off becomes heals with damage
+local old = { healArea = false }
+BT:MoveOldSettings(old)
+assertEq(old.routeOutHeals .. "," .. old.routeInHeals, "outgoing,incoming", "the old setting carries over")
+assertEq(old.healArea, nil, "and goes")
+-- Shared settings: only real areas are taken
+BT:ImportSettings('BTF1:{routeOutDamage="notify",routeInDamage="sideways"}')
+assertEq(BT.db.routeOutDamage, "notify", "a route is shared")
+assertEq(BT.db.routeInDamage, "nowhere", "one to an area that doesn't exist isn't taken")
+for k, v in pairs(wasRoutes) do BT.db["route" .. k] = v end
+BT.db.healArea = healWas
+BT:RefreshConfig()
+clear()
 
 assertClean("by the end")
 print("ALL TESTS PASSED")

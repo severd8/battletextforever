@@ -82,7 +82,10 @@ local DEFAULTS = {
     merge = true,             -- rapid hits of one spell add up on one line
     tickMerge = 0,            -- seconds ticks and area hits keep adding up (0: as quick as other hits)
     minDamage = 0,            -- hide your hits below this
-    healArea = true,          -- heals (yours and on you) scroll in their own area
+    -- Which area each kind of text shows in (BT.ROUTES; any key of BT.AREAS)
+    routeOutDamage = "outgoing", routeOutMisses = "outgoing", routeOutHeals = "heal",
+    routeInDamage = "incoming", routeInMisses = "incoming", routeInHeals = "heal", routeInPower = "incoming",
+    routeNotify = "notify",
     healOver = true,          -- show overhealing after a heal, when the game says
     minHeal = 0,              -- hide heals below this
     healWho = true,           -- "on <name>" after a heal you do, when the game says who
@@ -226,6 +229,12 @@ local SPLIT_SETTINGS = {
     curved = { "outCurved", "inCurved" },
 }
 function BT:MoveOldSettings(db)
+    -- "Own area for heals" off (until 1.16.0): heals went with damage
+    if db.healArea == false then
+        db.routeOutHeals = db.routeOutHeals or "outgoing"
+        db.routeInHeals = db.routeInHeals or "incoming"
+    end
+    db.healArea = nil
     for old, new in pairs(SPLIT_SETTINGS) do
         if db[old] ~= nil then
             for _, key in ipairs(new) do
@@ -456,9 +465,40 @@ local function ReleaseLine(a, o)
     a.pool[#a.pool + 1] = o
 end
 
--- Where a heal goes: the Healing area when it's turned on, else the area given
+-- The kinds of text, and the area each shows in to start with (Layout tab)
+BT.ROUTES = {
+    { key = "OutDamage", name = "Your hits", usual = "outgoing" },
+    { key = "OutMisses", name = "Your misses", usual = "outgoing" },
+    { key = "OutHeals", name = "Heals you do", usual = "heal" },
+    { key = "InDamage", name = "Damage you take", usual = "incoming" },
+    { key = "InMisses", name = "Attacks you avoid", usual = "incoming" },
+    { key = "InHeals", name = "Heals you get", usual = "heal" },
+    { key = "InPower", name = "Power gains", usual = "incoming" },
+    { key = "Notify", name = "Notifications", usual = "notify" },
+}
+
+-- The area a kind of text shows in ("OutDamage", "Notify"... as in BT.ROUTES)
+function BT:Area(kind)
+    local area = self.db["route" .. kind]
+    if area and self.AREAS[area] then return area end
+    for _, r in ipairs(self.ROUTES) do
+        if r.key == kind then return r.usual end
+    end
+    return "notify"
+end
+
+-- Whether any kind of text shows in an area
+function BT:AreaUsed(areaKey)
+    for _, r in ipairs(self.ROUTES) do
+        if self:Area(r.key) == areaKey then return true end
+    end
+    return false
+end
+
+-- Where a heal goes (areaKey: "outgoing" for yours, "incoming" for one on you)
 function BT:HealArea(areaKey)
-    return self.db.healArea and "heal" or areaKey
+    if self.db.healArea == false then return areaKey end   -- (the old setting, before it moves: tests)
+    return self:Area(areaKey == "outgoing" and "OutHeals" or "InHeals")
 end
 
 -- " on Name" for a heal of yours on someone else, when the game lets the name
@@ -931,7 +971,7 @@ function BT:ShowCombat(info)
             if not mine then self:NoteLogIncoming("damage") end
             if db.inDamage then
                 local text = "-" .. Commas(info.amount) .. SpellAfter(icon, name) .. Partials(info)
-                self:Emit("incoming", text, C.inDamage, { crit = info.crit or info.crushing, amount = info.amount })
+                self:Emit(self:Area("InDamage"), text, C.inDamage, { crit = info.crit or info.crushing, amount = info.amount })
             end
             return true
         elseif (mine or pet) and not info.split then
@@ -946,7 +986,7 @@ function BT:ShowCombat(info)
             if rule and rule.hide then return true end
             if info.crit and db.soundCrit then self:PlayAlert("crit") end
             local color = (rule and rule.color) or (info.spell and (self:SchoolColor(info.unit) or C.spell)) or C.melee
-            self:Emit("outgoing", outLabel .. Commas(info.amount) .. Partials(info), color, {
+            self:Emit(self:Area("OutDamage"), outLabel .. Commas(info.amount) .. Partials(info), color, {
                 crit = info.crit,
                 key = (pet and "pet:" or "") .. (info.periodic and "tick:" or "") .. (info.spellId or info.spell or "melee"),
                 amount = info.amount,
@@ -997,7 +1037,7 @@ function BT:ShowCombat(info)
         if info.toMe then
             if not mine then self:NoteLogIncoming("miss") end
             if db.inMisses and not mine then
-                self:Emit("incoming", word .. SpellAfter(icon, name), C.inAvoid)
+                self:Emit(self:Area("InMisses"), word .. SpellAfter(icon, name), C.inAvoid)
             end
             return true
         elseif mine or pet then
@@ -1006,7 +1046,7 @@ function BT:ShowCombat(info)
             if mine and (info.melee or self:IsRangedName(info.spell)) and not db.outSwings then return true end
             local rule = self:SpellRule(info.spell)
             if rule and rule.hide then return true end
-            if db.outMisses then self:Emit("outgoing", outLabel .. word, C.miss) end
+            if db.outMisses then self:Emit(self:Area("OutMisses"), outLabel .. word, C.miss) end
             return true
         end
     elseif info.kind == "energize" then
@@ -1014,14 +1054,14 @@ function BT:ShowCombat(info)
         if info.toMe then
             self:NoteLogIncoming("power")
             if db.inPower then
-                self:Emit("incoming", "+" .. Commas(info.amount) .. (info.unit and (" " .. info.unit) or ""), C.power)
+                self:Emit(self:Area("InPower"), "+" .. Commas(info.amount) .. (info.unit and (" " .. info.unit) or ""), C.power)
             end
             return true
         end
     elseif info.kind == "kill" then
         if mine then
             if db.soundKill then self:PlayAlert("kill") end
-            if db.nKill then self:Emit("notify", "Killing blow!", C.combat, { crit = true }) end
+            if db.nKill then self:Notify("Killing blow!", C.combat, { crit = true }) end
             return true
         end
     end
@@ -1091,15 +1131,15 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
             self:Queue({ blow = true })   -- (a blow that landed: see the hit for nothing, below)
             if self:LogCovers("damage") or not db.inDamage then return end
             if secret then
-                self:Emit("incoming", "-", C.inDamage, { crit = crit, secret = amount })
+                self:Emit(self:Area("InDamage"), "-", C.inDamage, { crit = crit, secret = amount })
             else
-                self:Emit("incoming", "-" .. Commas(n), C.inDamage, { crit = crit, amount = n })
+                self:Emit(self:Area("InDamage"), "-" .. Commas(n), C.inDamage, { crit = crit, amount = n })
             end
         else
             -- No damage: fully absorbed, blocked or resisted, or a plain miss
             if self:LogCovers("miss") or not db.inMisses then return end
             if flag and MISS_TEXT[flag] then
-                self:Emit("incoming", MissText(flag), C.inAvoid)
+                self:Emit(self:Area("InMisses"), MissText(flag), C.inAvoid)
             else
                 -- Some attacks arrive in two parts, one of them for nothing (a mob's special
                 -- attack: "WOUND 0" and "WOUND 33" in one frame). That's no miss: it's shown
@@ -1127,13 +1167,13 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
         power = power and (" " .. power) or ""
         if secret then
             -- The amount goes last, so the game can fill it in
-            self:Emit("incoming", "+", C.power, { secret = amount, after = power })
+            self:Emit(self:Area("InPower"), "+", C.power, { secret = amount, after = power })
         elseif n and n > 0 then
-            self:Emit("incoming", "+" .. Commas(n) .. power, C.power)
+            self:Emit(self:Area("InPower"), "+" .. Commas(n) .. power, C.power)
         end
     elseif MISS_TEXT[action] then
         if self:LogCovers("miss") or not db.inMisses then return end
-        self:Emit("incoming", MissText(action), C.inAvoid)
+        self:Emit(self:Area("InMisses"), MissText(action), C.inAvoid)
     end
 end
 
@@ -2383,7 +2423,7 @@ function BT:ResolveFrame(seq, first, last)
     for i = first, last do
         local h = seq[i]
         if h.nothing and not blowInFrame then
-            self:Emit("incoming", MissText("MISS"), self.TEXT_COLORS.inAvoid)   -- a hit on you for nothing
+            self:Emit(self:Area("InMisses"), MissText("MISS"), self.TEXT_COLORS.inAvoid)   -- a hit on you for nothing
         end
         -- Some attacks land in two parts, one of them for nothing (Maul: "WOUND 0" and
         -- "WOUND 37" on the mob in one frame). That's one blow, not a miss and a blow.
@@ -2596,9 +2636,9 @@ function BT:ShowUnitHit(h, what, spell, area)
         note = note and (" |cffb0b0b0(" .. note .. ")|r") or ""
         if h.crit and db.soundCrit then self:PlayAlert("crit") end
         if h.secret then
-            self:Emit("outgoing", label, color, { crit = h.crit, secret = h.amount, after = note })
+            self:Emit(self:Area("OutDamage"), label, color, { crit = h.crit, secret = h.amount, after = note })
         else
-            self:Emit("outgoing", label .. Commas(h.n) .. note, color, {
+            self:Emit(self:Area("OutDamage"), label .. Commas(h.n) .. note, color, {
                 crit = h.crit,
                 key = spell and (what .. ":" .. tostring(spell.id or spellName)) or nil,
                 amount = h.n,
@@ -2623,7 +2663,7 @@ function BT:ShowUnitHit(h, what, spell, area)
         -- A wound for nothing says how in its flag; a plain miss has none
         local how = h.action
         if how == "WOUND" then how = (h.flag and MISS_TEXT[h.flag]) and h.flag or "MISS" end
-        self:Emit("outgoing", label .. MissText(how), C.miss)
+        self:Emit(self:Area("OutMisses"), label .. MissText(how), C.miss)
     end
     return nil
 end
@@ -2730,7 +2770,7 @@ end
 -- Notifications
 ---------------------------------------------------------------------------
 function BT:Notify(text, color, opts)
-    self:Emit("notify", text, color or self.TEXT_COLORS.notify, opts)
+    self:Emit(self:Area("Notify"), text, color or self.TEXT_COLORS.notify, opts)
 end
 
 function BT:OnXP()
@@ -3253,6 +3293,10 @@ function BT:Choices(key)
     elseif key == "critSound" or key == "killSound" then list, field = self.SOUNDS, "key"
     elseif key:match("Style$") then list, field = self.STYLES, "key"
     elseif key:match("Align$") then list, field = self.ALIGNS, "key"
+    elseif key:match("^route") then
+        local keys = {}
+        for areaKey in pairs(self.AREAS) do keys[areaKey] = true end
+        return keys
     else return nil end
     local keys = {}
     for _, item in ipairs(list) do keys[item[field]] = true end
@@ -3394,15 +3438,15 @@ function BT:Test()
     local samples = {
         function() self:ShowCombat({ kind = "damage", fromMe = true, melee = true, amount = 27, unit = "Physical" }) end,
         function() self:ShowCombat({ kind = "damage", fromMe = true, spell = "Claw", amount = 50, unit = "Physical" }) end,
-        function() self:Emit("incoming", "-34", C.inDamage) end,
+        function() self:Emit(self:Area("InDamage"), "-34", C.inDamage) end,
         function() self:ShowCombat({ kind = "damage", fromMe = true, spell = "Moonfire", amount = 112, unit = "Arcane", crit = true }) end,
         function() self:Emit(self:HealArea("incoming"), "+120 Rejuvenation", C.heal) end,
         function() self:ShowCombat({ kind = "heal", fromMe = true, spell = "Healing Touch", amount = 214 }) end,
         function() self:ShowCombat({ kind = "miss", fromMe = true, melee = true, missType = "DODGE" }) end,
-        function() self:Emit("incoming", "-58", C.inDamage, { crit = true }) end,
+        function() self:Emit(self:Area("InDamage"), "-58", C.inDamage, { crit = true }) end,
         function() self:Notify("+103 XP", C.xp) end,
         function() self:ShowCombat({ kind = "damage", fromMe = true, melee = true, amount = 26, unit = "Physical", blocked = 3 }) end,
-        function() self:Emit("incoming", MissText("PARRY"), C.inAvoid) end,
+        function() self:Emit(self:Area("InMisses"), MissText("PARRY"), C.inAvoid) end,
         function() self:Notify("Killing blow!", C.combat, { crit = true }) end,
     }
     -- Shown even while BattleText is turned off, and whatever is ticked in the options

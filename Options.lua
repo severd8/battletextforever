@@ -373,7 +373,7 @@ local function BuildOutgoing(p)
         "The ticks of your damage-over-time spells (Corruption, Rend, Moonfire...) and of spells that keep hitting "
         .. "everything in an area (Consecration, Blizzard, Rain of Fire, totems...). Off: hidden. A spell's own "
         .. "first hit still shows. To hide one spell only, use the Spells tab.", damage)
-    AreaLook(p, -206, "out", true)
+    AreaLook(p, -206, "out", true, function() return BT:AreaUsed("outgoing") end, "Nothing shows here (Layout tab)")
 end
 
 local function BuildIncoming(p)
@@ -383,27 +383,24 @@ local function BuildIncoming(p)
     Setting(card, "Power gains", 12, -56, "inPower", "Mana, rage and energy you gain.")
     IconsAndNames(card, -82, "in", "what hits you or what you avoid (only when the game says which spell)",
         Either("inDamage", "inMisses"))
-    AreaLook(p, -126, "in", true)
+    AreaLook(p, -126, "in", true, function() return BT:AreaUsed("incoming") end, "Nothing shows here (Layout tab)")
 end
 
 local function BuildHealing(p)
     local card = Card(p, "Heals", 0, 0, PAGE_W, 196)
     local anyHeals = Either("inHeals", "outHeals")
-    Setting(card, "Own area for heals", 12, -30, "healArea",
-        "Heals scroll in their own area, under your character. Off: they show with damage, heals you get in the "
-        .. "Incoming area and heals you do in the Outgoing one.")
-    Setting(card, "Show overhealing", COL2, -30, "healOver",
+    Setting(card, "Heals you get", 12, -30, "inHeals", "Heals on you, yours and other people's.")
+    Setting(card, "Heals you do", COL2, -30, "outHeals", "Your heals on others (and your pet's).")
+    Setting(card, "Show overhealing", 12, -56, "healOver",
         "The grey \"(40 over)\" after a heal. Only when the game lets BattleText read its combat lines.", anyHeals)
-    Setting(card, "Heals you get", 12, -56, "inHeals", "Heals on you, yours and other people's.")
-    Setting(card, "Heals you do", COL2, -56, "outHeals", "Your heals on others (and your pet's).")
+    T.Note(card, "Which area heals show in: Layout tab.", COL2, -58, PAGE_W - COL2 - 12)
     IconsAndNames(card, -82, "heal", "heals", anyHeals)
     Setting(card, "Show who you healed", 12, -108, "healWho",
         "The name of the player you healed, after the number. Only when the game lets BattleText read it.",
         function() return BT.db.outHeals end)
     Slider(card, "Hide heals below", 12, -142, "minHeal", { step = 5, zero = "Off", enabledIf = anyHeals,
         tip = "Heals for less than this aren't shown. A heal whose number the game hides always shows." })
-    AreaLook(p, -206, "heal", false, function() return BT.db.healArea end,
-        "Off: heals use the Incoming and Outgoing areas")
+    AreaLook(p, -206, "heal", false, function() return BT:AreaUsed("heal") end, "Nothing shows here (Layout tab)")
 end
 
 local function BuildNotifications(p, refs)
@@ -455,7 +452,26 @@ local function BuildNotifications(p, refs)
     refs.killSoundDropdown = Dropdown(extras, COL2 + 118, -54, 126, soundKeys, soundName, "killSound",
         function(k) BT:SetAlertSound("kill", k) end, pickTip)
     refs.critSoundDropdown.menuScroll, refs.killSoundDropdown.menuScroll = 20 * 12, 20 * 12
-    AreaLook(p, -292, "n")
+    AreaLook(p, -292, "n", false, function() return BT:AreaUsed("notify") end, "Nothing shows here (Layout tab)")
+end
+
+-- Which area each kind of text shows in. Areas are named for where they start on screen.
+local function BuildLayout(p, refs)
+    local card = Card(p, "Where each kind of text shows", 0, 0, PAGE_W, 40 + #BT.ROUTES * 30 + 52)
+    local areaKeys = { "outgoing", "incoming", "heal", "notify" }
+    local areaNames = { outgoing = "Outgoing (right)", incoming = "Incoming (left)", heal = "Healing (bottom)",
+        notify = "Notifications (top)" }
+    refs.routeDropdowns = {}
+    for i, r in ipairs(BT.ROUTES) do
+        local y = -30 - (i - 1) * 30
+        T.RowLabel(card, r.name, 12, y)
+        local key = "route" .. r.key
+        refs.routeDropdowns[r.key] = Dropdown(card, 200, y, 220, areaKeys, function(k) return areaNames[k] or k end,
+            key, function(k) BT.db[key] = k end,
+            r.name .. ": the text area it shows in. Each area keeps its own look (Appearance, on its tab).")
+    end
+    CardNote(card, "Areas are named for where they start; move them anywhere with \"Move the text areas\" "
+        .. "(General tab). Each area keeps its own size, opacity, movement and alignment.", -40 - #BT.ROUTES * 30)
 end
 
 local function BuildColors(p)
@@ -610,6 +626,7 @@ local TABS = {
     { key = "incoming", label = "Incoming",      icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance", build = BuildIncoming },
     { key = "healing",  label = "Healing",       icon = "Interface\\Icons\\Spell_Holy_Heal",                 build = BuildHealing },
     { key = "notify",   label = "Notifications", icon = "Interface\\Icons\\INV_Misc_Bag_08",                 build = BuildNotifications },
+    { key = "layout",   label = "Layout",        icon = "Interface\\Icons\\INV_Misc_Map_01",                 build = BuildLayout },
     { key = "spells",   label = "Spells",        icon = "Interface\\Icons\\INV_Misc_Book_09",                build = BuildSpells },
     { key = "colors",   label = "Colors",        icon = "Interface\\Icons\\INV_Misc_Gem_Variety_01",         build = BuildColors },
 }

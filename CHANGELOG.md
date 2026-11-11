@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.0
+
+- **Layout tab: pick the area each kind of text shows in.** Your hits, your misses, heals you do, damage you take, attacks you avoid, heals you get, power gains and notifications can each go to any of the four areas: Outgoing (right), Incoming (left), Healing (bottom) or Notifications (top). Everything starts where it was. An area nothing is sent to has its Appearance greyed out. (Thanks to RichieSams for the idea.)
+- "Own area for heals" (Healing tab) is now part of the Layout tab. If you had it off, your heals stay with damage.
+
 ## 1.15.3
 
 - **No more error on skill ups in German (and other languages that number their sentences).** "Eure Fertigkeit 'Erste Hilfe' hat sich auf 101 erhöht." caused an "invalid capture index" error when BattleText looked for the skill's icon. The skill up now shows with its icon. (Thanks to the player who sent the BugGrabber report.)

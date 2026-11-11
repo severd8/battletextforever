@@ -265,6 +265,8 @@ BT.config:ShowTab("scroll")
 Dump("options-scroll", BT.config)
 BT.config:ShowTab("notify")
 Dump("options-notify", BT.config)
+BT.config:ShowTab("layout")
+Dump("options-layout", BT.config)
 
 local f = assert(io.open(arg and arg[1] or "tests/render-out.json", "w"))
 f:write("[" .. table.concat(out, ",\n") .. "]")
