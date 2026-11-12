@@ -197,7 +197,7 @@ STATE = {
     logBroken = false,            -- an addon tried to load the filter: the game's combat log is broken until /reload
     useKeyDown = false,           -- the "act on key down" game setting
     -- Forever's: the numbers over the mobs you hit are the "_v2" ones
-    cvars = { enableFloatingCombatText = "1", floatingCombatTextCombatDamage_v2 = "1", floatingCombatTextCombatHealing_v2 = "1",
+    cvars = { WorldTextScale = "1", enableFloatingCombatText = "1", floatingCombatTextCombatDamage_v2 = "1", floatingCombatTextCombatHealing_v2 = "1",
         floatingCombatTextPetMeleeDamage_v2 = "1", floatingCombatTextPetSpellDamage_v2 = "1",
         floatingCombatTextCombatDamage = "1", floatingCombatTextCombatHealing = "1" },
     filteredEvents = false,       -- C_CombatLog.SetFilteredEventsEnabled
@@ -343,6 +343,7 @@ C_Spell = {
     GetSpellName = function(id) return STATE.spellNames[id] end,
     GetSpellDescription = function(id) return STATE.spellDescriptions[id] end,
     IsSelfBuff = function(id) return (STATE.selfBuffs or {})[id] == true end,
+    IsSpellHelpful = function(id) return (STATE.helpful or {})[id] == true end,
     IsSpellUsable = function(spell)
         local u = STATE.usable[spell]
         if not u then return false, false end

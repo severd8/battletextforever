@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.16.2
+
+- **"Hide the game's own numbers" now hides the game's "+XP" too.** With Experience on in Notifications, the game's own XP text still popped up in the world beside BattleText's. The game has no setting for just that text, so BattleText draws the game's floating world text too big to be seen (the numbers over mobs are already hidden by this option). It all comes back when you turn the option off, turn Experience off, or remove BattleText. (Thanks to HAWKSMORE for the report.)
+- **Your heals on yourself show their icon and name.** Holy Light (or any heal) on yourself showed only "+number", because the game doesn't say which spell healed you. A heal that lands right as you finish casting a heal on yourself is now named after that spell. (Thanks to Ehldarion for the report.)
+- **Seal of Righteousness hits show their icon and name.** The game sends the seal's damage up to a second before the swing it came with, so it showed as a plain yellow number. A seal hit now waits a moment for your swing and is named when the swing lands. If no swing comes, it shows as before. (Thanks to Ehldarion for asking.)
+
 ## 1.16.1
 
 - **Icon zoom** (Text tab): crops the thin border round spell and item icons, so the picture fills its square. Off to start with. (Thanks to aLanaMaunz for the idea.)

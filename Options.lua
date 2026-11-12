@@ -238,7 +238,8 @@ local function BuildGeneral(p, refs)
         "Shows a box for each text area. Drag the boxes where you want them, then turn this off. "
         .. "Closing the options locks them again.")
     Setting(card, "Hide the game's own numbers", 12, -56, "hideBlizzard",
-        "Turns off the game's floating combat text so numbers aren't shown twice. Turn it off to bring them back. "
+        "Turns off the game's floating combat text so numbers aren't shown twice (and its \"+XP\" while Experience "
+        .. "is on in Notifications). Turn it off to bring them back. "
         .. "During a fight, the change waits until the fight ends.")
     Setting(card, "Minimap button", COL2, -56, "minimap",
         "The BattleText button on the minimap: left-click opens the options, right-click shows sample text.")

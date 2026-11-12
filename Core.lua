@@ -1103,6 +1103,35 @@ function BT:TakeSelfHeal(n)
     return false
 end
 
+-- A heal you cast that lands on you. UNIT_COMBAT's heal on you has no spell name, but your
+-- cast finishes in the same moment (either one first). A helpful spell (not a seal or a buff
+-- on yourself) cast while your target isn't a friend (so it lands on you) is kept a moment;
+-- a heal on you within HEAL_CAST_TIME of it is that spell's.
+local HEAL_CAST_TIME = 0.3
+function BT:NoteHealCast(id, name)
+    self.healCast = nil
+    if not (id and name and C_Spell and C_Spell.IsSpellHelpful) then return end
+    local ok, helpful = pcall(C_Spell.IsSpellHelpful, id)
+    if not ok or IsSecret(helpful) or helpful ~= true then return end
+    local seals = self:SealLists()
+    if seals[name] or self:IsSelfBuffCast(id, name) then return end
+    -- On a friendly target that isn't you, it went to them
+    if Flag(UnitExists, "target") and not Flag(UnitIsUnit, "target", "player")
+            and not Flag(UnitCanAttack, "player", "target") then
+        return
+    end
+    self.healCast = { id = id, name = name, at = GetTime() }
+end
+
+function BT:TakeHealCast(at)
+    local cast = self.healCast
+    if cast and math.abs(cast.at - at) <= HEAL_CAST_TIME then
+        self.healCast = nil
+        return cast
+    end
+    return nil
+end
+
 -- UNIT_COMBAT for yourself: damage, heals and power you take, with no spell
 -- names. Used for whatever the combat log isn't delivering.
 local function PowerName()
@@ -1159,13 +1188,27 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
         if self:LogCovers("heal") or not db.inHeals then return end
         -- Your own heals on yourself also come from the combat log, with the
         -- spell's name. Wait a moment to see whether this is one of those.
+        local at = GetTime()
         local function show()
             if BT:TakeSelfHeal(n) then return end   -- the log's line showed it, with the spell's name
             if BT:LogDelivers("heal") then return end   -- the log's line for it arrived meanwhile
+            -- A heal you cast on yourself just then (Holy Light): named after it
+            local cast = BT:TakeHealCast(at)
+            local after, color = "", C.heal
+            if cast then
+                local rule = BT:SpellRule(cast.name)
+                if rule and rule.hide then return end
+                if rule and rule.color then color = rule.color end
+                if n and n > 0 then
+                    BT:CountFight("heal", n)
+                    BT:CountSpell(cast.name, n, crit, true, BT:IconText(cast.id))
+                end
+                after = SpellAfter(BT:SpellParts("heal", BT:IconText(cast.id), cast.name))
+            end
             if secret then
-                BT:Emit(BT:HealArea("incoming"), "+", C.heal, { crit = crit, secret = amount })
+                BT:Emit(BT:HealArea("incoming"), "+", color, { crit = crit, secret = amount, after = after })
             elseif n and n > 0 and BT:HealShown(n) then
-                BT:Emit(BT:HealArea("incoming"), "+" .. Commas(n), C.heal, { crit = crit, amount = n })
+                BT:Emit(BT:HealArea("incoming"), "+" .. Commas(n) .. after, color, { crit = crit, amount = n })
             end
         end
         if C_Timer and C_Timer.After then C_Timer.After(0.25, show) else show() end
@@ -1675,12 +1718,23 @@ function BT:SetSpellRule(rule, field, value)
 end
 
 -- A Holy hit that lands with your swing on the same unit, while a seal that adds
--- damage is on you, is the seal's
-function BT:SealFor(h, seq, first, last, at)
+-- damage is on you, is the seal's. The swing's own hit can come up to a second after its
+-- combat log line, while the seal's comes with its line: so the seal's hit can be ahead of the
+-- swing's (Seal of Righteousness showing as plain numbers). A swing just before also counts
+-- (SEAL_AFTER_SWING, unless frameOnly), and a hit with neither waits for one (WaitForSwing).
+local SEAL_SWING_TIME = 1.2   -- how long a seal's hit waits for the swing's
+local SEAL_AFTER_SWING = 0.5  -- how long after the swing's hit the seal's can come
+function BT:SealOn(h)
     local seal = self.seal
     if not self.db.outSeals then return nil end
     if not seal or not seal.school or h.kind ~= "damage" or GetTime() > seal.ends + 1 then return nil end
     if Num(h.school) ~= seal.school then return nil end
+    return seal
+end
+
+function BT:SealFor(h, seq, first, last, at, frameOnly)
+    local seal = self:SealOn(h)
+    if not seal then return nil end
     for j = first, last do
         local o = seq[j]
         if j ~= at and o.hit and not o.splash and o.kind == "damage" and Num(o.school) == 1
@@ -1688,7 +1742,55 @@ function BT:SealFor(h, seq, first, last, at)
             return { id = seal.id, name = seal.name }
         end
     end
+    local struck = not frameOnly and h.key and self.struck and self.struck[h.key]
+    if struck and h.time - struck >= 0 and h.time - struck <= SEAL_AFTER_SWING then
+        return { id = seal.id, name = seal.name }
+    end
     return nil
+end
+
+-- A seal's hit with no swing yet: held until your swing on that unit lands (then it's the
+-- seal's), or for SEAL_SWING_TIME (then it's shown as it is). Returns true if it's held.
+function BT:WaitForSwing(h)
+    local seal = h.key and self:SealOn(h)
+    if not seal then return false end
+    self.sealWait = self.sealWait or {}
+    local entry = { h = h, seal = { id = seal.id, name = seal.name } }
+    table.insert(self.sealWait, entry)
+    local function over()
+        for i, e in ipairs(BT.sealWait or {}) do
+            if e == entry then
+                table.remove(BT.sealWait, i)
+                local why = BT:ShowUnitHit(h, "hit", nil)
+                if BT.db.debug then
+                    BT:Record(("  %s %s: %s"):format(h.unit, tostring(h.amount), why or "no swing came: shown"), h.time)
+                end
+                return
+            end
+        end
+    end
+    if C_Timer and C_Timer.After then C_Timer.After(SEAL_SWING_TIME, over) else over() end
+    return true
+end
+
+-- Your swing landed on a unit: the seal's hits waiting for it are the seal's
+function BT:SwingLanded(key, at)
+    local list = self.sealWait
+    if not list then return end
+    local i = 1
+    while list[i] do
+        local e = list[i]
+        if e.h.key == key and at - e.h.time <= SEAL_SWING_TIME then
+            table.remove(list, i)
+            local why = self:ShowUnitHit(e.h, "seal", e.seal)
+            if self.db.debug then
+                self:Record(("  %s %s: %s"):format(e.h.unit, tostring(e.h.amount), why or ("seal of " .. e.seal.name)),
+                    e.h.time)
+            end
+        else
+            i = i + 1
+        end
+    end
 end
 
 function BT:InGroup()
@@ -1902,6 +2004,7 @@ function BT:OnSpellcast(spellId)
         self.buffShields[name] = { name = name, id = id, school = shields[name].school }
     end
     self.lastCast = { name = name, at = GetTime() }
+    self:NoteHealCast(id, name)
     local seals = self:SealLists()
     -- In a fight your buffs are hidden: a buff you put on yourself shows as you cast it
     if not seals[name] and InCombatLockdown() and self:IsSelfBuffCast(id, name) then
@@ -2488,7 +2591,7 @@ function BT:ResolveFrame(seq, first, last)
                 local dot = f and self:TickFor(h)
                 if dot and not (dot.tick and h.n and h.n ~= dot.tick) then f = nil end
                 -- (a Holy hit with your swing is your seal's, not a Hammer of Wrath on its way)
-                if f and self:SealFor(h, seq, first, last, i) then f = nil end
+                if f and self:SealFor(h, seq, first, last, i, true) then f = nil end
                 if f then
                     what, spell = "cast", f
                     self:Landed(f, at, h)
@@ -2548,13 +2651,17 @@ function BT:ResolveFrame(seq, first, last)
                 -- A heal on someone else that isn't your cast or your heal-over-time: anyone's (a
                 -- player regenerating, someone else's heal). In a group, a line of yours vouches for it.
                 why = "no heal of yours with it"
+            elseif not spell and self:WaitForSwing(h) then
+                why = "waiting for your swing: your seal's?"
             else
                 why = self:ShowUnitHit(h, what, spell)
                 if not why and h.kind == "damage" then h.mine = { what = what, spell = spell } end
-                -- A weapon blow of yours: its "Chance on hit" may follow (ProcFor)
+                -- A weapon blow of yours: its "Chance on hit" may follow (ProcFor), and your
+                -- seal's hit may be waiting for it (WaitForSwing)
                 if h.kind == "damage" and mask == 1 and h.key then
                     self.struck = self.struck or {}
                     self.struck[h.key] = h.time
+                    self:SwingLanded(h.key, h.time)
                 end
             end
             -- Your target dodged you (a warrior's Overpower)
@@ -3420,23 +3527,43 @@ local BLIZZARD_CVARS = {
     "floatingCombatTextPetSpellDamage_v2",
     "floatingCombatTextCombatDamage", "floatingCombatTextCombatHealing",
 }
+-- The game's "+XP" that pops up in the world when you gain experience has no setting of its
+-- own. It's world text, like the numbers over mobs: "WorldTextScale" made huge draws it too big
+-- to be seen (the way players hide it). Only while BattleText shows your XP itself (Notifications
+-- -> Experience), as the numbers over mobs are already hidden then.
+local XP_CVAR, XP_HIDDEN = "WorldTextScale", "1000"
+function BT:BlizzardHides()
+    local db = self.db
+    local hide = {}
+    if not (db.enabled and db.hideBlizzard) then return hide end
+    for _, cvar in ipairs(BLIZZARD_CVARS) do hide[cvar] = "0" end
+    if db.nXP then hide[XP_CVAR] = XP_HIDDEN end
+    return hide
+end
+
 function BT:ApplyBlizzardText(restore)
     if not (GetCVar and SetCVar) then return end
     if InCombatLockdown() and not restore then return end
     local db = self.db
-    if db.enabled and db.hideBlizzard and not restore then
-        db.savedCVars = db.savedCVars or {}
-        for _, cvar in ipairs(BLIZZARD_CVARS) do
-            local ok, value = pcall(GetCVar, cvar)
-            value = ok and Str(value) or nil
-            if value then
-                if db.savedCVars[cvar] == nil then db.savedCVars[cvar] = value end
-                if value ~= "0" then pcall(SetCVar, cvar, "0") end
+    local hide = restore and {} or self:BlizzardHides()
+    -- Put back what's no longer hidden
+    if db.savedCVars then
+        for cvar, value in pairs(db.savedCVars) do
+            if not hide[cvar] then
+                pcall(SetCVar, cvar, value)
+                db.savedCVars[cvar] = nil
             end
         end
-    elseif db.savedCVars then
-        for cvar, value in pairs(db.savedCVars) do pcall(SetCVar, cvar, value) end
-        db.savedCVars = nil
+        if next(db.savedCVars) == nil then db.savedCVars = nil end
+    end
+    for cvar, hidden in pairs(hide) do
+        local ok, value = pcall(GetCVar, cvar)
+        value = ok and Str(value) or nil
+        if value then
+            db.savedCVars = db.savedCVars or {}
+            if db.savedCVars[cvar] == nil then db.savedCVars[cvar] = value end
+            if value ~= hidden then pcall(SetCVar, cvar, hidden) end
+        end
     end
 end
 

@@ -807,6 +807,66 @@ Advance(0.3)
 assertEq(#lines("incoming"), 1, "a hidden amount isn't shown twice either")
 clear()
 
+step("a heal you cast on yourself is named, though UNIT_COMBAT has no name")
+-- (a player's report: Holy Light on yourself showed only "+number")
+STATE.spellNames[635], STATE.spellIcons[635] = "Holy Light", 135920
+STATE.helpful = { [635] = true }
+SetIcons(true)
+local savedTarget = STATE.who.target
+STATE.who.target = nil
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-hl", 635)
+fire("UNIT_COMBAT", "player", "HEAL", "", 250, 2)
+Advance(0.3)
+assertEq(last("incoming"), "+250 |T135920:0|t Holy Light", "with its icon and name")
+fire("UNIT_COMBAT", "player", "HEAL", "", 90, 2)
+Advance(0.3)
+assertEq(last("incoming"), "+90", "only that one heal: the next one is someone else's")
+clear()
+fire("UNIT_COMBAT", "player", "HEAL", "", 260, 2)   -- (the heal first, then the cast, in one frame)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-hl2", 635)
+Advance(0.3)
+assertEq(last("incoming"), "+260 |T135920:0|t Holy Light", "either way round")
+clear()
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-hl3", 635)
+Advance(1)
+fire("UNIT_COMBAT", "player", "HEAL", "", 70, 2)
+Advance(0.3)
+assertEq(last("incoming"), "+70", "a heal a second after your cast isn't it")
+clear()
+STATE.unit.healTestMob = { enemy = true }
+STATE.who.target = "healTestMob"   -- an enemy targeted: the heal goes on you
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-hl4", 635)
+fire("UNIT_COMBAT", "player", "HEAL", "", 240, 2)
+Advance(0.3)
+assertEq(last("incoming"), "+240 |T135920:0|t Holy Light", "with an enemy targeted")
+clear()
+STATE.who.party1 = "friendA"
+STATE.who.target = "friendA"   -- a friend targeted: it went to them
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-hl5", 635)
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 2)
+Advance(0.3)
+assertEq(last("incoming"), "+120", "a heal on you while you heal a friend isn't your spell")
+STATE.who.party1 = nil
+clear()
+STATE.who.target = nil
+STATE.helpful = {}
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-x", 635)
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 2)
+Advance(0.3)
+assertEq(last("incoming"), "+120", "a spell that isn't helpful never names a heal")
+clear()
+STATE.helpful = { [635] = true }
+SetIcons(false)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-hl6", 635)
+fire("UNIT_COMBAT", "player", "HEAL", "", 250, 2)
+Advance(0.3)
+assertEq(last("incoming"), "+250 Holy Light", "the name alone with icons off")
+SetIcons(true)
+STATE.helpful = nil
+STATE.unit.healTestMob = nil
+STATE.who.target = savedTarget
+clear()
+
 step("the Healing area")
 BT.db.healArea = true
 log(real("heal on a friend"))
@@ -2143,6 +2203,15 @@ assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "0", "Forever's numbers 
 assertEq(STATE.cvars.floatingCombatTextCombatHealing_v2, "0", "and over the units you heal")
 assertEq(STATE.cvars.floatingCombatTextPetMeleeDamage_v2, "0", "and your pet's")
 assertEq(STATE.cvars.floatingCombatTextCombatLogPeriodicSpells_v2, nil, "a setting the game doesn't have is left alone")
+-- The game's "+XP" in the world has no setting of its own (a player's report: it still showed)
+assertEq(STATE.cvars.WorldTextScale, "1000", "the game's +XP: its world text drawn too big to see")
+BT.db.nXP = false
+BT:ApplySettings()
+assertEq(STATE.cvars.WorldTextScale, "1", "but only while BattleText shows your XP itself")
+assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "0", "the rest stay hidden")
+BT.db.nXP = true
+BT:ApplySettings()
+assertEq(STATE.cvars.WorldTextScale, "1000", "XP back on: hidden again")
 SlashCmdList.BATTLETEXTFOREVER("off")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "1", "BattleText off: Forever's come back too")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "1", "BattleText off: the game's numbers come back")
@@ -2159,6 +2228,7 @@ BT:ApplySettings()
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "1", "option off: put back as it was")
 assertEq(BT.db.savedCVars, nil, "nothing left over")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "1", "Forever's put back too")
+assertEq(STATE.cvars.WorldTextScale, "1", "and the world text's size")
 STATE.cvars.floatingCombatTextCombatDamage_v2 = "0"   -- someone who had already turned it off by hand
 BT.db.hideBlizzard = true
 BT:ApplySettings()
@@ -2617,7 +2687,36 @@ wound(12, 2)
 assertEq(table.concat(lines("outgoing"), " / "), "30 / Seal of Righteousness 12", "the seal's hit beside your swing")
 Advance(1)
 wound(13, 2)
+assertEq(last("outgoing"), "Seal of Righteousness 12", "a Holy hit alone waits a moment for a swing")
+Advance(1.3)
 assertEq(last("outgoing"), "13", "a Holy hit without a swing isn't taken for the seal")
+-- The swing's hit comes up to a second after its line; the seal's comes with its own line,
+-- so it can be ahead of the swing (a player's report: plain yellow numbers on each swing)
+clear()
+cast(21084)   -- (renewed: it's been on a while)
+Advance(1)
+wound(11, 2)
+assertEq(#lines("outgoing"), 0, "the seal's hit ahead of the swing waits for it")
+Advance(0.6)
+wound(31, 1)
+assertEq(table.concat(lines("outgoing"), " / "), "31 / Seal of Righteousness 11", "and is named when the swing lands")
+Advance(2)
+assertEq(#lines("outgoing"), 2, "shown once")
+clear()
+wound(32, 1)
+Advance(0.3)
+wound(10, 2)
+assertEq(table.concat(lines("outgoing"), " / "), "32 / Seal of Righteousness 10", "a seal's hit just after the swing")
+clear()
+Advance(1)
+wound(9, 2)
+BT.struck = {}
+fire("UNIT_COMBAT", "nameplate4", "WOUND", "", 30, 1)
+Advance(1.3)
+assertEq(lines("outgoing")[1], "9", "a swing on another mob doesn't name it")
+cast(21084)   -- (renewed again)
+clear()
+Advance(1)
 BT.db.outSeals = false
 Advance(1)
 wound(30, 1)
