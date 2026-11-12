@@ -46,7 +46,7 @@ The options have the same look as TauntMaster Forever, ToppedOff Forever and Out
 | Tab | What's there |
 |---|---|
 | **General** | Show BattleText, move the text areas, hide the game's own numbers, minimap button, remind me to click Start, settings for this character only, show sample text, reset positions, share settings (export and import) |
-| **Text** | Font (a list of 23, plus fonts other addons share through LibSharedMedia), outline and crit outline (none, thin, thick or shadow), text size, crit size, short numbers (12.3k), size by hit |
+| **Text** | Font (a list of 23, plus fonts other addons share through LibSharedMedia), outline and crit outline (none, thin, thick or shadow), text size, crit size, short numbers (12.3k), size by hit, icon zoom |
 | **Motion** | Crits stay in place, add up rapid hits, time on screen, area height, how long ticks and area hits add up |
 | **Outgoing** | Damage, misses, auto attacks, pet, damage shields, name seal hits, icons, names, hide hits below a number, DoTs and area spells; Appearance: size, opacity, movement, alignment, scroll upward and curved scrolling |
 | **Incoming** | Damage, avoids, power gains, icons, names; Appearance: size, opacity, movement, alignment, scroll upward and curved scrolling |

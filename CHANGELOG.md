@@ -4,6 +4,7 @@
 
 - **Layout tab: pick the area each kind of text shows in.** Your hits, your misses, heals you do, damage you take, attacks you avoid, heals you get, power gains and notifications can each go to any of the four areas: Outgoing (right), Incoming (left), Healing (bottom) or Notifications (top). Everything starts where it was. An area nothing is sent to has its Appearance greyed out. (Thanks to RichieSams for the idea.)
 - "Own area for heals" (Healing tab) is now part of the Layout tab. If you had it off, your heals stay with damage.
+- **Icon zoom** (Text tab): crops the thin border round spell and item icons, so the picture fills its square. Off to start with. (Thanks to aLanaMaunz for the idea.)
 
 ## 1.15.3
 

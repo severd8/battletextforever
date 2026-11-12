@@ -313,7 +313,7 @@ local function BuildText(p, refs)
     refs.critOutlineDropdown = Dropdown(card, DROP_X, -90, 220, outlineKeys, outlineName, "critOutline",
         function(flags) BT:SetOutline("critOutline", flags) end, "Crits: " .. outlineTip)
 
-    local size = Card(p, "Size", 0, -134, PAGE_W, 112)
+    local size = Card(p, "Size", 0, -134, PAGE_W, 138)
     Slider(size, "Text size", 12, -30, "fontSize",
         { tip = "The size of normal lines. Each area can make its own bigger or smaller (Appearance, on its tab)." })
     Slider(size, "Crit size", COL2, -30, "critScale", { suffix = "%", step = 10,
@@ -323,6 +323,8 @@ local function BuildText(p, refs)
     Setting(size, "Size by hit", COL2, -82, "sizeByHit",
         "Each area compares a number with its recent ones: a bigger hit or heal shows bigger (up to 1.5 times), "
         .. "a smaller one smaller (down to three quarters). A number the game hides keeps the usual size.")
+    Setting(size, "Icon zoom", 12, -108, "iconZoom",
+        "Crops the thin border round spell and item icons, so the picture fills its square and looks bigger.")
 end
 
 local function BuildMotion(p)

@@ -73,6 +73,7 @@ local DEFAULTS = {
     outline = "OUTLINE",      -- the outline round normal lines (one of BT.OUTLINES)
     critOutline = "OUTLINE",  -- and round crits
     sticky = true,            -- crits pop and hold in place
+    iconZoom = false,         -- crop icons' edges so their art fills the square
     sizeByHit = false,        -- a big hit shows bigger than the hits before it, a small one smaller
     -- Spell (and skill) icons and names, per section of the options
     outIcons = true, outNames = true,      -- your hits and misses
@@ -726,6 +727,13 @@ function BT:SchoolColor(unit)
     return unit and self.schools[unit:lower()]
 end
 
+-- An icon (a texture's file ID or path) as text, with a space after it. With "Icon zoom" the
+-- icon's edge is cropped (8% each side of the usual 64x64 icon), so the art fills its square.
+function BT:IconTag(tex)
+    if self.db and self.db.iconZoom then return "|T" .. tex .. ":0:0:0:0:64:64:5:59:5:59|t " end
+    return "|T" .. tex .. ":0|t "
+end
+
 -- A spell's icon as text, by its ID or name
 function BT:IconText(spell)
     if not spell then return "" end
@@ -735,11 +743,11 @@ function BT:IconText(spell)
         cached = false
         if C_Spell and C_Spell.GetSpellTexture then
             local ok, tex = pcall(C_Spell.GetSpellTexture, spell)
-            if ok and not IsSecret(tex) and tex then cached = "|T" .. tex .. ":0|t " end
+            if ok and not IsSecret(tex) and tex then cached = Num(tex) or Str(tex) or false end
         end
         self.iconCache[spell] = cached
     end
-    return cached or ""
+    return cached and self:IconTag(cached) or ""
 end
 
 -- A spell after a number, on lines about you: " <icon> Fireball", either part
@@ -1480,7 +1488,7 @@ function BT:SeenBuffs(now)
     local function worth(b) return not QUIET_BUFFS[b.name] and b.duration ~= nil and b.duration > 0 end
     local function line(b, on)
         local icon = ""
-        if self.db.nIcons and b.icon then icon = "|T" .. b.icon .. ":0|t " end
+        if self.db.nIcons and b.icon then icon = self:IconTag(b.icon) end
         self:Notify(icon .. (on and "+" or "-") .. b.name, self.TEXT_COLORS.buff)
     end
     for name, b in pairs(before) do
@@ -1824,7 +1832,7 @@ function BT:SwingIcon()
     if offSpeed and offSpeed > 0 then return self:IconText(ATTACK_SPELL) end
     local ok, tex = pcall(GetInventoryItemTexture or function() end, "player", MAIN_HAND)
     tex = ok and (Num(tex) or Str(tex)) or nil
-    if tex then return "|T" .. tex .. ":0|t " end
+    if tex then return self:IconTag(tex) end
     return self:IconText(ATTACK_SPELL)
 end
 
@@ -2604,7 +2612,7 @@ function BT:ShowUnitHit(h, what, spell, area)
     if spell and spell.id then
         icon = self:IconText(spell.id)
     elseif spell and spell.icon then
-        icon = "|T" .. spell.icon .. ":0|t "   -- an item's
+        icon = self:IconTag(spell.icon)   -- an item's
     end
     -- Nothing to name it by: a swing (a physical hit, or a plain miss)
     local swing = what == "hit" and not spell and (h.kind == "miss" or (h.kind == "damage" and Num(h.school) == 1))
@@ -2820,7 +2828,7 @@ function BT:OnLoot(message)
     local id = tonumber(link:match("|Hitem:(%d+)"))
     if id and self.db.nIcons and C_Item and C_Item.GetItemIconByID then
         local ok, tex = pcall(C_Item.GetItemIconByID, id)
-        if ok and not IsSecret(tex) and tex then icon = "|T" .. tex .. ":0|t " end
+        if ok and not IsSecret(tex) and tex then icon = self:IconTag(tex) end
     end
     self:Notify(icon .. "+" .. count .. " " .. link, self.TEXT_COLORS.loot)
 end
@@ -3452,7 +3460,7 @@ function BT:Test()
     -- Shown even while BattleText is turned off, and whatever is ticked in the options
     local LOOKS = { sticky = true, outCurved = true, inCurved = true, outScrollUp = true, inScrollUp = true,
         healScrollUp = true, nScrollUp = true, healArea = true, healOver = true, merge = true,
-        shortNumbers = true, healWho = true, sizeByHit = true, outSwings = true,
+        shortNumbers = true, healWho = true, sizeByHit = true, outSwings = true, iconZoom = true,
         outIcons = true, outNames = true, inIcons = true, inNames = true, healIcons = true, healNames = true, nIcons = true }
     local function show(fn)
         local saved = self.db

@@ -385,6 +385,11 @@ SetNames(true); SetIcons(true)
 Advance(1)
 log(hit("Claw", 16827, 51))
 assertEq(last("outgoing"), "|T132140:0|t Claw 51", "spell icon, found by the spell's ID")
+BT.db.iconZoom = true
+Advance(1)
+log(hit("Claw", 16827, 52))
+assertEq(last("outgoing"), "|T132140:0:0:0:0:64:64:5:59:5:59|t Claw 52", "Icon zoom: the icon's edge cropped")
+BT.db.iconZoom = false
 SetIcons(false)
 Advance(1)
 log(hit("Fireball", 133, 1234, "Fire"))
@@ -2269,7 +2274,7 @@ for _, f in ipairs(ALL_FRAMES) do
         end
     end
 end
-assertEq(switches, 51, "the switches are there")
+assertEq(switches, 52, "the switches are there")
 -- A switch's label is part of it: its click area stretches over the text
 for _, f in ipairs(ALL_FRAMES) do
     if f.isSwitch and f.key and inWindow(f) then
