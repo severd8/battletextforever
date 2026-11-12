@@ -1,0 +1,55 @@
+name: Debug Author Replied
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  debug:
+    if: >
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == github.event.issue.user.login
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug project lookup
+        env:
+          GH_TOKEN: ${{ secrets.PROJECTS_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PROJECT_NUMBER: 1
+        run: |
+          set -euo pipefail
+
+          gh api graphql -F owner="$OWNER" -F repo="$REPO" -F issueNumber="$ISSUE_NUMBER" -F projectNumber="$PROJECT_NUMBER" -f query='
+          query($owner:String!, $repo:String!, $issueNumber:Int!, $projectNumber:Int!) {
+            user(login:$owner) {
+              projectV2(number:$projectNumber) {
+                id
+                title
+                fields(first:100) {
+                  nodes {
+                    ... on ProjectV2SingleSelectField {
+                      id
+                      name
+                      options { id name }
+                    }
+                  }
+                }
+              }
+            }
+            repository(owner:$owner, name:$repo) {
+              issue(number:$issueNumber) {
+                title
+                projectItems(first:100) {
+                  nodes {
+                    id
+                    project {
+                      id
+                      title
+                    }
+                  }
+                }
+              }
+            }
+          }' | jq .
