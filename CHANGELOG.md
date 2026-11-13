@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.16.5
+
+- **"Add up rapid hits" now works when the game hides the numbers.** Arcane Explosion, Blizzard and other area spells showed one number for every mob they hit, even with "Add up rapid hits" on. The game now hides most damage numbers from addons, so BattleText can't add them together, but hits of one spell that land together now share one line: it shows the latest hit's number and how many hits there were, like "Arcane Explosion 52 (3 hits)". When the numbers can be read, they're added up as before, like "Arcane Explosion 156 (x3)". "Ticks and area hits add up for" sets how long the line keeps counting. (Thanks to Farsenur for the report.)
+
 ## 1.16.4
 
 - **Damage shields show their icon from the first hit.** Retribution Aura, Thorns, Lightning Shield and Fire Shield used to need a few hits before BattleText knew their damage, and it often never learned it because the game hides the amounts. Now a hit of the shield's school on a mob that's attacking you is named as soon as that mob's blow on you lands. (Thanks to Ehldarion for the report.)

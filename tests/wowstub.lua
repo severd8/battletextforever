@@ -125,10 +125,17 @@ function Methods:SetAttribute(k, v) protectedCheck(self, "SetAttribute") self.__
 function Methods:GetAttribute(k) return self.__attrs[k] end
 function Methods:SetText(t)
     if issecretvalue(t) then self.__text = "<secret>" return end
-    self.__text = t
+    self.__text, self.__shown = t, t
 end
 function Methods:SetFormattedText(fmt, ...)
-    for i = 1, select("#", ...) do if issecretvalue((select(i, ...))) then self.__text = "<secret fmt>" return end end
+    local shown, hidden = {}, false
+    for i = 1, select("#", ...) do
+        local v = select(i, ...)
+        if issecretvalue(v) then hidden, shown[i] = true, "<secret>" else shown[i] = v end
+    end
+    -- (__shown: the text with each hidden value as <secret>, for tests that look closer)
+    self.__shown = fmt:format(unpack(shown, 1, select("#", ...)))
+    if hidden then self.__text = "<secret fmt>" return end
     self.__text = fmt:format(...)
 end
 function Methods:GetText() return self.__text end

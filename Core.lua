@@ -527,7 +527,9 @@ end
 --   opts.window  seconds a line of ticks or area hits keeps adding up (more than other hits)
 --   opts.amount  the number, read: with "Size by hit", a big one shows bigger
 --   opts.secret  a value the addon can't read; the game itself writes it after the
---                text (and opts.after follows it)
+--                text (and opts.after follows it). With opts.key, hidden hits that arrive
+--                together share a line too: they can't be added up, so it shows the last
+--                hit and how many there were.
 function BT:Emit(areaKey, text, color, opts)
     local a = self.areas and self.areas[areaKey]
     if not a or not (self.db.enabled or self.testing) then return end
@@ -535,15 +537,23 @@ function BT:Emit(areaKey, text, color, opts)
     local now = GetTime()
 
     -- Add to a line that just started, instead of a new one
-    if opts.key and opts.amount and self.db.merge and not opts.crit then
+    local hidden = IsSecret(opts.secret)
+    if opts.key and (opts.amount or hidden) and self.db.merge and not opts.crit then
         local r = a.recent[opts.key]
+        if r and r.hidden ~= hidden then r = nil end   -- (a hidden hit and a read one don't mix)
         local window = math.max(MERGE_WINDOW, opts.window or 0)
         -- A longer window adds to a line until it's most of the way across
         local young = r and (window > MERGE_WINDOW and now - r.line.start < r.line.duration * 0.6
             or window <= MERGE_WINDOW and now - r.born < 1)
         if young and r.line.key == opts.key and now - r.time <= window then
-            r.total, r.count, r.time = r.total + opts.amount, r.count + 1, now
-            r.line.text:SetText(opts.format(r.total, r.count))
+            r.count, r.time = r.count + 1, now
+            if hidden then
+                r.line.text:SetFormattedText("%s%s%s", text, opts.secret,
+                    (opts.after or "") .. " |cffb0b0b0(" .. r.count .. " hits)|r")
+            else
+                r.total = r.total + opts.amount
+                r.line.text:SetText(opts.format(r.total, r.count))
+            end
             return r.line
         end
     end
@@ -571,7 +581,7 @@ function BT:Emit(areaKey, text, color, opts)
     else
         o.text:SetShadowOffset(0, 0)
     end
-    if IsSecret(opts.secret) then   -- (never compare a secret, even with nil: that throws)
+    if hidden then   -- (never compare a secret, even with nil: that throws)
         o.text:SetFormattedText("%s%s%s", text, opts.secret, opts.after or "")
     else
         o.text:SetText(text)
@@ -648,9 +658,9 @@ function BT:Emit(areaKey, text, color, opts)
     a.active[#a.active + 1] = o
     if self.driver then self.driver:Show() end   -- (it rests while nothing is moving)
     -- Only a plain scrolling line can be added to later (a crit keeps its own number)
-    if opts.key and opts.amount and not opts.crit then
+    if opts.key and (opts.amount or hidden) and not opts.crit then
         o.key = opts.key
-        a.recent[opts.key] = { line = o, time = now, born = now, total = opts.amount, count = 1 }
+        a.recent[opts.key] = { line = o, time = now, born = now, total = opts.amount or 0, count = 1, hidden = hidden }
     end
     return o
 end
@@ -2862,14 +2872,18 @@ function BT:ShowUnitHit(h, what, spell, area)
         local note = FLAG_NOTES[h.flag or ""]
         note = note and (" |cffb0b0b0(" .. note .. ")|r") or ""
         if h.crit and db.soundCrit then self:PlayAlert("crit") end
+        local key = spell and (what .. ":" .. tostring(spell.id or spellName)) or nil
+        local window = (what == "tick" or area) and db.tickMerge or nil
         if h.secret then
-            self:Emit(self:Area("OutDamage"), label, color, { crit = h.crit, secret = h.amount, after = note })
+            -- Hidden amounts can't be added up, but hits of one spell together still share a line
+            self:Emit(self:Area("OutDamage"), label, color, { crit = h.crit, secret = h.amount, after = note,
+                key = key, window = window })
         else
             self:Emit(self:Area("OutDamage"), label .. Commas(h.n) .. note, color, {
                 crit = h.crit,
-                key = spell and (what .. ":" .. tostring(spell.id or spellName)) or nil,
+                key = key,
                 amount = h.n,
-                window = (what == "tick" or area) and db.tickMerge or nil,
+                window = window,
                 format = function(total, count)
                     return label .. Commas(total) .. " |cffb0b0b0(x" .. count .. ")|r"
                 end,

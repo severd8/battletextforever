@@ -2814,6 +2814,38 @@ fire("UNIT_COMBAT", "nameplate2", "WOUND", "", 31, 64)
 fire("UNIT_COMBAT", "nameplate3", "WOUND", "", 32, 64)
 assertEq(last("outgoing"), "Arcane Explosion 93 |cffb0b0b0(x3)|r", "named after the spell, added up")
 clear()
+-- Hidden amounts (as players see them now) can't be added up, but they still share one line
+-- (a player's log: one cast, two mobs, each also seen as the target and the soft target)
+STATE.who.softenemy = "mobA"
+local function newestShown() local a = BT.areas.outgoing.active return a[#a].text.__shown end
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-ae2", 1449)
+fire("UNIT_COMBAT", "nameplate3", "WOUND", "", Secret(30), 64)
+fire("UNIT_COMBAT", "nameplate1", "WOUND", "", Secret(31), 64)
+fire("UNIT_COMBAT", "target", "WOUND", "", Secret(31), 64)
+fire("UNIT_COMBAT", "softenemy", "WOUND", "", Secret(31), 64)
+assertEq(#lines("outgoing"), 1, "hidden hits of one area cast share one line")
+assertEq(newestShown(), "Arcane Explosion <secret> |cffb0b0b0(2 hits)|r", "the last hit, and how many: not a total")
+-- The next cast, a moment later, adds to it too (the same as read amounts)
+Advance(0.3)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-ae3", 1449)
+fire("UNIT_COMBAT", "nameplate3", "WOUND", "", Secret(30), 64)
+fire("UNIT_COMBAT", "nameplate1", "WOUND", "", Secret(31), 64)
+assertEq(#lines("outgoing"), 1, "a quick second cast adds to the line")
+assertEq(newestShown(), "Arcane Explosion <secret> |cffb0b0b0(4 hits)|r", "four hits now")
+-- A read amount never joins a hidden line
+Advance(0.1)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-ae4", 1449)
+fire("UNIT_COMBAT", "target", "WOUND", "", 30, 64)
+assertEq(#lines("outgoing"), 2, "a read hit starts its own line")
+clear()
+BT.db.merge = false
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-ae5", 1449)
+fire("UNIT_COMBAT", "nameplate3", "WOUND", "", Secret(30), 64)
+fire("UNIT_COMBAT", "nameplate1", "WOUND", "", Secret(31), 64)
+assertEq(#lines("outgoing"), 2, "with \"Add up rapid hits\" off, each hit has its own line")
+BT.db.merge = true
+STATE.who.softenemy = nil
+clear()
 -- In a group, each still needs a line of yours
 STATE.group, STATE.who.party1 = true, "friend"
 BT.hiddenSeen, BT.hiddenAt, BT.credits = true, GetTime(), {}
@@ -3310,6 +3342,19 @@ assertEq(last("outgoing"), "Blizzard 44", "what was already falling as you stopp
 Advance(0.6)
 on("target", 45, 16)
 assertEq(last("outgoing"), "45", "after you stopped channeling: something else")
+clear()
+-- With hidden amounts and "Add up rapid hits" on: one wave is one line, counted
+BT.db.merge = true
+channel(10)
+Advance(1)
+on("target", Secret(40), 16)
+on("nameplate2", Secret(41), 16)
+on("nameplate3", Secret(39), 16)
+assertEq(#lines("outgoing"), 1, "a hidden Blizzard wave on three mobs: one line")
+assertEq(BT.areas.outgoing.active[1].text.__shown, "Blizzard <secret> |cffb0b0b0(3 hits)|r",
+    "the last hit, and how many")
+stop(10)
+BT.db.merge = false
 clear()
 -- The longest it can last, without a stop
 channel(10)
