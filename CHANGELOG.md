@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.4
+
+- **Damage shields show their icon from the first hit.** Retribution Aura, Thorns, Lightning Shield and Fire Shield used to need a few hits before BattleText knew their damage, and it often never learned it because the game hides the amounts. Now a hit of the shield's school on a mob that's attacking you is named as soon as that mob's blow on you lands. (Thanks to Ehldarion for the report.)
+- **Heal-over-time ticks on yourself show their icon.** Rejuvenation, Regrowth and Renew ticks on you showed only "+number", because the game doesn't say which spell healed you. A heal on you that lands right on the beat of a heal-over-time you cast on yourself is now named after it. (Thanks to Ehldarion for the report.)
+
 ## 1.16.3
 
 - **Your white hits show in a group again.** In a group, BattleText only shows a hit when the game confirms it was yours, and it doesn't do that for every swing. Many of your auto attacks, and the mob's dodges and parries of them, never showed. BattleText now also follows the game's swing timer, so every swing you make counts as yours. (Thanks to skaine78 and dries9300 for the reports and the debug logs.)

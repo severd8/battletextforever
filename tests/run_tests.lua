@@ -862,6 +862,48 @@ fire("UNIT_COMBAT", "player", "HEAL", "", 250, 2)
 Advance(0.3)
 assertEq(last("incoming"), "+250 Holy Light", "the name alone with icons off")
 SetIcons(true)
+clear()
+-- A heal over time on yourself: its ticks are heals on you with no name (a player's report:
+-- a druid's HoT ticks had no icon)
+STATE.spellNames[774], STATE.spellIcons[774] = "Rejuvenation", 136081
+BT.iconCache = nil
+STATE.helpful[774] = true
+STATE.who.target = "healTestMob"   -- (an enemy targeted: it goes on you)
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-rj", 774)
+Advance(3)
+fire("UNIT_COMBAT", "player", "HEAL", "", 30, 8)
+Advance(0.3)
+assertEq(last("incoming"), "+30 |T136081:0|t Rejuvenation", "a tick of your heal over time on you")
+Advance(1.2)
+fire("UNIT_COMBAT", "player", "HEAL", "", 90, 8)
+Advance(0.3)
+assertEq(last("incoming"), "+90", "a heal off its beat is someone else's")
+Advance(1.2)   -- (6s after the cast: on its beat)
+fire("UNIT_COMBAT", "player", "HEAL", "", 30, 2)
+Advance(0.3)
+assertEq(last("incoming"), "+30", "a heal of another school isn't it")
+Advance(2.7)   -- (9s after the cast)
+fire("UNIT_COMBAT", "player", "HEAL", "", 30, 8)
+Advance(0.3)
+assertEq(last("incoming"), "+30 |T136081:0|t Rejuvenation", "the next tick on its beat")
+local onEnemy = false
+for _, list in pairs(BT.dots or {}) do if list.Rejuvenation then onEnemy = true end end
+assertEq(onEnemy, false, "and it isn't taken for a tick on the enemy you had targeted")
+Advance(30)
+fire("UNIT_COMBAT", "player", "HEAL", "", 30, 8)
+Advance(0.3)
+assertEq(last("incoming"), "+30", "long after it ran out: not it")
+clear()
+STATE.who.party1 = "friendA"
+STATE.who.target = "friendA"
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-rj2", 774)
+Advance(3)
+fire("UNIT_COMBAT", "player", "HEAL", "", 30, 8)
+Advance(0.3)
+assertEq(last("incoming"), "+30", "cast on a friend: its ticks aren't on you")
+STATE.who.party1 = nil
+BT.selfHots, BT.iconCache = nil, nil
+STATE.spellIcons[774] = nil
 STATE.helpful = nil
 STATE.unit.healTestMob = nil
 STATE.who.target = savedTarget
@@ -1500,10 +1542,11 @@ STATE.buffs = { { name = "Mark of the Wild", spellId = 1126 }, { name = "Thorns"
 fire("UNIT_AURA", "player")
 assertEq(BT.buffShields.Thorns.id, 782, "Thorns is on you (the rank you're wearing, for its icon)")
 wound(3, 8)
-assertEq(last("outgoing"), "3", "the first answer isn't known yet")
+assertEq(#lines("outgoing"), 0, "the first answer waits for the blow it answers")
 Advance(0.6)
 blow()
-assertEq(BT.db.shieldAmounts.Thorns, nil, "one answer isn't enough")
+assertEq(last("outgoing"), "Thorns 3", "and is named when the blow lands (amounts are often hidden: see below)")
+assertEq(BT.db.shieldAmounts.Thorns, nil, "one answer isn't enough to learn its amount")
 Advance(1)
 wound(3, 8)
 Advance(0.6)
@@ -1676,7 +1719,47 @@ Advance(1)
 wound(13, 8)
 assertEq(last("outgoing"), "Lightning Shield 13", "and named")
 wound(Secret(13), 8)
-assertEq(last("outgoing"), "<secret fmt>", "a hidden amount can't be matched: just a hit")
+Advance(1.3)
+assertEq(last("outgoing"), "<secret fmt>", "a hidden amount can't be matched, and no blow came: just a hit")
+-- Amounts are often hidden (players' logs), so they can't be learned: a hit of the shield's
+-- school on a mob after you is the shield's when the blow it answered lands on you (a player's
+-- report: Retribution Aura showed no icon)
+clear()
+-- (the game draws a hidden amount itself: the line's name is read from the debug record)
+local function lastNamed()
+    local list = BT.recorded or {}
+    for i = #list, 1, -1 do
+        local what = list[i]:match(": (shield of .+)$") or list[i]:match(": (nothing came for it: shown)$")
+        if what then return what end
+    end
+end
+BT.db.debug, BT.recorded = true, {}
+wound(Secret(13), 8)
+assertEq(#lines("outgoing"), 0, "a hidden amount waits for a blow on you")
+Advance(0.6)
+blow()
+assertEq(#lines("outgoing"), 1, "and is shown when one lands")
+assertEq(lastNamed(), "shield of Lightning Shield", "as the shield's")
+Advance(1)
+blow()
+Advance(0.2)
+BT.recorded = {}
+wound(Secret(13), 8)
+assertEq(#lines("outgoing"), 2, "a blow just before counts too: shown at once")
+assertEq(lastNamed(), "shield of Lightning Shield", "as the shield's")
+Advance(1)
+BT.recorded = {}
+wound(Secret(13), 8)
+Advance(1.3)
+assertEq(lastNamed(), "nothing came for it: shown", "no blow: shown as it is")
+BT.db.debug, BT.recorded = false, nil
+Advance(1)
+wound(Secret(14), 4)
+Advance(0.5)
+blow()
+Advance(1)
+assertEq(last("outgoing"), "<secret fmt>", "not a hit of another school than your shields'")
+clear()
 BT.buffShields, BT.itemShields, BT.dots = nil, nil, nil
 STATE.buffs, STATE.equipped = {}, {}
 reset()
@@ -1796,6 +1879,7 @@ local function freshFight()
     clear()
 end
 local function same(out, expect)
+    if os.getenv("DUMP") then io.stderr:write(table.concat(out, " | "), "\n") end
     for i = 1, math.max(#expect, #out) do
         assertEq(out[i], expect[i], "hit " .. i .. " of the fight")
     end
@@ -1833,21 +1917,17 @@ out = replay("real_fight2.txt", {
     { at = 630, fn = function() STATE.buffs = {} fire("UNIT_AURA", "player") end },
 })
 same(out, {
-    -- first mob (the recording starts mid-fight, so its Rake is unknown): the cape is named at once,
-    -- Thorns' 11 not yet (one clean answer so far: the others shared a frame with a combat log line)
-    "29", "Sporid Cape 1", "11", "31", "26", "27", "Sporid Cape 1", "11",
-    -- second mob: the cape and Thorns answer in the frame of the opening Rake, and the cape
-    -- again just ahead of a Claw in its frame
-    "Rake 67", "Sporid Cape 1", "11", "50", "Sporid Cape 1", "Claw 108", "29", "29", "Sporid Cape 1", "Rake 27",
-    -- third and fourth mobs at once, Thorns run out: only the cape answers
-    "Sporid Cape 1", "Claw 53", "27", "Rake 33", "Sporid Cape 1", "24", "Sporid Cape 1", "28", "48", "Sporid Cape 1",
-    "Sporid Cape 1", "Rake 27", "Rip 16", "29", "Sporid Cape 1", "Sporid Cape 1", "30", "Rip 31", "Sporid Cape 1", "29",
-    "Sporid Cape 1", "59", "Claw 49", "Sporid Cape 1", "28", "26", "Sporid Cape 1", "Rake 33", "Sporid Cape 1", "47",
-    "26", "30", "Rake 27", "Sporid Cape 1", "28", "29",
-    -- Thorns cast again; out of cat form the fifth mob is only answered: the second clean 11 teaches Thorns
-    "11", "Sporid Cape 1", "27", "Thorns 11", "Sporid Cape 1", "28", "Thorns 11", "Sporid Cape 1", "Thorns 11",
-    "Sporid Cape 1", "Thorns 11", "Sporid Cape 1", "Thorns 11", "Sporid Cape 1", "Claw 52", "27", "Thorns 11",
-    "Sporid Cape 1", "Claw 103",
+    -- Thorns' 11 is named from the first one: each answers a blow on you (amounts can't be relied
+    -- on: they're often hidden). After Thorns runs out only the cape answers.
+    "29", "Sporid Cape 1", "31", "Thorns 11", "26", "27", "Sporid Cape 1", "Thorns 11", "Rake 67",
+    "Sporid Cape 1", "Thorns 11", "50", "Sporid Cape 1", "Claw 108", "29", "29", "Sporid Cape 1", "Rake 27",
+    "Sporid Cape 1", "Claw 53", "27", "Rake 33", "Sporid Cape 1", "24", "Sporid Cape 1", "28", "48",
+    "Sporid Cape 1", "Sporid Cape 1", "Rake 27", "Rip 16", "29", "Sporid Cape 1", "Sporid Cape 1", "30",
+    "Rip 31", "Sporid Cape 1", "29", "Sporid Cape 1", "59", "Claw 49", "Sporid Cape 1", "28", "26",
+    "Sporid Cape 1", "Rake 33", "Sporid Cape 1", "47", "26", "30", "Rake 27", "Sporid Cape 1", "28", "29",
+    "Sporid Cape 1", "27", "Thorns 11", "Thorns 11", "Sporid Cape 1", "28", "Thorns 11", "Sporid Cape 1",
+    "Thorns 11", "Sporid Cape 1", "Thorns 11", "Sporid Cape 1", "Thorns 11", "Sporid Cape 1", "Claw 52", "27",
+    "Thorns 11", "Sporid Cape 1", "Claw 103",
 })
 assertEq(BT.db.shieldAmounts.Thorns, 11, "Thorns was learned on the way")
 

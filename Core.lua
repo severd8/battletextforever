@@ -1115,12 +1115,35 @@ function BT:NoteHealCast(id, name)
     if not ok or IsSecret(helpful) or helpful ~= true then return end
     local seals = self:SealLists()
     if seals[name] or self:IsSelfBuffCast(id, name) then return end
-    -- On a friendly target that isn't you, it went to them
-    if Flag(UnitExists, "target") and not Flag(UnitIsUnit, "target", "player")
-            and not Flag(UnitCanAttack, "player", "target") then
-        return
-    end
+    if self:HealGoesToTarget() then return end   -- on a friend that isn't you, it went to them
     self.healCast = { id = id, name = name, at = GetTime() }
+end
+
+-- A helpful spell goes to your target when it's a friend that isn't you; else it's on you
+function BT:HealGoesToTarget()
+    return Flag(UnitExists, "target") and not Flag(UnitIsUnit, "target", "player")
+        and not Flag(UnitCanAttack, "player", "target")
+end
+
+-- A tick of a heal over time you put on yourself (Rejuvenation, Renew): a heal on you on its
+-- beat (a whole number of periods since the cast, give or take TICK_SLACK), of its school when
+-- the game says, within SELF_HOT_TIME of the cast
+local SELF_HOT_TIME = 25
+function BT:SelfHotFor(at, school)
+    local best, bestOff
+    for name, hot in pairs(self.selfHots or {}) do
+        local since = at - hot.at
+        if since > SELF_HOT_TIME then
+            self.selfHots[name] = nil
+        else
+            local beats = math.floor(since / hot.period + 0.5)
+            local off = math.abs(since - beats * hot.period)
+            if beats >= 1 and off <= 0.25 and (not school or school == hot.school) and (not best or off < bestOff) then
+                best, bestOff = hot, off
+            end
+        end
+    end
+    return best
 end
 
 function BT:TakeHealCast(at)
@@ -1151,7 +1174,11 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
             .. (IsSecret(amount) and "(hidden amount)" or tostring(amount)))
     end
     if not action then return end
-    if action == "WOUND" then self:ConfirmShield(GetTime()) end
+    if action == "WOUND" then
+        self:ConfirmShield(GetTime())
+        self.lastBlow = GetTime()
+        self:BlowLanded(GetTime())
+    end
     -- You dodged, parried or blocked (a warrior's Revenge, a rogue's Riposte), a blow you
     -- partly blocked too
     local avoid = action == "WOUND" and flag or action
@@ -1193,7 +1220,7 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
             if BT:TakeSelfHeal(n) then return end   -- the log's line showed it, with the spell's name
             if BT:LogDelivers("heal") then return end   -- the log's line for it arrived meanwhile
             -- A heal you cast on yourself just then (Holy Light): named after it
-            local cast = BT:TakeHealCast(at)
+            local cast = BT:TakeHealCast(at) or BT:SelfHotFor(at, Num(school))
             local after, color = "", C.heal
             if cast then
                 local rule = BT:SpellRule(cast.name)
@@ -1749,13 +1776,39 @@ function BT:SealFor(h, seq, first, last, at, frameOnly)
     return nil
 end
 
--- A seal's hit with no swing yet: held until your swing on that unit lands (then it's the
--- seal's), or for SEAL_SWING_TIME (then it's shown as it is). Returns true if it's held.
+-- A damage shield of yours (Retribution Aura, Thorns) hurting a mob that's after you: its
+-- amount is often hidden, so it can't be learned (KnownShield). The shield's hit comes with its
+-- line, the mob's blow on you trails it like a swing: a hit of the shield's school that nothing
+-- named, on a mob after you, is the shield's when a blow lands on you just before or soon after.
+function BT:ShieldOn(h)
+    if h.kind ~= "damage" or not self.db.outShields then return nil end
+    local mask = Num(h.school)
+    if not mask or mask == 1 then return nil end
+    if not Flag(UnitIsUnit, h.unit .. "target", "player") then return nil end
+    for name, shield in pairs(self.buffShields or {}) do
+        -- (a readable amount that isn't the one it's known to hit for is something else)
+        local known = self.db.shieldAmounts[name]
+        if shield.school == mask and not (h.n and known and h.n ~= known) then return shield end
+    end
+    return nil
+end
+
+-- A hit that may be your seal's (waiting for your swing) or your shield's (waiting for a blow on
+-- you): held up to SEAL_SWING_TIME, then shown as it is. Returns true if it's held.
 function BT:WaitForSwing(h)
     local seal = h.key and self:SealOn(h)
-    if not seal then return false end
+    local shield = self:ShieldOn(h)
+    if shield and not seal and self.lastBlow and h.time - self.lastBlow >= 0
+            and h.time - self.lastBlow <= SEAL_AFTER_SWING then
+        local why = self:ShowUnitHit(h, "shield", shield)
+        if self.db.debug then
+            self:Record(("  %s %s: %s"):format(h.unit, tostring(h.amount), why or ("shield of " .. shield.name)), h.time)
+        end
+        return true
+    end
+    if not seal and not shield then return false end
     self.sealWait = self.sealWait or {}
-    local entry = { h = h, seal = { id = seal.id, name = seal.name } }
+    local entry = { h = h, seal = seal and { id = seal.id, name = seal.name }, shield = shield }
     table.insert(self.sealWait, entry)
     local function over()
         for i, e in ipairs(BT.sealWait or {}) do
@@ -1763,7 +1816,7 @@ function BT:WaitForSwing(h)
                 table.remove(BT.sealWait, i)
                 local why = BT:ShowUnitHit(h, "hit", nil)
                 if BT.db.debug then
-                    BT:Record(("  %s %s: %s"):format(h.unit, tostring(h.amount), why or "no swing came: shown"), h.time)
+                    BT:Record(("  %s %s: %s"):format(h.unit, tostring(h.amount), why or "nothing came for it: shown"), h.time)
                 end
                 return
             end
@@ -1773,25 +1826,38 @@ function BT:WaitForSwing(h)
     return true
 end
 
--- Your swing landed on a unit: the seal's hits waiting for it are the seal's
-function BT:SwingLanded(key, at)
+-- Something came for the hits waiting: your swing on a unit (key, for a seal), or a blow on you
+-- (no key, for a shield)
+function BT:Resolved(key, at)
     local list = self.sealWait
     if not list then return end
     local i = 1
     while list[i] do
         local e = list[i]
-        if e.h.key == key and at - e.h.time <= SEAL_SWING_TIME then
+        local what, spell
+        if at - e.h.time <= SEAL_SWING_TIME then
+            if key and e.seal and e.h.key == key then
+                what, spell = "seal", e.seal
+            elseif not key and e.shield then
+                what, spell = "shield", e.shield
+            end
+        end
+        if what then
             table.remove(list, i)
-            local why = self:ShowUnitHit(e.h, "seal", e.seal)
+            local why = self:ShowUnitHit(e.h, what, spell)
             if self.db.debug then
-                self:Record(("  %s %s: %s"):format(e.h.unit, tostring(e.h.amount), why or ("seal of " .. e.seal.name)),
+                self:Record(("  %s %s: %s"):format(e.h.unit, tostring(e.h.amount), why or (what .. " of " .. spell.name)),
                     e.h.time)
             end
+            if not key then return end   -- one blow, one answer
         else
             i = i + 1
         end
     end
 end
+
+function BT:SwingLanded(key, at) self:Resolved(key, at) end
+function BT:BlowLanded(at) self:Resolved(nil, at) end
 
 function BT:InGroup()
     return Flag(IsInGroup) or Flag(IsInRaid) or Flag(UnitExists, "party1")
@@ -2021,6 +2087,13 @@ function BT:OnSpellcast(spellId)
         self.thrown[#self.thrown + 1] = { id = id, name = name, at = GetTime(), school = thrown.school }
     end
     local dot = periodic[name]
+    -- A heal over time with no friend targeted lands on you: its ticks come as heals on you
+    -- with no name (SelfHotFor)
+    if dot and dot.heal and not self:HealGoesToTarget() then
+        self.selfHots = self.selfHots or {}
+        self.selfHots[name] = { id = id, name = name, at = GetTime(), period = dot.period, school = dot.school }
+        dot = nil
+    end
     local key = dot and UnitKey("target")
     if key then
         self.dots = self.dots or {}
@@ -2688,7 +2761,7 @@ function BT:ResolveFrame(seq, first, last)
                 -- player regenerating, someone else's heal). In a group, a line of yours vouches for it.
                 why = "no heal of yours with it"
             elseif not spell and self:WaitForSwing(h) then
-                why = "waiting for your swing: your seal's?"
+                why = "waiting: your seal's or your shield's?"
             else
                 why = self:ShowUnitHit(h, what, spell)
                 if not why and h.kind == "damage" then h.mine = { what = what, spell = spell } end
