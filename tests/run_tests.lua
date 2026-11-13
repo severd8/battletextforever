@@ -2363,14 +2363,15 @@ assertEq(STATE.cvars.floatingCombatTextCombatHealing_v2, "0", "and over the unit
 assertEq(STATE.cvars.floatingCombatTextPetMeleeDamage_v2, "0", "and your pet's")
 assertEq(STATE.cvars.floatingCombatTextCombatLogPeriodicSpells_v2, nil, "a setting the game doesn't have is left alone")
 -- The game's "+XP" in the world has no setting of its own (a player's report: it still showed)
-assertEq(STATE.cvars.WorldTextScale, "1000", "the game's +XP: its world text drawn too big to see")
+assertEq(STATE.cvars.WorldTextScale_v2, "1000", "the game's +XP: its world text drawn too big to see")
+assertEq(STATE.cvars.WorldTextScale, nil, "Forever's is the \"_v2\" one: the old name, which it doesn't have, is left alone")
 BT.db.nXP = false
 BT:ApplySettings()
-assertEq(STATE.cvars.WorldTextScale, "1", "but only while BattleText shows your XP itself")
+assertEq(STATE.cvars.WorldTextScale_v2, "1", "but only while BattleText shows your XP itself")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "0", "the rest stay hidden")
 BT.db.nXP = true
 BT:ApplySettings()
-assertEq(STATE.cvars.WorldTextScale, "1000", "XP back on: hidden again")
+assertEq(STATE.cvars.WorldTextScale_v2, "1000", "XP back on: hidden again")
 SlashCmdList.BATTLETEXTFOREVER("off")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "1", "BattleText off: Forever's come back too")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "1", "BattleText off: the game's numbers come back")
@@ -2387,7 +2388,7 @@ BT:ApplySettings()
 assertEq(STATE.cvars.floatingCombatTextCombatDamage, "1", "option off: put back as it was")
 assertEq(BT.db.savedCVars, nil, "nothing left over")
 assertEq(STATE.cvars.floatingCombatTextCombatDamage_v2, "1", "Forever's put back too")
-assertEq(STATE.cvars.WorldTextScale, "1", "and the world text's size")
+assertEq(STATE.cvars.WorldTextScale_v2, "1", "and the world text's size")
 STATE.cvars.floatingCombatTextCombatDamage_v2 = "0"   -- someone who had already turned it off by hand
 BT.db.hideBlizzard = true
 BT:ApplySettings()

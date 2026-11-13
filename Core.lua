@@ -3643,13 +3643,18 @@ local BLIZZARD_CVARS = {
 -- own. It's world text, like the numbers over mobs: "WorldTextScale" made huge draws it too big
 -- to be seen (the way players hide it). Only while BattleText shows your XP itself (Notifications
 -- -> Experience), as the numbers over mobs are already hidden then.
-local XP_CVAR, XP_HIDDEN = "WorldTextScale", "1000"
+-- Forever names it "WorldTextScale_v2" (a player's list of the game's settings: there's no
+-- plain "WorldTextScale", which is why 1.16.2 didn't hide it); the old name is kept for a
+-- client that has it, and a missing one is skipped.
+local XP_CVARS, XP_HIDDEN = { "WorldTextScale_v2", "WorldTextScale" }, "1000"
 function BT:BlizzardHides()
     local db = self.db
     local hide = {}
     if not (db.enabled and db.hideBlizzard) then return hide end
     for _, cvar in ipairs(BLIZZARD_CVARS) do hide[cvar] = "0" end
-    if db.nXP then hide[XP_CVAR] = XP_HIDDEN end
+    if db.nXP then
+        for _, cvar in ipairs(XP_CVARS) do hide[cvar] = XP_HIDDEN end
+    end
     return hide
 end
 
