@@ -1280,6 +1280,45 @@ Advance(0.1)
 hidden(13)
 fire("UNIT_COMBAT", "party1", "HEAL", "", 120, 2)
 assertEq(last("outgoing"), "+120", "your heal on a party member you aren't targeting")
+-- The "My actions" lines don't come for every swing (issues #15, #16: white hits in a group
+-- went missing). The game's swing timer event says when you swing: each vouches for one
+-- physical hit or miss on your target.
+clear()
+BT.credits, BT.swings = nil, nil
+fire("PLAYER_SWING", 2.6, 0)
+Advance(0.6)
+fire("UNIT_COMBAT", "target", "WOUND", "", 41, 1)
+assertEq(last("outgoing"), "41", "a swing of yours vouches for the white hit after it")
+fire("UNIT_COMBAT", "target", "WOUND", "", 99, 1)
+assertEq(#lines("outgoing"), 1, "one swing, one hit")
+Advance(0.1)
+fire("PLAYER_SWING", 1.8, 1)
+Advance(0.5)
+fire("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
+assertEq(last("outgoing"), "Dodge", "and for the mob dodging it")
+Advance(0.1)
+fire("PLAYER_SWING", 2.6, 0)
+Advance(0.1)
+fire("UNIT_COMBAT", "target", "WOUND", "", 99, 32)
+assertEq(last("outgoing"), "Dodge", "not for a spell's hit (someone's Shadow Bolt)")
+Advance(0.1)
+STATE.unit.swingMob = { enemy = true, guid = "Creature-0-1-2-3-100-0000C1", target = "me" }
+STATE.who.nameplate7 = "swingMob"   -- another mob, after you
+fire("UNIT_COMBAT", "nameplate7", "WOUND", "", 99, 1)
+fire("UNIT_COMBAT", "nameplate7", "MISS", "", 0, 1)
+assertEq(last("outgoing"), "Dodge", "nor for a hit on another mob (you only swing at your target)")
+STATE.who.nameplate7, STATE.unit.swingMob = nil, nil
+Advance(1.3)
+fire("UNIT_COMBAT", "target", "WOUND", "", 99, 1)
+assertEq(last("outgoing"), "Dodge", "a swing from long ago vouches for nothing")
+clear()
+-- A cast's miss has no line ("My actions" leaves misses out): the cast in its frame is enough
+STATE.spellNames[6572] = "Revenge"
+BT.credits, BT.swings = nil, nil
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-rev", 6572)
+fire("UNIT_COMBAT", "target", "MISS", "", 0, 1)
+assertEq(last("outgoing"), "Revenge Miss", "your cast missing, in a group")
+clear()
 BT.hiddenSeen = nil
 BT.credits, BT.waitingHits = nil, nil
 fire("UNIT_COMBAT", "target", "WOUND", "", 33, 1)

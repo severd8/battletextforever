@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.3
+
+- **Your white hits show in a group again.** In a group, BattleText only shows a hit when the game confirms it was yours, and it doesn't do that for every swing. Many of your auto attacks, and the mob's dodges and parries of them, never showed. BattleText now also follows the game's swing timer, so every swing you make counts as yours. (Thanks to skaine78 and dries9300 for the reports and the debug logs.)
+- **Your abilities missing in a group show too.** A Revenge or Sunder Armor that missed, or was dodged or parried, showed nothing in a group. The game doesn't confirm misses, so the cast itself now counts.
+
 ## 1.16.2
 
 - **"Hide the game's own numbers" now hides the game's "+XP" too.** With Experience on in Notifications, the game's own XP text still popped up in the world beside BattleText's. The game has no setting for just that text, so BattleText draws the game's floating world text too big to be seen (the numbers over mobs are already hidden by this option). It all comes back when you turn the option off, turn Experience off, or remove BattleText. (Thanks to HAWKSMORE for the report.)

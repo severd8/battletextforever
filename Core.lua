@@ -1951,6 +1951,35 @@ function BT:NoteHiddenLine(now)
     self:Queue({ line = true })
 end
 
+-- Your auto attacks. PLAYER_SWING (Forever's swing timer: { swingDuration, swingType }, plain
+-- values) fires for each swing of yours, landed or not. The "My actions" lines don't come for
+-- every swing (issues #15, #16: white hits and the mob's dodges in a group went unshown with
+-- "no line of yours with it"), so in a group each swing vouches for one physical hit or miss on
+-- your target (auto attacks only ever go at your target) within CREDIT_TIME.
+function BT:OnSwing(duration, swingType)
+    local now = GetTime()
+    if self.db.debug then self:Record("SWING " .. tostring(Num(swingType))) end
+    local swings = self.swings or {}
+    self.swings = swings
+    while swings[1] and (now - swings[1] > CREDIT_TIME or #swings >= 6) do table.remove(swings, 1) end
+    swings[#swings + 1] = now
+end
+
+function BT:ClaimSwing(h)
+    local swings = self.swings
+    if not swings or not swings[1] then return false end
+    local mask = Num(h.school)
+    if h.kind ~= "damage" and h.kind ~= "miss" then return false end
+    if mask ~= nil and mask ~= 1 then return false end
+    if not (Flag(UnitIsUnit, h.unit, "target") or (h.key and h.key == UnitKey("target"))) then return false end
+    while swings[1] and h.time - swings[1] > CREDIT_TIME do table.remove(swings, 1) end
+    if swings[1] and swings[1] <= h.time then
+        table.remove(swings, 1)
+        return true
+    end
+    return false
+end
+
 function BT:ClaimHit(now)
     local credits = self.credits
     while credits and credits[1] and now - credits[1] > CREDIT_TIME do table.remove(credits, 1) end
@@ -2582,8 +2611,15 @@ function BT:ResolveFrame(seq, first, last)
                     if self.thrownItems[cast.name or ""] then self:ThrowLanded(cast.name, h.time) end
                 end
             end
-            -- In a group, a hit is yours only with a line of yours (see ClaimHit)
-            local claimed = not h.grouped or self:ClaimHit(h.time)
+            -- In a group, a hit is yours only with a line of yours (see ClaimHit), a swing of yours
+            -- (ClaimSwing), or as your cast's in its own frame (a miss of it has no line: "My actions"
+            -- leaves misses out unless they're ticked)
+            local claimed = not h.grouped
+            if not claimed and what == "cast" then
+                self:ClaimHit(h.time)   -- (its line, if it has one, is used up)
+                claimed = true
+            end
+            if not claimed then claimed = self:ClaimSwing(h) or self:ClaimHit(h.time) end
             -- A spell of yours that was on its way to the unit. A tick of yours on its beat
             -- comes first, unless its amount isn't what that spell's ticks have been.
             if not spell and claimed then
@@ -3744,6 +3780,7 @@ pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_CHANNEL_START", "player"
 pcall(events.RegisterUnitEvent, events, "UNIT_SPELLCAST_CHANNEL_STOP", "player")
 pcall(events.RegisterUnitEvent, events, "UNIT_AURA", "player")
 pcall(events.RegisterEvent, events, "PLAYER_EQUIPMENT_CHANGED")
+pcall(events.RegisterEvent, events, "PLAYER_SWING")   -- your own auto attacks (vouches for them in a group)
 -- Ability alerts that the game's own buttons know about, and combo points
 for _, e in ipairs({ "SPELL_UPDATE_USABLE", "PLAYER_TARGET_CHANGED", "SPELL_ACTIVATION_OVERLAY_SHOW",
     "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW" }) do
@@ -3798,6 +3835,8 @@ events:SetScript("OnEvent", function(_, event, a1, a2, a3, a4, a5)
         BT:OnUnitCombat(a1, a2, a3, a4, a5)
     elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
         BT:OnSpellcast(a3)
+    elseif event == "PLAYER_SWING" then
+        BT:OnSwing(a1, a2)
     elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
         local id = Num(a3)
         local name = id and SpellName(id)
