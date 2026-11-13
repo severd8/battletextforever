@@ -902,6 +902,27 @@ fire("UNIT_COMBAT", "player", "HEAL", "", 30, 8)
 Advance(0.3)
 assertEq(last("incoming"), "+30", "cast on a friend: its ticks aren't on you")
 STATE.who.party1 = nil
+clear()
+-- Heals the game doesn't name, with their number hidden, can't be held to "Hide heals below"
+-- (a player's report: Thrill of Adventure's small heals kept showing): a switch hides them
+BT.db.minHeal = 50
+fire("UNIT_COMBAT", "player", "HEAL", "", Secret(12), 8)
+Advance(0.3)
+assertEq(#lines("incoming"), 1, "a hidden number always shows, whatever \"Hide heals below\" says")
+BT.db.inOtherHeals = false
+fire("UNIT_COMBAT", "player", "HEAL", "", Secret(12), 8)
+Advance(0.3)
+assertEq(#lines("incoming"), 1, "\"Unnamed heals on you\" off: hidden")
+fire("UNIT_COMBAT", "player", "HEAL", "", 120, 8)
+Advance(0.3)
+assertEq(#lines("incoming"), 1, "readable ones too")
+STATE.who.target = nil
+fire("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-rj3", 774)
+fire("UNIT_COMBAT", "player", "HEAL", "", Secret(300), 8)
+Advance(0.3)
+assertEq(#lines("incoming"), 2, "your own heal still shows: it has a name")
+BT.db.inOtherHeals, BT.db.minHeal = true, 0
+clear()
 BT.selfHots, BT.iconCache = nil, nil
 STATE.spellIcons[774] = nil
 STATE.helpful = nil
@@ -1752,6 +1773,25 @@ BT.recorded = {}
 wound(Secret(13), 8)
 Advance(1.3)
 assertEq(lastNamed(), "nothing came for it: shown", "no blow: shown as it is")
+-- Named, it can be hidden (a player's report: Retribution Aura stayed on screen with "Damage
+-- shields" off and a Hide rule for it, because it had no name)
+BT.recorded = {}
+clear()
+BT.db.outShields = false
+wound(Secret(13), 8)
+Advance(0.6)
+blow()
+Advance(1)
+assertEq(#lines("outgoing"), 0, "\"Damage shields\" off: hidden")
+BT.db.outShields = true
+BT:AddSpellRule("Lightning Shield")
+BT:SetSpellRule(BT.db.spellRules[#BT.db.spellRules], "hide", true)
+wound(Secret(13), 8)
+Advance(0.6)
+blow()
+Advance(1)
+assertEq(#lines("outgoing"), 0, "hidden on the Spells tab: hidden")
+BT:RemoveSpellRule(#BT.db.spellRules)
 BT.db.debug, BT.recorded = false, nil
 Advance(1)
 wound(Secret(14), 4)
@@ -2463,7 +2503,7 @@ for _, f in ipairs(ALL_FRAMES) do
         end
     end
 end
-assertEq(switches, 52, "the switches are there")
+assertEq(switches, 53, "the switches are there")
 -- A switch's label is part of it: its click area stretches over the text
 for _, f in ipairs(ALL_FRAMES) do
     if f.isSwitch and f.key and inWindow(f) then

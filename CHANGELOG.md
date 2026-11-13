@@ -4,6 +4,8 @@
 
 - **Damage shields show their icon from the first hit.** Retribution Aura, Thorns, Lightning Shield and Fire Shield used to need a few hits before BattleText knew their damage, and it often never learned it because the game hides the amounts. Now a hit of the shield's school on a mob that's attacking you is named as soon as that mob's blow on you lands. (Thanks to Ehldarion for the report.)
 - **Heal-over-time ticks on yourself show their icon.** Rejuvenation, Regrowth and Renew ticks on you showed only "+number", because the game doesn't say which spell healed you. A heal on you that lands right on the beat of a heal-over-time you cast on yourself is now named after it. (Thanks to Ehldarion for the report.)
+- **Retribution Aura can be hidden.** Its hits had no name, so a Hide rule on the Spells tab and "Damage shields" (Outgoing tab) couldn't catch them. Now that they're named, both work. (Thanks to user_qtzuiuer28ngqgnt for the report.)
+- **New: "Unnamed heals on you"** (Healing tab). The game hides the number of most heals on you, so "Hide heals below" can't catch small ones like Thrill of Adventure. Turn this off to hide heals on you that the game doesn't name: other players' heals, food and small passive heals. Your own heals keep their name and still show. On to start with.
 
 ## 1.16.3
 

@@ -108,6 +108,7 @@ local DEFAULTS = {
     outTicks = true,          -- the ticks of your DoTs and lingering area spells (Consecration, Blizzard...)
     shieldAmounts = {},       -- learned: what each damage shield of yours hits for (by its name)
     inDamage = true, inHeals = true, inMisses = true, inPower = false,
+    inOtherHeals = true,      -- heals on you the game doesn't name (other players', food, passives)
     nCombat = true, nKill = true, nXP = true, nRep = true, nHonor = true,
     nLoot = true, nMoney = false, nSkill = true, nSeals = true,
     nBuffs = false,           -- a line when a buff goes on or comes off (out of a fight only)
@@ -1231,6 +1232,8 @@ function BT:OnUnitCombat(unit, action, flag, amount, school)
                     BT:CountSpell(cast.name, n, crit, true, BT:IconText(cast.id))
                 end
                 after = SpellAfter(BT:SpellParts("heal", BT:IconText(cast.id), cast.name))
+            elseif not BT.db.inOtherHeals then
+                return   -- (its number is often hidden, so "Hide heals below" can't catch it)
             end
             if secret then
                 BT:Emit(BT:HealArea("incoming"), "+", color, { crit = crit, secret = amount, after = after })
@@ -1781,7 +1784,7 @@ end
 -- line, the mob's blow on you trails it like a swing: a hit of the shield's school that nothing
 -- named, on a mob after you, is the shield's when a blow lands on you just before or soon after.
 function BT:ShieldOn(h)
-    if h.kind ~= "damage" or not self.db.outShields then return nil end
+    if h.kind ~= "damage" then return nil end   -- (with "Damage shields" off it's still named, then hidden)
     local mask = Num(h.school)
     if not mask or mask == 1 then return nil end
     if not Flag(UnitIsUnit, h.unit .. "target", "player") then return nil end

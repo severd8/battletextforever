@@ -401,8 +401,14 @@ local function BuildHealing(p)
     Setting(card, "Show who you healed", 12, -108, "healWho",
         "The name of the player you healed, after the number. Only when the game lets BattleText read it.",
         function() return BT.db.outHeals end)
+    Setting(card, "Unnamed heals on you", COL2, -108, "inOtherHeals",
+        "Heals on you the game doesn't name: other players' heals, food, and small passive heals like Thrill of "
+        .. "Adventure. The game often hides their number, so \"Hide heals below\" can't catch them: turn this off "
+        .. "to hide them. Your own heals keep their name and still show.",
+        function() return BT.db.inHeals end)
     Slider(card, "Hide heals below", 12, -142, "minHeal", { step = 5, zero = "Off", enabledIf = anyHeals,
-        tip = "Heals for less than this aren't shown. A heal whose number the game hides always shows." })
+        tip = "Heals for less than this aren't shown. A heal whose number the game hides always shows "
+            .. "(turn off \"Unnamed heals on you\" for other people's)." })
     AreaLook(p, -206, "heal", false, function() return BT:AreaUsed("heal") end, "Nothing shows here (Layout tab)")
 end
 
