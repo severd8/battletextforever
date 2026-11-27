@@ -1456,6 +1456,29 @@ function BT:SilentTick(h)
     return dot
 end
 
+-- A line in this frame that something else in it accounts for: a damage shield or gear of yours
+-- answering a blow (Thorns, the Spiked Shell Band: their Nature hits come in the line's frame) or a
+-- heal on you (Thrill of Adventure). It isn't a tick's own line. Tyler's druid log (1.47.2,
+-- tests/real_fight11.txt): such lines landing in the frame of a hit on Rake's beat were counted as
+-- Rake's ticks coming with their lines (BT.tickLines); after two, its beat stopped naming its ticks
+-- for the rest of the session, and every tick showed as a plain white hit.
+local function LineAccounted(seq, first, last, i)
+    for j = first, last do
+        local o = seq[j]
+        if j ~= i and o.hit then
+            local mask = Num(o.school)
+            if o.kind == "heal" or (o.kind == "damage" and mask ~= nil and mask ~= 1) then return true end
+        end
+    end
+    return false
+end
+-- Right on a damage over time's beat (TICK_CLOSE), counted from its last tick or its cast
+local function OnStrictBeat(h, dot)
+    local since = h.time - (dot.last or dot.at)
+    local beats = math.floor(since / dot.period + 0.5)
+    return beats >= 1 and math.abs(since - beats * dot.period) <= TICK_CLOSE
+end
+
 -- A melee crit of yours (a swing, or a physical blow you cast; not a shot) with the Deep Wounds
 -- talent: the mob bleeds for DEEP_WOUNDS' time, starting over on each crit. Its ticks are named
 -- like any bleed of yours: by the line behind them, or by their beat when they have none (as Rake,
@@ -2297,8 +2320,10 @@ function BT:ResolveFrame(seq, first, last)
             -- with a line just ahead of it in the frame (a swing landing with its line first).
             if not spell and linesFlow and h.kind == "damage" then
                 local lineBehind = false
+                local accounted = LineAccounted(seq, first, last, i)   -- (a shield's line isn't the hit's)
                 for j = first, last do
-                    if j ~= i and seq[j].line and not seq[j].used and (j > i or seq[j].time == h.time) then
+                    if j ~= i and seq[j].line and not seq[j].used and not accounted
+                            and (j > i or seq[j].time == h.time) then
                         lineBehind = true
                         break
                     end
@@ -2309,6 +2334,9 @@ function BT:ResolveFrame(seq, first, last)
                     silent.silent = (silent.silent or 0) + 1
                     silent.tick = h.n or silent.tick
                     silent.last = h.time
+                    -- (a tick on its beat with no line behind it: this game sends none for its ticks,
+                    -- whatever lines were counted for it before)
+                    if silent.lineUnsure and self.tickLines then self.tickLines[silent.name] = nil end
                 end
             end
             local swung = false   -- (vouched for by a swing of yours: a white hit)
@@ -2362,7 +2390,10 @@ function BT:ResolveFrame(seq, first, last)
                     end
                     if vouched then
                         what, spell = "tick", dot
-                        if linesFlow and dot.lineUnsure then
+                        -- (only a line nothing else in the frame accounts for, behind a hit right on
+                        -- the beat, says this game sends its ticks' lines)
+                        if linesFlow and dot.lineUnsure and OnStrictBeat(h, dot)
+                                and not LineAccounted(seq, first, last, i) then
                             -- (SilentTick: this game sends its ticks' lines)
                             self.tickLines = self.tickLines or {}
                             self.tickLines[dot.name] = (self.tickLines[dot.name] or 0) + 1

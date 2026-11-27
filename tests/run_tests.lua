@@ -3945,6 +3945,94 @@ STATE.who = {}
 clear()
 end
 
+step("an eleventh real fight: Tyler's cat druid, Rake's bleed with Thorns and the ring stinging back")
+-- tests/real_fight11.txt (1.47.2, Tyler's druid, every amount hidden, SENT lines left out). Rake's
+-- ticks come with no line on his game, while Thorns' and the Spiked Shell Band's lines keep coming.
+-- Until 1.47.2 a shield's line landing in the frame of a hit on Rake's beat was counted as Rake's
+-- tick coming with its line (BT.tickLines); after two, Rake's beat named nothing for the rest of the
+-- session. In game every tick showed as a plain white hit, the last one (127.28, no swing near it)
+-- turned away as "no line of yours with it".
+do
+STATE.class = "DRUID"
+STATE.spellNames[1823], STATE.spellNames[3029], STATE.spellNames[768] = "Rake", "Claw", "Cat Form"
+STATE.spellNames[1066], STATE.spellNames[414924] = "Aquatic Form", "Feral Charge (Cat)"
+local RING = { name = "Spiked Shell Band", icon = 133345,
+    lines = { "Equip: When struck in combat, inflicts 2 Nature damage to the attacker." } }
+local function geared()
+    STATE.buffs = { { name = "Thorns", spellId = 782 } }
+    fire("PLAYER_REGEN_ENABLED")
+    STATE.equipped[11] = RING
+    fire("PLAYER_EQUIPMENT_CHANGED", 11, true)
+end
+local function fight()
+    freshFight()
+    BT.flying, BT.hawks, BT.swings, BT.hands, BT.swungAt, BT.meleeAt, BT.unnamed = nil, nil, nil, nil, nil, nil, nil
+    geared()
+    BT:RemakeSpellLists()
+    BT.db.debug, BT.recorded = true, {}
+    local out = replay("real_fight11.txt")
+    local ticks, zero = {}, nil
+    for _, r in ipairs(BT.recorded) do
+        -- (times as recorded: the first Rake, dodged, was at 110.80)
+        local cast = r:match("^%s*([%d%.]+)%s+nameplate1 [^:]+: cast of Rake$")
+        if cast and not zero then zero = tonumber(cast) - 110.80 end
+        local at = r:match("^%s*([%d%.]+)%s+nameplate1 [^:]+: tick of Rake$")
+        if at then ticks[#ticks + 1] = string.format("%.2f", tonumber(at) - zero) end
+    end
+    BT.db.debug, BT.recorded = false, nil
+    local rakes = 0
+    for _, text in ipairs(out) do
+        if text:find("^Rake") and not text:find("Dodge") then rakes = rakes + 1 end
+    end
+    return ticks, rakes
+end
+-- The hits on Rake's beat: 115.59 (3s after the cast at 112.69), then 121.31, 124.34 and 127.28 (from
+-- the cast again at 118.26)
+local function shift(list) return table.concat(list, " ") end
+BT.dots, BT.tickLines = nil, nil
+local ticks, rakes = fight()
+assertEq(shift(ticks), "115.59 121.31 124.34 127.28", "Rake's ticks named by their beat")
+assertEq(rakes, 2 + 4, "on screen: the two Rakes that hit, and four ticks")
+-- A session's earlier fights: Thorns and the ring answering a blow (a line, two Nature hits) in the
+-- frame of a hit on Rake's beat, twice. Their line isn't Rake's tick's: Rake keeps its beat.
+freshFight()
+geared()
+BT.dots, BT.swings, BT.swungAt, BT.tickLines = nil, nil, nil, nil
+STATE.unit.rakeMob = { enemy = true, guid = "Creature-0-1-2-3-311-00000R", target = "me" }
+STATE.who = { target = "rakeMob", nameplate1 = "rakeMob" }
+hidden(356)
+cast(1823) wound(30)
+for k = 1, 2 do
+    Advance(k == 1 and 3 or 2.7)
+    wound(12) hidden(356 + k) wound(9, 8) wound(2, 8)
+    Advance(0.3) fire("UNIT_COMBAT", "player", "WOUND", "", 20, 1)
+end
+Advance(2)
+assertEq(lines("outgoing")[#lines("outgoing") - 2], "Rake 12", "(each one Rake's tick)")
+assert(((BT.tickLines or {}).Rake or 0) < 2, "a shield's lines aren't Rake's ticks' lines")
+STATE.unit.rakeMob = nil
+BT.dots = nil
+ticks, rakes = fight()
+assertEq(shift(ticks), "115.59 121.31 124.34 127.28", "after them, Rake's ticks are still named")
+-- And a tick on its beat with no line behind it wipes out a line counted for it before
+BT.dots, BT.tickLines = nil, { Rake = 1 }
+fight()
+assertEq((BT.tickLines or {}).Rake, nil, "a tick with no line: this game sends none for Rake's ticks")
+-- (on a game that does send them, two in a row still switch its beat off: see "Rake on a game that
+-- sends Rake's ticks their lines" above)
+BT.tickLines = { Rake = 2 }
+BT.dots = nil
+ticks = fight()
+assertEq(#ticks, 0, "switched off: no tick by its beat alone (what Tyler saw)")
+BT.dots, BT.tickLines = nil, nil
+STATE.equipped[11] = nil
+fire("PLAYER_EQUIPMENT_CHANGED", 11, false)
+STATE.buffs = {}
+STATE.class = "DRUID"
+STATE.who = {}
+clear()
+end
+
 step("lines scroll, keep their distance and go away")
 log(hit("Claw", 16827, 50))
 log(hit("Bite", 17253, 60))

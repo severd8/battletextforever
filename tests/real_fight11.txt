@@ -1,0 +1,173 @@
+ 98.18  UNIT_COMBAT player HEAL  (hidden amount) school 1
+ 98.18  hidden  |Ky9|k
+ 98.18    player heal: named Thrill of Adventure
+ 100.18  UNIT_COMBAT player HEAL  (hidden amount) school 1
+ 100.18  hidden  |Ky10|k
+ 100.18    player heal: named Thrill of Adventure
+ 101.42  CAST 1066 Aquatic Form
+ 102.09  UNIT_COMBAT player HEAL  (hidden amount) school 1
+ 102.09  hidden  |Ky10|k
+ 102.09    player heal: named Thrill of Adventure
+ 108.59  CAST 768 Cat Form
+ 110.80  CAST 1823 Rake
+ 110.80  UNIT_COMBAT nameplate1 DODGE  (hidden amount) school 1
+ 110.80  UNIT_COMBAT target DODGE  (hidden amount) school 1: same hit, under another name
+ 110.80  SWING 0
+ 110.80    nameplate1 (hidden amount): cast of Rake
+ 111.17  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 111.17  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 111.17    nameplate1 (hidden amount): shown
+ 111.69  UNIT_COMBAT player MISS  (hidden amount) school 1
+ 111.71  SWING 0
+ 112.38  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 112.38  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 112.38    nameplate1 (hidden amount): shown
+ 112.59  SWING 0
+ 112.69  hidden  |Ky357|k
+ 112.69  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 112.69  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 112.69  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 112.69  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 112.69  CAST 1823 Rake
+ 112.69  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 112.69  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 112.69    nameplate1 (hidden amount): waiting: your seal's, your shield's or your gear's?
+ 112.69    nameplate1 (hidden amount): waiting: your seal's, your shield's or your gear's?
+ 112.69    nameplate1 (hidden amount): cast of Rake
+ 113.40  SWING 0
+ 113.45  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 113.45  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 113.45    nameplate1 (hidden amount): shown
+ 113.69  UNIT_COMBAT player WOUND  (hidden amount) school 1
+ 112.69    nameplate1 (hidden amount): shield of Thorns
+ 112.69    nameplate1 (hidden amount): hidden on the Spells tab (Spiked Shell Band)
+ 114.12  UNIT_COMBAT nameplate1 WOUND CRITICAL (hidden amount) school 1
+ 114.12  UNIT_COMBAT target WOUND CRITICAL (hidden amount) school 1: same hit, under another name
+ 114.12    nameplate1 (hidden amount): shown
+ 114.35  SWING 0
+ 114.60  hidden  |Ky358|k
+ 114.72  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 114.72  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 114.72  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 114.72  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 114.72    nameplate1 (hidden amount): waiting: your seal's, your shield's or your gear's?
+ 114.72    nameplate1 (hidden amount): waiting: your seal's, your shield's or your gear's?
+ 115.01  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 115.01  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 115.01    nameplate1 (hidden amount): shown
+ 115.22  CAST 3029 Claw
+ 115.22  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 115.22  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 115.22  SWING 0
+ 115.22    nameplate1 (hidden amount): cast of Claw
+ 115.59  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 115.59  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 115.59    nameplate1 (hidden amount): shown
+ 115.60  UNIT_COMBAT player WOUND  (hidden amount) school 1
+ 114.72    nameplate1 (hidden amount): shield of Thorns
+ 114.72    nameplate1 (hidden amount): hidden on the Spells tab (Spiked Shell Band)
+ 115.73  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 115.73  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 115.73    nameplate1 (hidden amount): shown
+ 116.10  SWING 0
+ 116.65  hidden  |Ky358|k
+ 116.65  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 116.65  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 116.65  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 116.65  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 116.65    nameplate1 (hidden amount): waiting: your seal's, your shield's or your gear's?
+ 116.65    nameplate1 (hidden amount): waiting: your seal's, your shield's or your gear's?
+ 116.76  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 116.76  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 116.76    nameplate1 (hidden amount): shown
+ 116.89  SWING 0
+ 117.34  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 117.34  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 117.34    nameplate1 (hidden amount): shown
+ 117.64  UNIT_COMBAT player WOUND  (hidden amount) school 1
+ 116.65    nameplate1 (hidden amount): shield of Thorns
+ 116.65    nameplate1 (hidden amount): hidden on the Spells tab (Spiked Shell Band)
+ 117.85  SWING 0
+ 118.23  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 118.23  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 118.23    nameplate1 (hidden amount): shown
+ 118.26  CAST 1823 Rake
+ 118.26  UNIT_COMBAT nameplate1 WOUND CRITICAL (hidden amount) school 1
+ 118.26  UNIT_COMBAT target WOUND CRITICAL (hidden amount) school 1: same hit, under another name
+ 118.26    nameplate1 (hidden amount): cast of Rake
+ 118.68  SWING 0
+ 119.09  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 119.09  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 119.09    nameplate1 (hidden amount): shown
+ 119.60  SWING 0
+ 119.67  UNIT_COMBAT player DODGE  (hidden amount) school 1
+ 120.27  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 120.27  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 120.27    nameplate1 (hidden amount): shown
+ 120.40  SWING 0
+ 120.84  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 120.84  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 120.84    nameplate1 (hidden amount): shown
+ 121.31  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 121.31  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 121.31  SWING 0
+ 121.31    nameplate1 (hidden amount): shown
+ 121.70  UNIT_COMBAT player MISS  (hidden amount) school 1
+ 121.70  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 121.70  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 121.70    nameplate1 (hidden amount): shown
+ 122.23  SWING 0
+ 122.23  CAST 3029 Claw
+ 122.23  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 122.23  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 122.23    nameplate1 (hidden amount): cast of Claw
+ 122.63  hidden  |Ky357|k
+ 122.73  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 122.73  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 122.73  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 122.73  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 122.73    nameplate1 (hidden amount): waiting: your seal's, your shield's or your gear's?
+ 122.73    nameplate1 (hidden amount): waiting: your seal's, your shield's or your gear's?
+ 123.08  SWING 0
+ 123.10  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 123.10  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 123.10    nameplate1 (hidden amount): shown
+ 123.48  UNIT_COMBAT nameplate1 WOUND CRITICAL (hidden amount) school 1
+ 123.48  UNIT_COMBAT target WOUND CRITICAL (hidden amount) school 1: same hit, under another name
+ 123.48    nameplate1 (hidden amount): shown
+ 123.63  UNIT_COMBAT player WOUND  (hidden amount) school 1
+ 122.73    nameplate1 (hidden amount): shield of Thorns
+ 122.73    nameplate1 (hidden amount): hidden on the Spells tab (Spiked Shell Band)
+ 123.98  SWING 0
+ 124.34  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 124.34  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 124.34    nameplate1 (hidden amount): shown
+ 124.65  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 124.65  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 124.65    nameplate1 (hidden amount): shown
+ 124.71  hidden  |Ky359|k
+ 124.71  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 124.71  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 124.71  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 8
+ 124.71  UNIT_COMBAT target WOUND  (hidden amount) school 8: same hit, under another name
+ 124.71    nameplate1 (hidden amount): shown
+ 124.71    nameplate1 (hidden amount): no line of yours with it
+ 124.86  SWING 0
+ 125.52  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 125.52  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 125.52    nameplate1 (hidden amount): shown
+ 125.71  UNIT_COMBAT player WOUND  (hidden amount) school 1
+ 127.28  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 127.28  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 127.28    nameplate1 (hidden amount): no line of yours with it
+ 128.02  CAST 414924 Feral Charge (Cat)
+ 128.26  SWING 0
+ 128.64  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 128.64  UNIT_COMBAT target WOUND  (hidden amount) school 1: same hit, under another name
+ 128.64    nameplate1 (hidden amount): shown
+ 129.13  SWING 0
+ 129.13  UNIT_COMBAT nameplate1 WOUND  (hidden amount) school 1
+ 129.13    nameplate1 (hidden amount): shown
+ 131.15  UNIT_COMBAT player HEAL  (hidden amount) school 1
+ 131.15  hidden  |Ky10|k
+ 131.15    player heal: named Thrill of Adventure
