@@ -3993,6 +3993,12 @@ BT.dots, BT.tickLines = nil, nil
 local ticks, rakes = fight()
 assertEq(shift(ticks), "115.59 121.31 124.34 127.28", "Rake's ticks named by their beat")
 assertEq(rakes, 2 + 4, "on screen: the two Rakes that hit, and four ticks")
+-- The debug log's times have three decimals: hits a few milliseconds apart are seen not to be
+-- in the same frame (1.47.2, Tyler's ask)
+BT.recorded = {}
+BT:Record("x", 123.4567)
+assertEq(BT.recorded[1], " 123.457  x", "debug times to the millisecond")
+BT.recorded = nil
 -- A session's earlier fights: Thorns and the ring answering a blow (a line, two Nature hits) in the
 -- frame of a hit on Rake's beat, twice. Their line isn't Rake's tick's: Rake keeps its beat.
 freshFight()

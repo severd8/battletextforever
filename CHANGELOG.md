@@ -3,6 +3,7 @@
 ## 1.47.2
 
 - **Rake's bleed ticks show as Rake again, for the whole session.** Druids saw only Rake's first hit, and every bleed tick after it as a plain white hit (or not at all). The game sends no combat line for Rake's ticks on WoW Forever, so BattleText names them by their 3-second beat. But it also watches for games that do send those lines, and switches the beat off when it sees them. Thorns' and the Spiked Shell Band's lines (and Thrill of Adventure's), landing at the same moment as a Rake tick, were mistaken for Rake's own lines, so after a couple of fights the beat was switched off until you logged out or reloaded. Lines that belong to your shields, gear or heals no longer count, and any tick that arrives on its beat with no line behind it switches the beat back on.
+- The `/btf debug` log shows times to the thousandth of a second, so it's clear which things happened at the same moment.
 
 ## 1.47.1
 

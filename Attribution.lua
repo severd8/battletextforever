@@ -2860,7 +2860,7 @@ function BT:Record(text, time)
     self.recorded = self.recorded or {}
     local list = self.recorded
     text = Str(text) or "(a line with a hidden value)"
-    list[#list + 1] = ("%7.2f  %s"):format((Num(time) or GetTime()) % 1000, text)
+    list[#list + 1] = ("%8.3f  %s"):format((Num(time) or GetTime()) % 1000, text)
     -- (trimmed 500 at a time: one at a time would move 5000 lines for each new one)
     if #list > RECORD_MOST + 500 then
         local kept = {}
